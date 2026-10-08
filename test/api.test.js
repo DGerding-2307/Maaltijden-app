@@ -74,3 +74,20 @@ test('meerdere recepten verwijderen en standaardrecepten terugzetten', async () 
   const titles = (await get('/recipes')).map((r) => r.title);
   for (const r of builtin) assert.ok(titles.includes(r.title), r.title);
 });
+
+test('standaardrecepten hebben een foto met bronvermelding; een eigen foto vervangt die', async () => {
+  const list = await get('/recipes');
+  const nasi = list.find((r) => r.title === 'Nasi goreng');
+  assert.equal(nasi.image_url, 'img/recipes/nasi-goreng.jpg');
+  const full = await get(`/recipes/${nasi.id}`);
+  const credit = JSON.parse(full.image_credit);
+  assert.ok(credit.author && credit.license && credit.page, JSON.stringify(credit));
+  const res = await fetch(base.replace('/api', '/') + nasi.image_url);
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /image\/jpeg/);
+  // Eigen foto: bronvermelding vervalt
+  await send('PUT', `/recipes/${nasi.id}`, { ...full, image_url: '/uploads/eigen.jpg' });
+  const after = await get(`/recipes/${nasi.id}`);
+  assert.equal(after.image_url, '/uploads/eigen.jpg');
+  assert.equal(after.image_credit, null);
+});
