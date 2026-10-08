@@ -67,8 +67,11 @@ const stripHtml = (s) => String(s || '').replace(/<[^>]+>/g, '').replace(/\s+/g,
 
 async function getJson(url) {
   for (let attempt = 0; attempt < 3; attempt++) {
-    const res = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/json' } });
-    if (res.status === 429) { await sleep(10000 * (attempt + 1)); continue; }
+    let res;
+    try {
+      res = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/json' }, signal: AbortSignal.timeout(20000) });
+    } catch (err) { console.log(`  ${err.name} ${url}`); continue; }
+    if (res.status === 429) { console.log(`  429 ${url}`); await sleep(5000 * (attempt + 1)); continue; }
     if (!res.ok) throw new Error(`${res.status} ${url}`);
     return res.json();
   }
@@ -118,7 +121,7 @@ async function openverse(query, limit = 6) {
 }
 
 async function download(url, file) {
-  const res = await fetch(url, { headers: { 'User-Agent': UA } });
+  const res = await fetch(url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(30000) });
   if (!res.ok) throw new Error(`${res.status}`);
   const buf = Buffer.from(await res.arrayBuffer());
   if (buf.length > 8_000_000) throw new Error('te groot');
