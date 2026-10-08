@@ -20,7 +20,7 @@ const QUERIES = [
   ['hollandse-pannenkoeken', ['pannenkoek', 'Dutch pancakes'], 'pannenkoeken'],
   ['nasi-goreng', ['nasi goreng'], 'nasi goreng'],
   ['macaroni-met-gehakt-en-kaas', ['macaroni gehakt', 'macaroni casserole cheese'], 'macaroni minced meat cheese'],
-  ['spruitjes-met-gehaktballen-en-aardappelen', ['spruitjes gehaktbal', 'brussels sprouts meatballs potatoes'], 'brussels sprouts meatball potatoes'],
+  ['spruitjes-met-gehaktballen-en-aardappelen', ['spruitjes', 'brussels sprouts dish', 'gehaktbal aardappelen'], 'brussels sprouts potatoes'],
   ['zalm-uit-de-oven-met-broccoli-en-krieltjes', ['baked salmon broccoli potatoes', 'salmon broccoli'], 'baked salmon broccoli potatoes'],
   ['kip-kerrie-met-rijst', ['kip kerrie', 'chicken curry rice'], 'chicken curry rice'],
   ['wraps-met-kip-en-groenten', ['chicken wrap', 'tortilla wrap chicken vegetables'], 'chicken wrap vegetables'],
@@ -50,7 +50,7 @@ const QUERIES = [
   ['vegetarische-burrito-s', ['burrito', 'vegetarian burrito'], 'vegetarian burrito'],
   ['kabeljauw-uit-de-oven-met-groenten', ['baked cod', 'cod fillet vegetables'], 'baked cod vegetables'],
   ['spinaziestamppot-met-gebakken-ei', ['stamppot spinazie', 'stamppot egg'], 'spinach mashed potatoes fried egg'],
-  ['speklapjes-met-sperziebonen-en-krieltjes', ['speklapjes', 'pork belly green beans potatoes'], 'pork belly green beans potatoes'],
+  ['speklapjes-met-sperziebonen-en-krieltjes', ['speklap', 'sperziebonen aardappelen', 'pork belly slices fried'], 'fried pork belly potatoes'],
   ['varkenshaas-met-champignonroomsaus', ['pork tenderloin mushroom sauce', 'varkenshaas'], 'pork tenderloin mushroom sauce'],
   ['draadjesvlees-met-sperziebonen', ['draadjesvlees', 'beef stew potatoes green beans'], 'braised beef stew'],
   ['risotto-met-champignons', ['mushroom risotto', 'risotto ai funghi'], 'mushroom risotto'],
@@ -131,7 +131,9 @@ async function download(url, file) {
 
 fs.mkdirSync(OUT, { recursive: true });
 const meta = {};
-for (const [key, commonsQueries, ovQuery] of QUERIES) {
+// Met ONLY=sleutel1,sleutel2 alleen die recepten opnieuw zoeken
+const only = process.env.ONLY ? process.env.ONLY.split(',') : null;
+for (const [key, commonsQueries, ovQuery] of QUERIES.filter(([k]) => !only || only.includes(k))) {
   const found = [];
   const seenUrls = new Set();
   const add = (list, max) => {

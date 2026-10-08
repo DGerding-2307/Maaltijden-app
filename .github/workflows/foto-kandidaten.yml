@@ -9,6 +9,10 @@ on:
         description: 'Tijdelijke release verwijderen in plaats van zoeken'
         type: boolean
         default: false
+      alleen:
+        description: 'Alleen deze recepten (sleutels, komma-gescheiden)'
+        type: string
+        default: ''
 
 permissions:
   contents: write
@@ -28,6 +32,8 @@ jobs:
       - name: Kandidaten zoeken en downloaden
         if: ${{ !inputs.opruimen }}
         timeout-minutes: 30
+        env:
+          ONLY: ${{ inputs.alleen }}
         run: |
           node scripts/photos/candidates.mjs out
           cd out && zip -qr ../foto-kandidaten.zip .
