@@ -208,9 +208,13 @@ met HTTPS (bijv. Caddy, Nginx Proxy Manager of Traefik). Met HTTPS kun je de app
 
 ## Claude instellen
 
-1. Maak een API-sleutel aan op [console.anthropic.com](https://console.anthropic.com/).
+1. Maak een API-sleutel aan op [platform.claude.com](https://platform.claude.com/) (API keys → Create key).
+   Een Claude-abonnement (Pro/Max) geeft geen API-toegang; het API-gebruik wordt apart afgerekend.
+   Met **Claude Max of Team** krijg je wel maandelijks API-tegoed: koppel het op claude.ai via Instellingen → Billing → *API credits*,
+   en maak de sleutel aan in díe gekoppelde organisatie.
 2. Zet hem in `.env` als `ANTHROPIC_API_KEY`, of vul hem in bij **Instellingen** in de app.
-3. Vul bij Instellingen ook je huishouden en voorkeuren in (aantal personen, allergieën, ‘2x per week vegetarisch’…). Claude gebruikt dit bij weekmenu’s en nieuwe recepten.
+3. Klik bij Instellingen op **Verbinding testen**. Je ziet direct of het werkt, of wat er mis is (sleutel, tegoed, internetverbinding).
+4. Vul bij Instellingen ook je huishouden en voorkeuren in (aantal personen, allergieën, ‘2x per week vegetarisch’…). Claude gebruikt dit bij weekmenu’s en nieuwe recepten.
 
 Standaard wordt het model `claude-opus-5-5` gebruikt; met `CLAUDE_MODEL` kun je een ander model kiezen.
 Claude wordt alleen aangeroepen als je zelf op een ✨-knop drukt.

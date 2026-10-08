@@ -354,6 +354,7 @@ export function createApp() {
 
   // ---- Claude ----
   api.get('/ai/status', wrap(() => ai.claudeStatus()));
+  api.post('/ai/test', wrap(() => ai.testConnection()));
   api.post('/ai/import', wrap((req) => ai.importRecipe(req.body)));
   api.post('/ai/generate', wrap((req) => ai.generateRecipe(req.body)));
   api.post('/ai/week-menu', wrap(async (req) => {

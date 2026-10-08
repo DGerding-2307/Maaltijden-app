@@ -12,12 +12,15 @@ export function getModel() {
   return process.env.CLAUDE_MODEL || getSetting('claude_model', null) || 'claude-opus-5-5';
 }
 
+// Spaties, regeleinden of aanhalingstekens rond een geplakte sleutel (bv. in Portainer) weghalen
+const cleanKey = (k) => String(k || '').trim().replace(/^["']+|["']+$/g, '').trim() || null;
+
 function apiKey() {
-  return process.env.ANTHROPIC_API_KEY || getSetting('anthropic_api_key', null);
+  return cleanKey(process.env.ANTHROPIC_API_KEY) || cleanKey(getSetting('anthropic_api_key', null));
 }
 
 export function claudeStatus() {
-  return { configured: !!apiKey(), from_env: !!process.env.ANTHROPIC_API_KEY, model: getModel() };
+  return { configured: !!apiKey(), from_env: !!cleanKey(process.env.ANTHROPIC_API_KEY), model: getModel() };
 }
 
 function client() {
@@ -34,15 +37,69 @@ function client() {
   return cachedClient;
 }
 
+/** De foutmelding van de API zelf (zonder JSON eromheen). */
+function apiMessage(err) {
+  return err?.error?.error?.message || err?.message || '';
+}
+
 /** Vertaal SDK-fouten naar duidelijke Nederlandse meldingen. */
 export function friendlyError(err) {
-  if (err instanceof Anthropic.AuthenticationError) return { status: 401, message: 'De Anthropic API-sleutel is ongeldig.' };
-  if (err instanceof Anthropic.PermissionDeniedError) return { status: 403, message: 'Geen toegang tot dit Claude-model met deze API-sleutel.' };
-  if (err instanceof Anthropic.RateLimitError) return { status: 429, message: 'Claude is even te druk (rate limit). Probeer het zo opnieuw.' };
-  if (err instanceof Anthropic.BadRequestError) return { status: 400, message: `Claude kon het verzoek niet verwerken: ${err.message}` };
-  if (err instanceof Anthropic.APIConnectionError) return { status: 502, message: 'Kan geen verbinding maken met Claude. Controleer de internetverbinding van de server.' };
-  if (err instanceof Anthropic.APIError) return { status: 502, message: `Fout bij Claude: ${err.message}` };
+  const out = translateError(err);
+  // Claude-fouten altijd loggen, zodat ze in de containerlogs (Portainer/Docker) te zien zijn
+  if (err instanceof Anthropic.APIError) console.error(`Claude-fout (${err.status ?? 'geen verbinding'}): ${apiMessage(err)}`);
+  return out;
+}
+
+function translateError(err) {
+  const msg = apiMessage(err);
+  if (err instanceof Anthropic.AuthenticationError) {
+    return { status: 401, message: 'De Anthropic API-sleutel wordt niet geaccepteerd. Controleer of je de hele sleutel (begint met sk-ant-) hebt geplakt, en of hij niet is ingetrokken op platform.claude.com.' };
+  }
+  if (/credit balance|billing|purchase credits/i.test(msg)) {
+    return { status: 402, message: 'Er is geen API-tegoed beschikbaar voor deze sleutel. Controleer op platform.claude.com → Billing of de organisatie tegoed heeft. Met Claude Max of Team: koppel je API-tegoed op claude.ai (Instellingen → Billing → API credits) en maak de sleutel aan in díe gekoppelde organisatie.' };
+  }
+  if (err instanceof Anthropic.PermissionDeniedError) return { status: 403, message: `Deze API-sleutel heeft geen toegang tot het model ${getModel()}. ${msg}` };
+  if (err instanceof Anthropic.NotFoundError) return { status: 404, message: `Het Claude-model "${getModel()}" is niet gevonden voor deze sleutel. Controleer CLAUDE_MODEL of laat het leeg.` };
+  if (err instanceof Anthropic.RateLimitError) return { status: 429, message: 'Claude is even te druk of je limiet is bereikt (rate limit). Probeer het zo opnieuw.' };
+  if (err instanceof Anthropic.BadRequestError) return { status: 400, message: `Claude kon het verzoek niet verwerken: ${msg}` };
+  if (err instanceof Anthropic.APIConnectionError) {
+    return { status: 502, message: 'Kan geen verbinding maken met Claude (api.anthropic.com). Controleer of de server/container internet heeft en geen firewall of DNS-blokkade dit tegenhoudt.' };
+  }
+  if (err instanceof Anthropic.APIError && (err.status === 529 || err.status >= 500)) {
+    return { status: 503, message: 'Claude is tijdelijk overbelast of niet bereikbaar. Probeer het over een paar minuten opnieuw.' };
+  }
+  if (err instanceof Anthropic.APIError) return { status: 502, message: `Fout bij Claude: ${msg}` };
   return { status: err.status || 500, message: err.message || 'Onbekende fout' };
+}
+
+// Terugvallen op een ander model bij een weigering is een bèta-functie. Wordt die (nog) niet
+// geaccepteerd voor dit account, dan gaat het verder zonder, in plaats van dat alles faalt.
+let fallbackEnabled = true;
+async function withFallback(run) {
+  if (!fallbackEnabled) return run({});
+  try {
+    return await run({ betas: [FALLBACK_BETA], fallbacks: 'default' });
+  } catch (err) {
+    if (err instanceof Anthropic.BadRequestError && /fallback|beta|anthropic-beta/i.test(apiMessage(err))) {
+      console.warn(`Claude: terugvalfunctie niet beschikbaar (${apiMessage(err)}); verder zonder.`);
+      fallbackEnabled = false;
+      return run({});
+    }
+    throw err;
+  }
+}
+
+/** Kleine testaanvraag om de sleutel, het tegoed en de verbinding te controleren. */
+export async function testConnection() {
+  const t0 = Date.now();
+  const response = await withFallback((extra) => client().beta.messages.create({
+    model: getModel(),
+    max_tokens: 2000,
+    ...extra,
+    messages: [{ role: 'user', content: 'Antwoord alleen met het woord: OK' }],
+    output_config: { effort: 'low' },
+  }));
+  return { ok: true, model: response.model, ms: Date.now() - t0 };
 }
 
 const SYSTEM = `Je bent de kookassistent van een Nederlandse maaltijdplanner en receptenboek-app.
@@ -123,15 +180,14 @@ Bekende ingrediënten: ${knownIngredientList()}`;
 }
 
 async function structuredCall({ system, content, schema, effort = 'medium', maxTokens = 16000 }) {
-  const response = await client().beta.messages.create({
+  const response = await withFallback((extra) => client().beta.messages.create({
     model: getModel(),
     max_tokens: maxTokens,
-    betas: [FALLBACK_BETA],
-    fallbacks: 'default',
+    ...extra,
     system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content }],
     output_config: { effort, format: { type: 'json_schema', schema } },
-  });
+  }));
   if (response.stop_reason === 'refusal') {
     const e = new Error('Claude heeft dit verzoek geweigerd.');
     e.status = 422;
@@ -334,20 +390,21 @@ export async function askStream({ recipe, question, history = [] }, onText) {
     ...history.slice(-10).map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content) })),
     { role: 'user', content: question },
   ];
-  const stream = client().beta.messages.stream({
-    model: getModel(),
-    max_tokens: 8000,
-    betas: [FALLBACK_BETA],
-    fallbacks: 'default',
-    system: [
-      { type: 'text', text: `${SYSTEM}\nBeantwoord vragen kort en praktisch (vervangers, bewaren, variaties, dieetwensen, kooktips). Gebruik eenvoudige opmaak met korte alinea's of lijstjes.` },
-      { type: 'text', text: context },
-    ],
-    messages,
-    output_config: { effort: 'low' },
+  const final = await withFallback(async (extra) => {
+    const stream = client().beta.messages.stream({
+      model: getModel(),
+      max_tokens: 8000,
+      ...extra,
+      system: [
+        { type: 'text', text: `${SYSTEM}\nBeantwoord vragen kort en praktisch (vervangers, bewaren, variaties, dieetwensen, kooktips). Gebruik eenvoudige opmaak met korte alinea's of lijstjes.` },
+        { type: 'text', text: context },
+      ],
+      messages,
+      output_config: { effort: 'low' },
+    });
+    stream.on('text', (delta) => onText(delta));
+    return stream.finalMessage();
   });
-  stream.on('text', (delta) => onText(delta));
-  const final = await stream.finalMessage();
   if (final.stop_reason === 'refusal') onText('\n\n_(Claude heeft deze vraag niet beantwoord.)_');
   return final;
 }

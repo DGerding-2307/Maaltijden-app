@@ -47,6 +47,8 @@ export async function render(root) {
       <p class="muted">Claude wordt gebruikt voor het importeren en bedenken van recepten, weekmenu's, voedingswaarde-schattingen en vragen over recepten.
         Je hebt een API-sleutel nodig van <a href="https://console.anthropic.com/" target="_blank" rel="noopener">console.anthropic.com</a>.</p>
       <p>Status: ${m.claude.configured ? `<strong class="good">✔ ingesteld</strong>${m.claude.from_env ? ' (via ANTHROPIC_API_KEY)' : ''}` : '<strong class="bad">niet ingesteld</strong>'} · model <code>${esc(m.claude.model)}</code></p>
+      ${m.claude.configured ? `<div class="row wrap"><button type="button" class="btn" data-test-claude>🔌 Verbinding testen</button>
+        <span class="small" data-test-result role="status"></span></div>` : ''}
       ${m.claude.from_env ? '' : `<label>Anthropic API-sleutel <input class="input" type="password" name="anthropic_api_key" autocomplete="off" placeholder="${m.claude.configured ? '•••••••• (laat leeg om te behouden)' : 'sk-ant-…'}"></label>`}
 
       <h2>Voedingswaarden</h2>
@@ -127,6 +129,22 @@ export async function render(root) {
     </section>
   </div>`;
   const form = $('[data-form]', root);
+  $('[data-test-claude]', root)?.addEventListener('click', async (e) => {
+    const out = $('[data-test-result]', root);
+    e.target.disabled = true;
+    out.className = 'small muted';
+    out.textContent = 'Testen…';
+    try {
+      const r = await api.post('/ai/test');
+      out.className = 'small good';
+      out.textContent = `✔ Claude werkt (${r.model}, ${(r.ms / 1000).toFixed(1)} s)`;
+    } catch (err) {
+      out.className = 'small bad';
+      out.textContent = `✖ ${err.message}`;
+    } finally {
+      e.target.disabled = false;
+    }
+  });
   root.querySelectorAll('[data-person-form]').forEach((f) => f.addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
