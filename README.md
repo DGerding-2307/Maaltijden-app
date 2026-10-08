@@ -74,6 +74,12 @@ en receptenapps verwachten. Zie het [UAT-rapport](docs/UAT-rapport.md).
 
 Verder: werkt op telefoon (onderbalk-navigatie, installeerbaar als app), licht/donker thema, optioneel wachtwoord.
 
+## Demo in de browser
+
+`npm run demo:build` maakt in `dist-demo/` een versie die volledig in de browser draait. Hij gebruikt dezelfde frontend en datalaag,
+met SQLite via [sql.js](https://sql.js.org) en opslag in de browser. Handig om de app te proberen zonder server.
+Claude, Open Food Facts, Open Prices, de camera en back-up downloaden werken in de demo niet; daarvoor is de echte server nodig.
+
 ## Installeren
 
 ### Met Docker (aanbevolen)

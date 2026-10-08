@@ -57,6 +57,6 @@ window.addEventListener('offline', updateOnline);
 document.body.append(offlineBar);
 updateOnline();
 
-if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+if (!window.__MAALTIJDEN_DEMO && 'serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
