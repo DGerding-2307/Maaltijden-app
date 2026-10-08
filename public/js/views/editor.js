@@ -1,0 +1,192 @@
+// Recept toevoegen/bewerken. Wordt ook gebruikt om een door Claude gemaakt concept na te kijken.
+import { api, meta } from '../api.js';
+import { $, $$, esc, toast } from '../util.js';
+
+export const DRAFT_KEY = 'recipeDraft';
+
+export async function render(root, params) {
+  const m = await meta();
+  const ingredients = await api.get('/ingredients');
+  let recipe;
+  let isDraft = false;
+  if (params.id) {
+    recipe = await api.get(`/recipes/${params.id}`);
+  } else {
+    const draft = sessionStorage.getItem(DRAFT_KEY);
+    if (draft && params.concept === '1') {
+      recipe = JSON.parse(draft);
+      isDraft = true;
+    } else {
+      recipe = { title: '', description: '', servings: m.default_servings, category: 'Hoofdgerecht', cuisine: 'Nederlands', tags: [], steps: [], ingredients: [] };
+    }
+  }
+  const rows = (recipe.ingredients || []).map((r) => ({
+    name: r.name, quantity: r.quantity, unit: r.unit, note: r.note || '', optional: !!r.optional,
+    grams: r.grams ?? null, ingredient_id: r.ingredient_id ?? null, estimate: r.estimate || null,
+    ingredient_name: r.ingredient?.name || null,
+  }));
+  if (!rows.length) rows.push(emptyRow());
+
+  function emptyRow() {
+    return { name: '', quantity: '', unit: 'g', note: '', optional: false, grams: null, ingredient_id: null, estimate: null };
+  }
+
+  const ingById = new Map(ingredients.map((i) => [i.id, i]));
+  const ingByName = new Map(ingredients.map((i) => [i.name.toLowerCase(), i]));
+
+  root.innerHTML = `<div class="view editor">
+    <div class="page-head">
+      <h1>${params.id ? 'Recept bewerken' : isDraft ? 'Concept nakijken' : 'Nieuw recept'}</h1>
+      ${isDraft ? '<p class="muted">Claude heeft dit recept voor je klaargezet. Controleer het en klik op Opslaan.</p>' : ''}
+    </div>
+    <form class="form" data-form>
+      <div class="grid-2">
+        <label class="span-2">Titel <input class="input" name="title" required value="${esc(recipe.title)}"></label>
+        <label class="span-2">Korte beschrijving <textarea class="input" name="description" rows="2">${esc(recipe.description)}</textarea></label>
+        <label>Aantal personen <input class="input" type="number" min="1" name="servings" value="${recipe.servings}"></label>
+        <label>Categorie
+          <select class="input" name="category">${['Ontbijt', 'Lunch', 'Hoofdgerecht', 'Soep', 'Bijgerecht', 'Salade', 'Nagerecht', 'Snack', 'Bakken'].map((c) => `<option ${c === recipe.category ? 'selected' : ''}>${c}</option>`).join('')}</select>
+        </label>
+        <label>Voorbereiding (min) <input class="input" type="number" min="0" name="prep_minutes" value="${recipe.prep_minutes ?? ''}"></label>
+        <label>Kooktijd (min) <input class="input" type="number" min="0" name="cook_minutes" value="${recipe.cook_minutes ?? ''}"></label>
+        <label>Keuken <input class="input" name="cuisine" value="${esc(recipe.cuisine || 'Nederlands')}"></label>
+        <label>Tags (komma's) <input class="input" name="tags" value="${esc((recipe.tags || []).join(', '))}" placeholder="stamppot, winter, snel"></label>
+        <label class="span-2">Afbeelding (URL) <input class="input" name="image_url" value="${esc(recipe.image_url || '')}" placeholder="https://…"></label>
+        <label class="span-2">Bron (URL) <input class="input" name="source_url" value="${esc(recipe.source_url || '')}"></label>
+      </div>
+
+      <h2>Ingrediënten</h2>
+      <p class="muted small">Ingrediënten worden automatisch gekoppeld aan de ingrediëntendatabase voor voedingswaarden en Jumbo-prijzen.
+        Bij eenheden als ‘stuk’ wordt het stuksgewicht van het ingrediënt gebruikt; vul eventueel zelf grammen in.</p>
+      <datalist id="ing-names">${ingredients.map((i) => `<option value="${esc(i.name)}">`).join('')}</datalist>
+      <datalist id="units">${m.units.map((u) => `<option value="${esc(u)}">`).join('')}</datalist>
+      <div class="ing-table">
+        <div class="ing-row ing-header"><span>Hoeveelheid</span><span>Eenheid</span><span>Ingrediënt</span><span>Notitie</span><span>Gram</span><span></span></div>
+        <div data-rows></div>
+      </div>
+      <button type="button" class="btn btn-ghost" data-add-row>+ Ingrediënt</button>
+
+      <h2>Bereiding</h2>
+      <label>Eén stap per regel
+        <textarea class="input" name="steps" rows="10">${esc((recipe.steps || []).join('\n'))}</textarea>
+      </label>
+      <label>Notities <textarea class="input" name="notes" rows="2">${esc(recipe.notes || '')}</textarea></label>
+
+      <div class="row end sticky-actions">
+        <a class="btn" href="${params.id ? `#/recept/${params.id}` : '#/recepten'}">Annuleren</a>
+        <button class="btn btn-primary" type="submit">Opslaan</button>
+      </div>
+    </form>
+  </div>`;
+  const view = $('.view', root);
+  const form = $('[data-form]', view);
+
+  function status(row) {
+    const linked = row.ingredient_id ? ingById.get(Number(row.ingredient_id)) : null;
+    if (linked) return `<span class="link-ok" title="Gekoppeld aan ‘${esc(linked.name)}’">✔ ${esc(linked.name)}</span>`;
+    if (row.estimate) return '<span class="link-new" title="Wordt als nieuw ingrediënt toegevoegd met Claude-schatting">✨ nieuw</span>';
+    if (row.name) return '<span class="link-none" title="Niet gevonden in de database: geen voedingswaarden/prijs">⚠ onbekend</span>';
+    return '';
+  }
+
+  function drawRows() {
+    $('[data-rows]', view).innerHTML = rows.map((row, i) => `
+      <div class="ing-row" data-i="${i}">
+        <input class="input" type="number" step="any" min="0" data-k="quantity" value="${row.quantity ?? ''}" aria-label="Hoeveelheid">
+        <input class="input" list="units" data-k="unit" value="${esc(row.unit)}" aria-label="Eenheid">
+        <div class="ing-name"><input class="input" list="ing-names" data-k="name" value="${esc(row.name)}" aria-label="Ingrediënt"><small data-status>${status(row)}</small></div>
+        <input class="input" data-k="note" value="${esc(row.note)}" placeholder="bv. fijngesneden" aria-label="Notitie">
+        <input class="input" type="number" step="any" min="0" data-k="grams" value="${row.grams ?? ''}" placeholder="auto" aria-label="Gram">
+        <div class="row-actions">
+          <label title="Optioneel"><input type="checkbox" data-k="optional" ${row.optional ? 'checked' : ''}> opt.</label>
+          <button type="button" class="mini" data-up title="Omhoog">↑</button>
+          <button type="button" class="mini danger" data-del title="Verwijderen">✕</button>
+        </div>
+      </div>`).join('');
+  }
+
+  async function matchRow(row) {
+    let match = ingByName.get(row.name.toLowerCase());
+    if (!match && row.name) match = (await api.get(`/ingredients/match?name=${encodeURIComponent(row.name)}`).catch(() => null))?.match;
+    row.ingredient_id = match?.id ?? null;
+    if (match) {
+      row.estimate = null;
+      // Het stuksgewicht uit de database is betrouwbaarder dan een losse schatting.
+      if (match.unit_weight_g && !['g', 'kg', 'ml', 'l', 'el', 'tl'].includes(String(row.unit).toLowerCase())) row.grams = null;
+    }
+    const i = rows.indexOf(row);
+    const el = $(`[data-i="${i}"]`, view);
+    if (el) {
+      $('[data-status]', el).innerHTML = status(row);
+      $('[data-k="grams"]', el).value = row.grams ?? '';
+    }
+  }
+  const timers = new Map();
+  const rematch = (i) => {
+    const row = rows[i];
+    clearTimeout(timers.get(row));
+    timers.set(row, setTimeout(() => matchRow(row), 300));
+  };
+
+  view.addEventListener('input', (e) => {
+    const rowEl = e.target.closest('[data-i]');
+    if (!rowEl) return;
+    const i = Number(rowEl.dataset.i);
+    const k = e.target.dataset.k;
+    rows[i][k] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    if (k === 'name') {
+      rows[i].estimate = null;
+      rematch(i);
+    }
+  });
+  view.addEventListener('click', (e) => {
+    if (e.target.closest('[data-add-row]')) {
+      rows.push(emptyRow());
+      drawRows();
+      $$('[data-k="quantity"]', view).at(-1)?.focus();
+      return;
+    }
+    const rowEl = e.target.closest('[data-i]');
+    if (!rowEl) return;
+    const i = Number(rowEl.dataset.i);
+    if (e.target.closest('[data-del]')) { rows.splice(i, 1); drawRows(); }
+    if (e.target.closest('[data-up]') && i > 0) { [rows[i - 1], rows[i]] = [rows[i], rows[i - 1]]; drawRows(); }
+  });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const data = {
+      title: fd.get('title'),
+      description: fd.get('description'),
+      servings: Number(fd.get('servings')),
+      category: fd.get('category'),
+      cuisine: fd.get('cuisine'),
+      prep_minutes: fd.get('prep_minutes'),
+      cook_minutes: fd.get('cook_minutes'),
+      tags: String(fd.get('tags')).split(',').map((t) => t.trim()).filter(Boolean),
+      image_url: fd.get('image_url'),
+      source_url: fd.get('source_url'),
+      steps: String(fd.get('steps')).split('\n').map((s) => s.trim()).filter(Boolean),
+      notes: fd.get('notes'),
+      favorite: recipe.favorite,
+      rating: recipe.rating,
+      ingredients: rows.filter((r) => r.name.trim()),
+    };
+    const btn = $('button[type=submit]', form);
+    btn.disabled = true;
+    try {
+      const saved = params.id ? await api.put(`/recipes/${params.id}`, data) : await api.post('/recipes', data);
+      if (isDraft) sessionStorage.removeItem(DRAFT_KEY);
+      toast('Recept opgeslagen', 'success');
+      location.hash = `#/recept/${saved.id}`;
+    } catch (err) {
+      toast(err.message, 'error');
+      btn.disabled = false;
+    }
+  });
+
+  drawRows();
+  // Concepten van Claude: ingrediënten direct koppelen aan de database.
+  if (isDraft) for (const row of rows.filter((r) => !r.ingredient_id && r.name)) matchRow(row);
+}

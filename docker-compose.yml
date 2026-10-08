@@ -1,0 +1,11 @@
+services:
+  maaltijden:
+    build: .
+    container_name: maaltijden
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data

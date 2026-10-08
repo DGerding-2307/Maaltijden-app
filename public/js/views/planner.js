@@ -1,0 +1,321 @@
+import { api, meta } from '../api.js';
+import {
+  $, $$, esc, euro, num, addDays, mondayOf, todayISO, fmtDate, weekNumber, DAY_NAMES, toast, modal, confirmDialog, debounce, minutes,
+} from '../util.js';
+
+export async function render(root, params) {
+  const m = await meta();
+  const start = mondayOf(params.week || todayISO());
+  const meals = m.meals;
+  let recipes = [];
+  let plan;
+
+  async function load() {
+    [plan, recipes] = await Promise.all([api.get(`/plan?week=${start}`), recipes.length ? recipes : api.get('/recipes?sort=title')]);
+    draw();
+  }
+
+  function entryCard(e) {
+    const title = e.recipe_id ? e.recipe_title : e.title;
+    return `<div class="plan-entry ${e.recipe_id ? '' : 'free'}" draggable="true" data-entry="${e.id}">
+      <a class="plan-entry-title" ${e.recipe_id ? `href="#/recept/${e.recipe_id}?personen=${e.servings}"` : ''}>${esc(title)}</a>
+      <div class="plan-entry-meta">
+        <span class="servings-ctl">
+          <button class="mini" data-serv="-1" aria-label="Minder personen">−</button>
+          <span title="personen">👤 ${e.servings}</span>
+          <button class="mini" data-serv="1" aria-label="Meer personen">+</button>
+        </span>
+        ${e.recipe_id ? `<span class="muted">${euro(e.cost_cents)}</span>` : ''}
+        <button class="mini danger" data-remove aria-label="Verwijderen">✕</button>
+      </div>
+    </div>`;
+  }
+
+  function draw() {
+    const today = todayISO();
+    const daysWithFood = plan.days.filter((d) => d.entries.some((e) => e.recipe_id));
+    const avgKcal = daysWithFood.length ? daysWithFood.reduce((s, d) => s + d.nutrition_per_person.kcal, 0) / daysWithFood.length : 0;
+    const planned = plan.days.reduce((s, d) => s + d.entries.length, 0);
+    const budget = m.weekly_budget_cents;
+    root.innerHTML = `
+      <div class="page-head">
+        <div class="week-nav">
+          <a class="btn icon-btn" href="#/planner?week=${addDays(start, -7)}" aria-label="Vorige week">‹</a>
+          <div class="week-title">
+            <h1>Week ${weekNumber(start)}</h1>
+            <span class="muted">${fmtDate(start)} – ${fmtDate(addDays(start, 6), { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+          </div>
+          <a class="btn icon-btn" href="#/planner?week=${addDays(start, 7)}" aria-label="Volgende week">›</a>
+          ${start !== mondayOf(today) ? '<a class="btn btn-ghost" href="#/planner">Vandaag</a>' : ''}
+        </div>
+        <div class="actions">
+          <button class="btn btn-ai" data-action="ai">✨ Weekmenu met Claude</button>
+          <a class="btn" href="#/boodschappen?week=${start}">🛒 Boodschappenlijst</a>
+          <details class="menu">
+            <summary class="btn btn-ghost" aria-label="Meer acties">⋯</summary>
+            <div class="menu-items">
+              <button data-action="copy-prev">Kopieer vorige week hierheen</button>
+              <button data-action="copy-next">Kopieer deze week naar volgende week</button>
+              <button data-action="print">Weekmenu afdrukken</button>
+              <button data-action="clear" class="danger">Week leegmaken</button>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="stat"><span class="stat-label">Weekkosten (Jumbo)</span><span class="stat-value">${euro(plan.total_cost_cents)}</span>
+          ${budget ? `<span class="stat-sub ${plan.total_cost_cents > budget ? 'bad' : 'good'}">budget ${euro(budget)}</span>` : ''}</div>
+        <div class="stat"><span class="stat-label">Gem. per dag p.p.</span><span class="stat-value">${num(avgKcal, 0)} kcal</span>
+          <span class="stat-sub">van geplande maaltijden</span></div>
+        <div class="stat"><span class="stat-label">Ingepland</span><span class="stat-value">${planned}</span><span class="stat-sub">maaltijden</span></div>
+      </div>
+
+      <div class="planner-layout">
+        <div class="week-grid" style="--meals:${meals.length}">
+          ${plan.days.map((d, i) => `
+            <section class="day ${d.date === today ? 'today' : ''} ${d.date < today ? 'past' : ''}">
+              <header class="day-head">
+                <strong>${DAY_NAMES[i]}</strong> <span class="muted">${fmtDate(d.date)}</span>
+              </header>
+              ${meals.map((meal) => `
+                <div class="slot" data-date="${d.date}" data-meal="${esc(meal)}">
+                  <div class="slot-label">${esc(meal)}</div>
+                  ${d.entries.filter((e) => e.meal === meal).map(entryCard).join('')}
+                  <button class="slot-add" data-add aria-label="Toevoegen aan ${esc(meal)} op ${DAY_NAMES[i]}">+</button>
+                </div>`).join('')}
+              ${d.entries.filter((e) => !meals.includes(e.meal)).map(entryCard).join('')}
+              <footer class="day-foot">
+                ${d.entries.length ? `<span title="per persoon">${num(d.nutrition_per_person.kcal, 0)} kcal p.p.</span><span>${euro(d.cost_cents)}</span>` : '<span class="muted">Nog niets gepland</span>'}
+              </footer>
+            </section>`).join('')}
+        </div>
+
+        <aside class="recipe-dock">
+          <h3>Sleep een recept naar een dag</h3>
+          <input type="search" class="input" placeholder="Zoek recept…" data-dock-search>
+          <div class="dock-filters">
+            <label><input type="checkbox" data-dock-fav> Alleen favorieten</label>
+          </div>
+          <div class="dock-list"></div>
+        </aside>
+      </div>`;
+    drawDock();
+    bind();
+  }
+
+  function drawDock() {
+    const q = ($('[data-dock-search]', root)?.value || '').toLowerCase();
+    const fav = $('[data-dock-fav]', root)?.checked;
+    const list = recipes.filter((r) => (!fav || r.favorite) && (!q || r.title.toLowerCase().includes(q) || r.tags.join(' ').includes(q)));
+    $('.dock-list', root).innerHTML = list.map((r) => `
+      <div class="dock-item" draggable="true" data-recipe="${r.id}">
+        <span>${r.favorite ? '★ ' : ''}${esc(r.title)}</span>
+        <span class="muted small">${minutes(r.total_minutes)} · ${euro(r.cost_per_serving_cents)} p.p.</span>
+      </div>`).join('') || '<p class="muted">Geen recepten gevonden.</p>';
+  }
+
+  function bind() {
+    $('[data-dock-search]', root).addEventListener('input', debounce(drawDock, 150));
+    $('[data-dock-fav]', root).addEventListener('change', drawDock);
+
+
+    // Drag & drop naar dagvakken
+    $$('.slot', root).forEach((slot) => {
+      slot.addEventListener('dragover', (e) => { e.preventDefault(); slot.classList.add('drop'); });
+      slot.addEventListener('dragleave', () => slot.classList.remove('drop'));
+      slot.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        slot.classList.remove('drop');
+        const { date, meal } = slot.dataset;
+        const entryId = e.dataTransfer.getData('text/entry');
+        const recipeId = e.dataTransfer.getData('text/recipe');
+        try {
+          if (entryId) {
+            if (e.ctrlKey || e.altKey) {
+              const src = plan.days.flatMap((d) => d.entries).find((x) => String(x.id) === entryId);
+              await api.post('/plan', { date, meal, recipe_id: src.recipe_id, title: src.title, servings: src.servings });
+            } else await api.put(`/plan/${entryId}`, { date, meal });
+          } else if (recipeId) {
+            await api.post('/plan', { date, meal, recipe_id: Number(recipeId), servings: m.default_servings });
+          }
+          await load();
+        } catch (err) { toast(err.message, 'error'); }
+      });
+    });
+  }
+
+  async function onClick(e) {
+    const entryEl = e.target.closest('[data-entry]');
+    const entry = entryEl && plan.days.flatMap((d) => d.entries).find((x) => String(x.id) === entryEl.dataset.entry);
+    try {
+      if (e.target.closest('[data-serv]') && entry) {
+        const servings = Math.max(1, entry.servings + Number(e.target.closest('[data-serv]').dataset.serv));
+        await api.put(`/plan/${entry.id}`, { servings });
+        return load();
+      }
+      if (e.target.closest('[data-remove]') && entry) {
+        await api.del(`/plan/${entry.id}`);
+        return load();
+      }
+      if (e.target.closest('[data-add]')) {
+        const slot = e.target.closest('.slot');
+        return pickRecipe(slot.dataset.date, slot.dataset.meal);
+      }
+      const action = e.target.closest('[data-action]')?.dataset.action;
+      if (!action) return;
+      e.target.closest('details')?.removeAttribute('open');
+      if (action === 'ai') return aiWeekMenu();
+      if (action === 'copy-prev') {
+        const { copied } = await api.post('/plan/copy-week', { from: addDays(start, -7), to: start });
+        toast(`${copied} maaltijden gekopieerd`);
+        return load();
+      }
+      if (action === 'copy-next') {
+        const { copied } = await api.post('/plan/copy-week', { from: start, to: addDays(start, 7) });
+        toast(`${copied} maaltijden gekopieerd naar volgende week`);
+        return;
+      }
+      if (action === 'clear') {
+        if (!(await confirmDialog('Alle maaltijden van deze week verwijderen?', 'Leegmaken'))) return;
+        await api.post('/plan/clear-week', { week: start });
+        return load();
+      }
+      if (action === 'print') window.print();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  }
+
+  function pickRecipe(date, meal) {
+    const md = modal(`
+      <h2>Toevoegen: ${esc(meal)} op ${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })}</h2>
+      <div class="row">
+        <input type="search" class="input grow" placeholder="Zoek recept…" data-q>
+        <label class="inline">👤 <input type="number" class="input narrow" min="1" value="${m.default_servings}" data-servings></label>
+      </div>
+      <div class="pick-list"></div>
+      <hr>
+      <form class="row" data-free>
+        <input class="input grow" placeholder="Of vrije tekst, bv. ‘Uit eten’ of ‘Restjes’" data-free-title>
+        <button class="btn">Toevoegen</button>
+      </form>`);
+    const drawList = () => {
+      const q = $('[data-q]', md.el).value.toLowerCase();
+      const list = recipes.filter((r) => !q || r.title.toLowerCase().includes(q) || r.tags.join(' ').includes(q));
+      $('.pick-list', md.el).innerHTML = list.map((r) => `
+        <button class="pick-item" data-pick="${r.id}">
+          <span>${r.favorite ? '★ ' : ''}${esc(r.title)}</span>
+          <span class="muted small">${esc(r.category)} · ${minutes(r.total_minutes)} · ${num(r.kcal_per_serving, 0)} kcal · ${euro(r.cost_per_serving_cents)} p.p.</span>
+        </button>`).join('') || '<p class="muted">Geen recepten gevonden.</p>';
+    };
+    drawList();
+    $('[data-q]', md.el).addEventListener('input', drawList);
+    const servings = () => Number($('[data-servings]', md.el).value) || m.default_servings;
+    md.el.addEventListener('click', async (e) => {
+      const pick = e.target.closest('[data-pick]');
+      if (!pick) return;
+      await api.post('/plan', { date, meal, recipe_id: Number(pick.dataset.pick), servings: servings() });
+      md.close();
+      load();
+    });
+    $('[data-free]', md.el).addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const title = $('[data-free-title]', md.el).value.trim();
+      if (!title) return;
+      await api.post('/plan', { date, meal, title, servings: servings() });
+      md.close();
+      load();
+    });
+  }
+
+  function aiWeekMenu() {
+    if (!m.claude.configured) {
+      toast('Stel eerst je Claude API-sleutel in bij Instellingen', 'error');
+      location.hash = '#/instellingen';
+      return;
+    }
+    const md = modal(`
+      <h2>✨ Weekmenu laten maken door Claude</h2>
+      <p class="muted">Claude kiest uit je receptenboek en houdt rekening met je wensen, kooktijd, afwisseling en budget. Bestaande planning blijft staan.</p>
+      <form class="form" data-form>
+        <label>Wensen
+          <textarea class="input" rows="3" name="preferences" placeholder="Bijv. 2x vegetarisch, maandag en woensdag snel klaar, vrijdag iets feestelijks, geen vis"></textarea>
+        </label>
+        <div class="row wrap">
+          <fieldset class="inline-group"><legend>Momenten</legend>
+            ${m.meals.map((meal) => `<label><input type="checkbox" name="meals" value="${esc(meal)}" ${meal === 'diner' ? 'checked' : ''}> ${esc(meal)}</label>`).join('')}
+          </fieldset>
+          <label>Personen <input class="input narrow" type="number" min="1" name="servings" value="${m.default_servings}"></label>
+          <label>Budget week (€) <input class="input narrow" type="number" min="0" step="1" name="budget" value="${m.weekly_budget_cents ? m.weekly_budget_cents / 100 : ''}"></label>
+        </div>
+        <div class="row end"><button class="btn btn-ai" type="submit">Menu voorstellen</button></div>
+      </form>
+      <div data-result></div>`, { wide: true });
+    const form = $('[data-form]', md.el);
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(form);
+      const btn = $('button[type=submit]', form);
+      btn.disabled = true;
+      btn.textContent = 'Claude denkt na…';
+      const servingsVal = Number(fd.get('servings')) || m.default_servings;
+      try {
+        const result = await api.post('/ai/week-menu', {
+          week: start,
+          preferences: fd.get('preferences'),
+          meals: fd.getAll('meals'),
+          servings: servingsVal,
+          budget_cents: fd.get('budget') ? Math.round(Number(fd.get('budget')) * 100) : null,
+        });
+        showSuggestions(md, result, servingsVal);
+      } catch (err) {
+        toast(err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Opnieuw voorstellen';
+      }
+    });
+  }
+
+  function showSuggestions(md, result, servings) {
+    const byId = new Map(recipes.map((r) => [r.id, r]));
+    const box = $('[data-result]', md.el);
+    box.innerHTML = `
+      <div class="ai-summary">${esc(result.summary)}</div>
+      <div class="suggestions">
+        ${result.entries.map((s, i) => `
+          <label class="suggestion">
+            <input type="checkbox" data-sugg="${i}" ${s.recipe_id ? 'checked' : ''} ${s.recipe_id ? '' : 'disabled'}>
+            <span class="sugg-day">${fmtDate(s.date, { weekday: 'short', day: 'numeric' })} · ${esc(s.meal)}</span>
+            <span class="sugg-title">${s.recipe_id ? esc(byId.get(s.recipe_id)?.title) : `💡 ${esc(s.new_recipe_idea)}`}</span>
+            <span class="muted small">${esc(s.reason)}</span>
+            ${s.recipe_id ? '' : `<a class="small" href="#/importeren?idee=${encodeURIComponent(s.new_recipe_idea || '')}">Recept laten maken →</a>`}
+          </label>`).join('')}
+      </div>
+      <div class="row end"><button class="btn btn-primary" data-apply>Geselecteerde inplannen</button></div>`;
+    $('[data-apply]', box).addEventListener('click', async () => {
+      const chosen = $$('[data-sugg]:checked', box).map((c) => result.entries[Number(c.dataset.sugg)]);
+      for (const s of chosen) await api.post('/plan', { date: s.date, meal: s.meal, recipe_id: s.recipe_id, servings });
+      toast(`${chosen.length} maaltijden ingepland`, 'success');
+      md.close();
+      load();
+    });
+  }
+
+  function onDragStart(e) {
+    const entry = e.target.closest('[data-entry]');
+    const recipe = e.target.closest('[data-recipe]');
+    if (entry) e.dataTransfer.setData('text/entry', entry.dataset.entry);
+    if (recipe) e.dataTransfer.setData('text/recipe', recipe.dataset.recipe);
+    e.dataTransfer.effectAllowed = entry ? 'copyMove' : 'copy';
+  }
+
+  root.addEventListener('click', onClick);
+  root.addEventListener('dragstart', onDragStart);
+  await load();
+  return () => {
+    root.removeEventListener('click', onClick);
+    root.removeEventListener('dragstart', onDragStart);
+  };
+}
