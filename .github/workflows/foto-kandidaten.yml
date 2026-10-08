@@ -9,6 +9,10 @@ on:
         description: 'Tijdelijke release verwijderen in plaats van zoeken'
         type: boolean
         default: false
+      ingredienten:
+        description: 'Foto’s voor de ingrediënten zoeken in plaats van recepten'
+        type: boolean
+        default: false
       alleen:
         description: 'Alleen deze recepten (sleutels, komma-gescheiden)'
         type: string
@@ -20,7 +24,7 @@ permissions:
 jobs:
   zoeken:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
 
@@ -31,9 +35,10 @@ jobs:
 
       - name: Kandidaten zoeken en downloaden
         if: ${{ !inputs.opruimen }}
-        timeout-minutes: 30
+        timeout-minutes: 45
         env:
           ONLY: ${{ inputs.alleen }}
+          INGREDIENTS: ${{ inputs.ingredienten && '1' || '' }}
         run: |
           node scripts/photos/candidates.mjs out
           cd out && zip -qr ../foto-kandidaten.zip .

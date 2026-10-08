@@ -131,9 +131,16 @@ async function download(url, file) {
 
 fs.mkdirSync(OUT, { recursive: true });
 const meta = {};
-// Met ONLY=sleutel1,sleutel2 alleen die recepten opnieuw zoeken
+// Met ONLY=sleutel1,sleutel2 alleen die recepten opnieuw zoeken.
+// Met INGREDIENTS=1 de ingrediënten (scripts/photos/ingredient-queries.json): minder kandidaten per stuk.
 const only = process.env.ONLY ? process.env.ONLY.split(',') : null;
-for (const [key, commonsQueries, ovQuery] of QUERIES.filter(([k]) => !only || only.includes(k))) {
+const forIngredients = process.env.INGREDIENTS === '1';
+const slug = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const list = forIngredients
+  ? Object.entries(JSON.parse(fs.readFileSync(new URL('./ingredient-queries.json', import.meta.url)))).map(([name, q]) => [slug(name), [q], q])
+  : QUERIES;
+const [MAX_COMMONS, MAX_OV] = forIngredients ? [4, 2] : [6, 4];
+for (const [key, commonsQueries, ovQuery] of list.filter(([k]) => !only || only.includes(k))) {
   const found = [];
   const seenUrls = new Set();
   const add = (list, max) => {
@@ -146,10 +153,10 @@ for (const [key, commonsQueries, ovQuery] of QUERIES.filter(([k]) => !only || on
     }
   };
   for (const q of commonsQueries) {
-    try { add(await commons(q), 6); } catch (err) { console.log(`  commons ${q}: ${err.message}`); }
+    try { add(await commons(q), MAX_COMMONS); } catch (err) { console.log(`  commons ${q}: ${err.message}`); }
     await sleep(800);
   }
-  try { add(await openverse(ovQuery), 4); } catch (err) { console.log(`  openverse ${ovQuery}: ${err.message}`); }
+  try { add(await openverse(ovQuery), MAX_OV); } catch (err) { console.log(`  openverse ${ovQuery}: ${err.message}`); }
   await sleep(1500);
 
   const dir = path.join(OUT, key);
