@@ -27,6 +27,10 @@ function personForm(p, activity) {
   </form>`;
 }
 
+// $0,084 → "0,08"; $0,0021 → "0,002"
+const price = (usd) => (Number.isInteger(usd) ? String(usd) : usd.toFixed(2).replace('.', ','));
+const costLabel = (usd) => (usd >= 0.01 ? usd.toFixed(2) : usd.toFixed(3)).replace('.', ',');
+
 export async function render(root) {
   const m = await meta(true);
   const [{ people, activity }, cal] = await Promise.all([api.get('/people'), api.get('/calendar').catch(() => null)]);
@@ -46,7 +50,16 @@ export async function render(root) {
       <h2>Claude AI</h2>
       <p class="muted">Claude wordt gebruikt voor het importeren en bedenken van recepten, weekmenu's, voedingswaarde-schattingen en vragen over recepten.
         Je hebt een API-sleutel nodig van <a href="https://console.anthropic.com/" target="_blank" rel="noopener">console.anthropic.com</a>.</p>
-      <p>Status: ${m.claude.configured ? `<strong class="good">✔ ingesteld</strong>${m.claude.from_env ? ' (via ANTHROPIC_API_KEY)' : ''}` : '<strong class="bad">niet ingesteld</strong>'} · model <code>${esc(m.claude.model)}</code></p>
+      <p>Status: ${m.claude.configured ? `<strong class="good">✔ ingesteld</strong>${m.claude.from_env ? ' (via ANTHROPIC_API_KEY)' : ''}` : '<strong class="bad">niet ingesteld</strong>'}</p>
+      ${m.claude.models?.length ? `<fieldset class="model-choice">
+        <legend>Model</legend>
+        ${m.claude.model_from_env ? `<p class="muted small">Het model is vastgezet met CLAUDE_MODEL (<code>${esc(m.claude.model)}</code>). Haal die variabele weg om hier te kiezen.</p>` : ''}
+        ${m.claude.models.map((x) => `<label class="model-option">
+          <input type="radio" name="claude_model" value="${esc(x.id)}" ${x.id === m.claude.model ? 'checked' : ''} ${m.claude.model_from_env ? 'disabled' : ''}>
+          <span><strong>${esc(x.label)}</strong> <span class="muted small">≈ $${costLabel(x.cost_per_action_usd)} per recept of weekmenu · $${price(x.input)} / $${price(x.output)} per miljoen tokens</span><br>
+            <span class="small">${esc(x.note)}</span></span>
+        </label>`).join('')}
+      </fieldset>` : `<p class="muted small">Model: <code>${esc(m.claude.model)}</code></p>`}
       ${m.claude.configured ? `<div class="row wrap"><button type="button" class="btn" data-test-claude>🔌 Verbinding testen</button>
         <span class="small" data-test-result role="status"></span></div>` : ''}
       ${m.claude.from_env ? '' : `<label>Anthropic API-sleutel <input class="input" type="password" name="anthropic_api_key" autocomplete="off" placeholder="${m.claude.configured ? '•••••••• (laat leeg om te behouden)' : 'sk-ant-…'}"></label>`}
@@ -213,6 +226,7 @@ export async function render(root) {
       off_auto: fd.has('off_auto'),
       prices_auto: fd.has('prices_auto'),
     };
+    if (fd.get('claude_model')) body.claude_model = fd.get('claude_model');
     const key = fd.get('anthropic_api_key');
     if (key) body.anthropic_api_key = String(key).trim();
     try {

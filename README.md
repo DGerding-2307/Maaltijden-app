@@ -11,6 +11,7 @@ Nederlandse recepten, voedingswaarden per persoon (uit Open Food Facts), prijzen
 - 🔗 **Niet-herkende ingrediënten koppelen of aanmaken** vanuit de recepteditor en de receptpagina; de naam wordt onthouden voor de volgende keer.
 - ☑️ **Meerdere recepten tegelijk verwijderen**, en verwijderde standaardrecepten terugzetten bij Instellingen.
 - Eenheid **stuks** in een keuzelijst; "2 stuks", "3 tenen" op de receptpagina.
+- 💶 **Kies het Claude-model** (Opus, Sonnet of Haiku) bij Instellingen, met de geschatte kosten per actie.
 - 🔌 **Verbinding testen** voor Claude bij Instellingen, met duidelijke foutmeldingen (sleutel, tegoed, verbinding).
 
 ## Nieuw in v2.6
@@ -226,7 +227,15 @@ met HTTPS (bijv. Caddy, Nginx Proxy Manager of Traefik). Met HTTPS kun je de app
 3. Klik bij Instellingen op **Verbinding testen**. Je ziet direct of het werkt, of wat er mis is (sleutel, tegoed, internetverbinding).
 4. Vul bij Instellingen ook je huishouden en voorkeuren in (aantal personen, allergieën, ‘2x per week vegetarisch’…). Claude gebruikt dit bij weekmenu’s en nieuwe recepten.
 
-Standaard wordt het model `claude-opus-5-5` gebruikt; met `CLAUDE_MODEL` kun je een ander model kiezen.
+Bij **Instellingen → Claude AI** kies je het model, met de geschatte kosten per actie:
+
+| Model | Prijs (per miljoen tokens in / uit) | ≈ per recept of weekmenu | |
+|---|---|---|---|
+| Claude Opus 5.5 (standaard) | $4 / $20 | $0,08 | beste kwaliteit |
+| Claude Sonnet 5.5 | $2 / $10 | $0,04 | bijna even goed, half zo duur |
+| Claude Haiku 5.5 | $0,10 / $0,50 | $0,002 | veruit het goedkoopst; vaker foutjes bij lastige teksten |
+
+Met de omgevingsvariabele `CLAUDE_MODEL` zet je het model vast (de keuze in de app is dan uitgeschakeld).
 Claude wordt alleen aangeroepen als je zelf op een ✨-knop drukt.
 
 ## Over Open Food Facts

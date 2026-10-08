@@ -8,8 +8,32 @@ const FALLBACK_BETA = 'server-side-fallback-2026-07-01';
 let cachedClient = null;
 let cachedKey = null;
 
+// Keuze in Instellingen. Prijzen in dollar per miljoen tokens (invoer / uitvoer).
+// Een typische actie (recept importeren, weekmenu) gebruikt ± 6.000 invoer- en 3.000 uitvoertokens.
+export const MODELS = [
+  { id: 'claude-opus-5-5', label: 'Claude Opus 5.5', input: 4, output: 20, fallback: true,
+    note: 'Beste kwaliteit (standaard). Nauwkeurigst bij het omzetten van recepten en schatten van voedingswaarden.' },
+  { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5', input: 2, output: 10, fallback: true,
+    note: 'Half zo duur, bijna even goed. Een goede keuze voor dagelijks gebruik.' },
+  { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5', input: 0.1, output: 0.5, fallback: false,
+    note: 'Veruit het goedkoopst en snelst. Prima voor eenvoudige recepten en vragen; maakt bij lastige teksten of schattingen vaker foutjes.' },
+];
+export const DEFAULT_MODEL = 'claude-opus-5-5';
+const TYPICAL = { input: 6000, output: 3000 };
+const modelInfo = (id) => MODELS.find((m) => m.id === id);
+
 export function getModel() {
-  return process.env.CLAUDE_MODEL || getSetting('claude_model', null) || 'claude-opus-5-5';
+  if (process.env.CLAUDE_MODEL) return process.env.CLAUDE_MODEL;
+  const chosen = getSetting('claude_model', null);
+  return modelInfo(chosen) ? chosen : DEFAULT_MODEL;
+}
+
+/** Modellen met geschatte kosten per typische actie, voor de keuzelijst in Instellingen. */
+export function modelOptions() {
+  return MODELS.map(({ fallback, ...m }) => ({
+    ...m,
+    cost_per_action_usd: Math.round(((TYPICAL.input * m.input + TYPICAL.output * m.output) / 1e6) * 1000) / 1000,
+  }));
 }
 
 // Spaties, regeleinden of aanhalingstekens rond een geplakte sleutel (bv. in Portainer) weghalen
@@ -20,7 +44,10 @@ function apiKey() {
 }
 
 export function claudeStatus() {
-  return { configured: !!apiKey(), from_env: !!cleanKey(process.env.ANTHROPIC_API_KEY), model: getModel() };
+  return {
+    configured: !!apiKey(), from_env: !!cleanKey(process.env.ANTHROPIC_API_KEY), model: getModel(),
+    model_from_env: !!process.env.CLAUDE_MODEL, models: modelOptions(),
+  };
 }
 
 function client() {
@@ -72,17 +99,18 @@ function translateError(err) {
   return { status: err.status || 500, message: err.message || 'Onbekende fout' };
 }
 
-// Terugvallen op een ander model bij een weigering is een bèta-functie. Wordt die (nog) niet
-// geaccepteerd voor dit account, dan gaat het verder zonder, in plaats van dat alles faalt.
-let fallbackEnabled = true;
+// Terugvallen op een ander model bij een weigering is een bèta-functie (niet bij Haiku). Wordt die (nog)
+// niet geaccepteerd voor dit account of model, dan gaat het verder zonder, in plaats van dat alles faalt.
+const fallbackRejected = new Set();
 async function withFallback(run) {
-  if (!fallbackEnabled) return run({});
+  const model = getModel();
+  if (fallbackRejected.has(model) || modelInfo(model)?.fallback === false) return run({});
   try {
     return await run({ betas: [FALLBACK_BETA], fallbacks: 'default' });
   } catch (err) {
     if (err instanceof Anthropic.BadRequestError && /fallback|beta|anthropic-beta/i.test(apiMessage(err))) {
       console.warn(`Claude: terugvalfunctie niet beschikbaar (${apiMessage(err)}); verder zonder.`);
-      fallbackEnabled = false;
+      fallbackRejected.add(model);
       return run({});
     }
     throw err;

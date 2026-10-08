@@ -133,3 +133,27 @@ test('ingrediëntgegevens uit een webwinkel-link', async () => {
   assert.match(blocked.error, /status 403/);
   assert.equal((await post('/ingredients/from-url', { url: 'geen link' })).status, 400);
 });
+
+test('model kiezen: Haiku zonder terugvalfunctie, Sonnet met; onbekend model valt terug op Opus', async () => {
+  mode = 'ok';
+  const status = await fetch(`${base}/ai/status`).then((r) => r.json());
+  assert.deepEqual(status.models.map((x) => x.id), ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5']);
+  const [opus, sonnet, haiku] = status.models;
+  assert.ok(haiku.cost_per_action_usd < sonnet.cost_per_action_usd && sonnet.cost_per_action_usd < opus.cost_per_action_usd);
+
+  await put('/settings', { claude_model: 'claude-haiku-5-5' });
+  let r = await post('/ai/test');
+  assert.equal(r.model, 'claude-haiku-5-5');
+  assert.equal(seen.at(-1).body.fallbacks, undefined);
+  assert.doesNotMatch(seen.at(-1).headers['anthropic-beta'] || '', /fallback/);
+
+  await put('/settings', { claude_model: 'claude-sonnet-5-5' });
+  r = await post('/ai/test');
+  assert.equal(r.model, 'claude-sonnet-5-5');
+  assert.equal(seen.at(-1).body.fallbacks, 'default');
+
+  await put('/settings', { claude_model: 'gpt-iets' });
+  r = await post('/ai/test');
+  assert.equal(r.model, 'claude-opus-5-5');
+  await put('/settings', { claude_model: null });
+});
