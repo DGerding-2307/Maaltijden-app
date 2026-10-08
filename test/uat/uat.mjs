@@ -498,7 +498,7 @@ await scenario('UAT-33', 'Snel loggen: recent gebruikt met één tik, bake-off u
   await mob.locator('[data-ing]').filter({ hasText: 'roomboter croissant' }).first().tap();
   await mob.locator('[data-amount] .btn-primary').tap(); await mob.waitForTimeout(600);
   await mob.locator('[data-add="tussendoor"]').tap(); await mob.waitForSelector('[data-recent]');
-  await mob.screenshot({ path: `${OUT}/33-recent.png` });
+  await mob.waitForTimeout(700); await mob.screenshot({ path: `${OUT}/33-recent.png` });
   const before = Number((await mob.textContent('.kcal-big')).replace(/\D/g, ''));
   await mob.locator('[data-recent]').first().tap(); await mob.waitForTimeout(600);
   const after = Number((await mob.textContent('.kcal-big')).replace(/\D/g, ''));
