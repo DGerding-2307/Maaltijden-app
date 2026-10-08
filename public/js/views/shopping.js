@@ -55,7 +55,7 @@ export async function render(root, params) {
         </div>
       </div>
       <div class="stats">
-        <div class="stat"><span class="stat-label">Geschatte kosten</span><span class="stat-value">${euro(data.total_cents)}</span><span class="stat-sub">hele verpakkingen, excl. voorraadkast</span></div>
+        <div class="stat"><span class="stat-label">Verwachte kosten</span><span class="stat-value">${euro(data.total_cents)}</span><span class="stat-sub">hele verpakkingen, excl. voorraadkast</span></div>
         <div class="stat"><span class="stat-label">Nog te halen</span><span class="stat-value">${open.length}</span><span class="stat-sub">${euro(openCost)}</span></div>
       </div>
       <div class="row wrap no-print">

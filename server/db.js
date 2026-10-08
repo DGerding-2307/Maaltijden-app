@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
-import { seedDatabase } from './seed.js';
+import { seedDatabase, OFF_CATEGORY_BY_NAME } from './seed.js';
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS ingredients (
@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS ingredients (
   package_grams REAL,          -- inhoud van één verpakking in gram
   package_label TEXT,
   jumbo_id TEXT, jumbo_name TEXT, jumbo_url TEXT, jumbo_query TEXT, jumbo_image TEXT,
-  price_source TEXT DEFAULT 'schatting', -- schatting | handmatig (| jumbo uit eerdere versies)
+  price_source TEXT DEFAULT 'schatting', -- schatting | open prices | handmatig (| jumbo uit eerdere versies)
   price_updated_at TEXT,
   nutrition_source TEXT DEFAULT 'NEVO (benadering)'
 );
@@ -115,6 +115,9 @@ const MIGRATIONS = [
   ['ingredients', 'nutrition_updated_at', 'TEXT'],
   ['meal_plan', 'leftover_of', 'INTEGER'],
   ['shopping_state', 'have', 'INTEGER NOT NULL DEFAULT 0'],
+  ['ingredients', 'off_category', 'TEXT'],
+  ['ingredients', 'price_count', 'INTEGER'],
+  ['ingredients', 'price_note', 'TEXT'],
 ];
 
 function migrate(db) {
@@ -124,6 +127,9 @@ function migrate(db) {
   }
   // De Jumbo-accountkoppeling is verwijderd: een eventueel bewaarde sessie opruimen.
   db.prepare("DELETE FROM settings WHERE key IN ('jumbo_token', 'jumbo_email')").run();
+  // Bestaande databases: Open Food Facts-categorie invullen voor de standaardingrediënten
+  const setCat = db.prepare('UPDATE ingredients SET off_category = ? WHERE name = ? AND off_category IS NULL');
+  for (const [name, tag] of Object.entries(OFF_CATEGORY_BY_NAME)) setCat.run(tag, name);
 }
 
 export function getDb() {

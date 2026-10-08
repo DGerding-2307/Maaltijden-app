@@ -1,7 +1,13 @@
 # 🍲 Maaltijden – planner & receptenboek
 
 Een webapplicatie voor op je eigen server: een overzichtelijke weekplanner en een receptenboek met
-Nederlandse recepten, voedingswaarden per persoon (uit Open Food Facts), geschatte prijzen per maaltijd en een Claude AI-integratie.
+Nederlandse recepten, voedingswaarden per persoon (uit Open Food Facts), prijzen per maaltijd (uit Open Prices) en een Claude AI-integratie.
+
+## Nieuw in v2.3
+
+- 🏷️ **Echte winkelprijzen uit Open Prices:** de open prijsdatabase van Open Food Facts, met een officiële API.
+  Per ingrediënt de mediaan van recente prijzen in Nederlandse winkels. Je ziet per ingrediënt welke prijzen gevonden zijn,
+  en per recept hoeveel prijzen uit Open Prices komen. Zie [Over de prijzen](#over-de-prijzen).
 
 ## Nieuw in v2.2
 
@@ -95,9 +101,9 @@ Ontwikkelen met automatisch herstarten: `npm run dev`. Tests: `npm test`.
 De gebruikersacceptatietest opnieuw draaien (vereist Playwright: `npm i -D playwright`):
 
 ```bash
-node test/uat/off-mock.mjs &                                   # nagebootste Open Food Facts
-DB_FILE=/tmp/uat.db OFF_BASE=http://localhost:3999 OFF_MIN_GAP_MS=100 PORT=3123 npm start &
-node test/uat/uat.mjs docs/uat                                 # 21 scenario's, schermafbeeldingen in docs/uat
+node test/uat/off-mock.mjs &                                   # nagebootste Open Food Facts en Open Prices
+DB_FILE=/tmp/uat.db OFF_BASE=http://localhost:3999 OPEN_PRICES_BASE=http://localhost:3999 OFF_MIN_GAP_MS=100 OPEN_PRICES_MIN_GAP_MS=50 PORT=3123 npm start &
+node test/uat/uat.mjs docs/uat                                 # 22 scenario's, schermafbeeldingen in docs/uat
 ```
 
 Back-up: via **Instellingen → Back-up downloaden** (alle gegevens, zonder API-sleutel), of kopieer de map `data/`
@@ -132,14 +138,28 @@ Claude wordt alleen aangeroepen als je zelf op een ✨-knop drukt.
 
 ## Over de prijzen
 
-Alle ingrediënten hebben een **geschatte supermarktprijs** per verpakking (Jumbo-niveau, 2026).
-Weet je de actuele prijs, pas hem dan aan via **Ingrediënten → ✏️**; de bron staat dan op ‘handmatig’.
+Prijzen komen uit **[Open Prices](https://prices.openfoodfacts.org)**, de open prijsdatabase van Open Food Facts.
+Het heeft een officiële, openbare API; lezen kan zonder account. Licentie: ODbL, © Open Prices-bijdragers.
+
+- Per ingrediënt worden **recente prijzen (laatste 2 jaar) uit Nederlandse winkels** opgezocht, op drie manieren:
+  1. via de **barcode**, als het ingrediënt gescand of aan een Open Food Facts-product gekoppeld is;
+  2. via de **Open Food Facts-categorie** (bijvoorbeeld `en:carrots`), voor losse groente en fruit en voor verpakte producten in die categorie.
+     De ~85 standaardingrediënten hebben al een categorie; je kunt hem aanpassen via ✏️;
+  3. via **vergelijkbare producten** uit Open Food Facts, voor ingrediënten zonder categorie.
+- Alle prijzen worden omgerekend naar een prijs per kg. De **mediaan** bepaalt de prijs van de verpakking.
+  Bij een aanbieding telt de normale prijs, zodat een actie de prijs niet vertekent.
+- Bij de **eerste start** haalt de app op de achtergrond prijzen op voor alle ingrediënten met een geschatte prijs.
+  Nieuwe en gescande ingrediënten volgen automatisch; dat kun je uitzetten bij Instellingen.
+- Via **Ingrediënten → 🏷️** zie je per ingrediënt alle gevonden prijzen (datum, winkel, prijs, prijs per kg).
+- Een **zelf ingevulde prijs** wordt nooit automatisch overschreven.
+  Een prijs die op basis van maar één of twee metingen sterk afwijkt, wordt eerst ter controle voorgelegd.
+- **Geen prijs gevonden?** Dan blijft de geschatte prijs staan (Jumbo-niveau, 2026).
+  Open Prices groeit doordat mensen prijzen toevoegen, bijvoorbeeld met een foto van hun kassabon op prices.openfoodfacts.org.
 
 De prijs per maaltijd wordt naar verhouding berekend (300 g van een zak van 1 kg = 30% van de prijs).
 De boodschappenlijst rekent met hele verpakkingen.
 
-> Eerdere versies haalden prijzen op via de onofficiële API van de Jumbo-app en konden de lijst naar de Jumbo-app zetten.
-> Omdat die API niet openbaar is en niet betrouwbaar werkt, is dat in v2.2 verwijderd. Eerder opgehaalde prijzen blijven bewaard.
+> Eerdere versies haalden prijzen op via de onofficiële API van de Jumbo-app. Dat is in v2.2 verwijderd; zie de geschiedenis in het UAT-rapport.
 
 ## Hoe het werkt
 
@@ -157,6 +177,8 @@ Belangrijkste bestanden:
 - `server/claude.js` – alle Claude-functies
 - `server/scan.js` + `public/js/scanner.js` – barcode scannen (BarcodeDetector of ZXing) en koppelen aan ingrediënten
 - `server/openfoodfacts.js` + `server/offqueue.js` – Open Food Facts (zoeken, barcode, mediaan, cache, achtergrondwachtrij)
+- `server/openprices.js` + `server/pricequeue.js` – prijzen uit Open Prices
+- `server/jobqueue.js` – gedeelde achtergrondwachtrij
 - `server/seed.js` – startingrediënten en -recepten
 
 Voedingswaarden zijn benaderingen; gebruik ze als indicatie, niet als medisch advies.

@@ -26,6 +26,10 @@ export async function render(root) {
       <label class="check"><input type="checkbox" name="off_auto" ${m.off_auto ? 'checked' : ''}>
         Nieuwe ingrediënten automatisch aanvullen met <a href="https://nl.openfoodfacts.org" target="_blank" rel="noopener">Open Food Facts</a></label>
 
+      <h2>Prijzen</h2>
+      <label class="check"><input type="checkbox" name="prices_auto" ${m.prices_auto ? 'checked' : ''}>
+        Prijzen van nieuwe en gescande ingrediënten automatisch opzoeken in <a href="https://prices.openfoodfacts.org" target="_blank" rel="noopener">Open Prices</a></label>
+
       <div class="row end"><button class="btn btn-primary">Opslaan</button></div>
     </form>
 
@@ -47,7 +51,8 @@ export async function render(root) {
     <section class="card">
       <h2>Over</h2>
       <p class="muted small">Voedingswaarden zijn benaderingen op basis van NEVO-gemiddelden (RIVM) en schattingen van Claude.
-        Prijzen zijn schattingen van gangbare supermarktprijzen (Jumbo-niveau) en kunnen afwijken van de prijs in de winkel.
+        Prijzen komen uit Open Prices (© Open Prices-bijdragers, ODbL): de mediaan van recente prijzen in Nederlandse winkels.
+        Waar die ontbreken staat een schatting. Prijzen kunnen afwijken van de prijs in jouw winkel.
         Deze app is niet verbonden aan Jumbo, Open Food Facts of Anthropic.</p>
     </section>
   </div>`;
@@ -73,6 +78,7 @@ export async function render(root) {
       meals: String(fd.get('meals')).split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
       household: fd.get('household'),
       off_auto: fd.has('off_auto'),
+      prices_auto: fd.has('prices_auto'),
     };
     const key = fd.get('anthropic_api_key');
     if (key) body.anthropic_api_key = String(key).trim();

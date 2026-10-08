@@ -38,6 +38,7 @@ export async function lookupBarcode(ean) {
  * @param body { ean, product, ingredient_id?, name?, update_nutrition? }
  */
 export function applyBarcode({ ean, product, ingredient_id, name, update_nutrition = true }) {
+  // Na het opslaan zoekt de prijswachtrij (Open Prices) via de barcode een echte prijs.
   const fields = {};
   if (product?.nutrition && update_nutrition) {
     Object.assign(fields, ingredientNutritionFields({ nutrition: product.nutrition, product }));

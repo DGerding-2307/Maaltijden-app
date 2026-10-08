@@ -7,6 +7,8 @@ import * as ai from './claude.js';
 import { CATEGORIES, mondayOf, addDays } from './seed.js';
 import { searchOff, productByBarcode, ingredientNutritionFields } from './openfoodfacts.js';
 import { enqueue, queueStatus, clearQueue } from './offqueue.js';
+import { priceForIngredient, ingredientPriceFields } from './openprices.js';
+import { enqueuePrices, priceQueueStatus, clearPriceQueue } from './pricequeue.js';
 import { lookupBarcode, applyBarcode } from './scan.js';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
@@ -20,7 +22,9 @@ let changeCounter = Date.now();
 
 /** Nieuwe of door Claude geschatte ingrediënten op de achtergrond aanvullen met Open Food Facts. */
 function autoEnrich(ids) {
-  if (ids.length && getSetting('off_auto', true) && process.env.OFF_DISABLED !== '1') enqueue(ids);
+  if (!ids.length || process.env.OFF_DISABLED === '1') return;
+  if (getSetting('off_auto', true)) enqueue(ids);
+  if (getSetting('prices_auto', true)) enqueuePrices(ids);
 }
 
 /** Bij de eerste start van v2: alle ingrediënten één keer met Open Food Facts vergelijken. */
@@ -28,6 +32,13 @@ export function initialOffSync() {
   if (getSetting('off_synced', false) || process.env.OFF_DISABLED === '1') return;
   const ids = repo.listIngredients().filter((i) => !String(i.nutrition_source || '').startsWith('Open Food Facts') && i.name !== 'water' && i.name !== 'zout').map((i) => i.id);
   enqueue(ids, { onFinish: (st) => { if (st.updated.length || st.skipped.length) setSetting('off_synced', true); } });
+}
+
+/** Bij de eerste start van v2.3: geschatte prijzen vervangen door echte prijzen uit Open Prices. */
+export function initialPriceSync() {
+  if (getSetting('prices_synced', false) || process.env.OFF_DISABLED === '1') return;
+  const ids = repo.listIngredients().filter((i) => ['schatting', 'jumbo', null].includes(i.price_source) && i.name !== 'water').map((i) => i.id);
+  enqueuePrices(ids, { onFinish: (st) => { if (st.updated.length || st.skipped.length) setSetting('prices_synced', true); } });
 }
 
 export function createApp() {
@@ -79,13 +90,14 @@ export function createApp() {
     meals: getSetting('meals', ['ontbijt', 'lunch', 'diner']),
     default_servings: getSetting('default_servings', 4),
     off_auto: getSetting('off_auto', true),
+    prices_auto: getSetting('prices_auto', true),
     household: getSetting('household', ''),
     weekly_budget_cents: getSetting('weekly_budget_cents', null),
     claude: ai.claudeStatus(),
   })));
 
   api.put('/settings', wrap((req) => {
-    const allowed = ['default_servings', 'meals', 'household', 'weekly_budget_cents', 'claude_model', 'anthropic_api_key', 'off_auto'];
+    const allowed = ['default_servings', 'meals', 'household', 'weekly_budget_cents', 'claude_model', 'anthropic_api_key', 'off_auto', 'prices_auto'];
     for (const key of allowed) if (key in req.body) setSetting(key, req.body[key]);
     return { ok: true, claude: ai.claudeStatus() };
   }));
@@ -183,9 +195,36 @@ export function createApp() {
   }));
   api.delete('/off/queue', wrap(() => { clearQueue(); return queueStatus(); }));
 
+  // ---- Open Prices ----
+  api.get('/ingredients/:id/prices', wrap(async (req) => {
+    const ing = repo.getIngredient(Number(req.params.id));
+    if (!ing) throw notFound();
+    return priceForIngredient(ing);
+  }));
+  api.post('/ingredients/:id/prices', wrap(async (req) => {
+    const ing = repo.getIngredient(Number(req.params.id));
+    if (!ing) throw notFound();
+    const result = await priceForIngredient(ing);
+    if (!result.count) throw notFound('Geen Nederlandse prijzen gevonden in Open Prices');
+    return repo.saveIngredient(ingredientPriceFields(result), ing.id);
+  }));
+  api.get('/prices/queue', wrap(() => priceQueueStatus()));
+  api.post('/prices/queue', wrap((req) => {
+    let list = repo.listIngredients().filter((i) => i.name !== 'water');
+    if (Array.isArray(req.body.ids)) list = list.filter((i) => req.body.ids.includes(i.id));
+    else list = list.filter((i) => i.price_source !== 'handmatig');
+    return enqueuePrices(list.map((i) => i.id), { force: !!req.body.force });
+  }));
+  api.delete('/prices/queue', wrap(() => { clearPriceQueue(); return priceQueueStatus(); }));
+
   // ---- Barcode scannen ----
   api.get('/scan/:ean', wrap((req) => lookupBarcode(req.params.ean)));
-  api.post('/scan/apply', wrap((req) => applyBarcode(req.body)));
+  api.post('/scan/apply', wrap((req) => {
+    const ing = applyBarcode(req.body);
+    // Prijs via de barcode opzoeken in Open Prices (op de achtergrond)
+    if (getSetting('prices_auto', true) && process.env.OFF_DISABLED !== '1' && ing.price_source !== 'handmatig') enqueuePrices([ing.id]);
+    return ing;
+  }));
 
   // ---- Planning ----
   api.get('/plan', wrap((req) => repo.getPlan(week(req.query.week), 7)));
@@ -275,6 +314,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const port = Number(process.env.PORT) || 3000;
   const host = process.env.HOST || '0.0.0.0';
   initialOffSync();
+  initialPriceSync();
   createApp().listen(port, host, () => {
     console.log(`🍽️  Maaltijden-app draait op http://${host === '0.0.0.0' ? 'localhost' : host}:${port}`);
     if (!ai.claudeStatus().configured) console.log('ℹ️  Claude is nog niet ingesteld (ANTHROPIC_API_KEY of via Instellingen).');

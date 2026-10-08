@@ -1,8 +1,8 @@
-# Gebruikersacceptatietest (UAT): Maaltijden-app v1 → v2.2
+# Gebruikersacceptatietest (UAT): Maaltijden-app v1 → v2.3
 
 **Datum:** 8 oktober 2026
-**Getest:** v1.0 (eerste versie), v2.0 en v2.2 (barcode scannen in recepten; Jumbo-koppeling verwijderd)
-**Uitslag v2.2:** 21 van de 21 scenario's geslaagd ✅
+**Getest:** v1.0 (eerste versie), v2.0, v2.2 (barcode scannen; Jumbo-koppeling verwijderd) en v2.3 (prijzen uit Open Prices)
+**Uitslag v2.3:** 22 van de 22 scenario's geslaagd ✅
 
 ## 1. Aanpak
 
@@ -14,7 +14,7 @@
    op desktop (1366×900) en telefoon (390×844). Het script staat in [`test/uat/uat.mjs`](../test/uat/uat.mjs).
    Tijdens de eerste v2-ronde vielen 3 scenario's uit. Die zijn opgelost en daarna is alles opnieuw getest (§5).
 
-**Beperking van de test:** vanuit de testomgeving waren Open Food Facts en de Claude-API niet bereikbaar.
+**Beperking van de test:** vanuit de testomgeving waren Open Food Facts, Open Prices en de Claude-API niet bereikbaar.
 - Open Food Facts is getest tegen een nagebootste server met hetzelfde antwoordformaat als de echte API
   ([`test/uat/off-mock.mjs`](../test/uat/off-mock.mjs)). De automatische tests in `test/openfoodfacts.test.js` werken op dezelfde manier.
 - Claude-functies zijn alleen getest op de vorm van het verzoek en op de foutafhandeling zonder sleutel.
@@ -64,14 +64,15 @@
 | UAT-19 | Duidelijke uitleg als Claude niet is ingesteld | V14 | ✅ | ✅ |
 | UAT-20 | Alle hoofdpagina's op telefoon zonder horizontaal scrollen | V13 | – niet gemeten | ✅ (na herstel, zie §5) |
 | UAT-21 | Ingrediënt aan een recept toevoegen door de barcode te scannen *(v2.2)* | V6, V8 | ❌ | ✅ gekoppeld aan bestaand ingrediënt, met voedingswaarden uit Open Food Facts |
+| UAT-22 | Prijzen uit een officiële, open bron *(v2.3)* | V10 | ❌ alleen schattingen | ✅ Open Prices: mediaan van Nederlandse winkelprijzen, bron zichtbaar per ingrediënt en recept |
 
-**v1:** 6 geslaagd, 5 gedeeltelijk, 9 niet, 1 niet gemeten. **v2.2:** 21 van 21 geslaagd.
+**v1:** 6 geslaagd, 5 gedeeltelijk, 10 niet, 1 niet gemeten. **v2.3:** 22 van 22 geslaagd.
 
-UAT-21 is getest tegen een nagebootste Open Food Facts-server. De camera is in de testbrowser vervangen door het intypen van de barcode.
+UAT-21 en UAT-22 zijn getest tegen een nagebootste Open Food Facts- en Open Prices-server (zelfde antwoordformaat als de echte API, afgeleid uit de broncode van Open Prices). De camera is in de testbrowser vervangen door het intypen van de barcode.
 
 **Jumbo-koppeling verwijderd (v2.2).** v2.1 had een scenario ‘boodschappenlijst naar de Jumbo-app’ (via jumbo-wrapper), en prijzen konden bij Jumbo worden opgehaald.
 Beide gebruikten de niet-openbare API van de Jumbo-app. Die was niet te verifiëren, en jumbo-wrapper bleek verouderd en had een fout in het mandje.
-De functies zijn daarom verwijderd. Prijzen zijn nu altijd een schatting of zelf ingevuld.
+De functies zijn daarom verwijderd. Sinds v2.3 komen prijzen uit Open Prices, de open prijsdatabase van Open Food Facts met een officiële API.
 
 ## 4. Bevindingen in v1 en wat er in v2 is veranderd
 
@@ -104,6 +105,7 @@ De functies zijn daarom verwijderd. Prijzen zijn nu altijd een schatting of zelf
   (op de achtergrond, ~6,5 s per ingrediënt, dus ±12 minuten).
   Als een waarde sterk afwijkt van de huidige (meer dan 2× zo hoog of laag), wordt hij **niet** automatisch overgenomen. Hij komt dan bij
   *Ingrediënten → Overgeslagen*, waar je hem met één klik toch kunt gebruiken. Dit voorkomt bijvoorbeeld dat ‘ui’ de waarden van gebakken uitjes krijgt.
+- **Open Prices met echte gegevens controleren.** Hoeveel Nederlandse prijzen erin staan, kon vanuit de testomgeving niet worden bekeken. Ingrediënten zonder prijzen houden hun schatting.
 - **Recepten importeren uit video's** (TikTok/Instagram/YouTube) werkt alleen als de beschrijving tekst bevat. Volledige video-ondersteuning is niet gebouwd.
 - **Inloggen per huisgenoot** is er niet. De app gaat uit van één huishouden met één gedeeld (optioneel) wachtwoord.
 
@@ -126,6 +128,6 @@ Veel recensiebronnen zijn overzichtssites of door concurrenten geschreven. Zie d
 | ![Planner](uat/01-planner.png) Planner met restjes (♻️) en vrije tekst | ![Open Food Facts](uat/06-off-zoeken.png) Voedingswaarden zoeken in Open Food Facts |
 | ![Verplaatsen op telefoon](uat/02-verplaatsen-mobiel.png) Verplaatsen op de telefoon | ![Boodschappen mobiel](uat/10-boodschappen-mobiel.png) Boodschappenlijst met 🏠 ‘heb ik al’ |
 | ![Wat kan ik maken](uat/12-wat-kan-ik-maken.png) ‘Wat kan ik maken?’ | ![Offline](uat/16-offline.png) Offline met melding |
-| ![Barcode in recept](uat/21-barcode-recept.png) Ingrediënt scannen in de recepteditor | |
+| ![Barcode in recept](uat/21-barcode-recept.png) Ingrediënt scannen in de recepteditor | ![Open Prices](uat/22-open-prices.png) Winkelprijzen uit Open Prices |
 
 *De voedingswaarden en barcodes op de schermafbeeldingen komen van de nagebootste Open Food Facts-server, niet van echte producten.*

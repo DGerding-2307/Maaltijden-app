@@ -281,5 +281,23 @@ await scenario('UAT-21', 'Ingrediënt aan een recept toevoegen door de barcode t
   return 'EAN 8710400000001 → gekoppeld aan ‘halfvolle melk’ met voedingswaarden uit Open Food Facts';
 });
 
+await scenario('UAT-22', 'Prijzen uit Open Prices (officiële open API) gebruiken', async () => {
+  await page.goto(B + '#/ingredienten');
+  await page.fill('[data-q]', 'wortel');
+  await page.waitForTimeout(300);
+  const row = page.locator('tr[data-id]').filter({ has: page.locator('td:first-child strong', { hasText: /^wortel$/ }) });
+  const badge = await row.textContent();
+  expect(/Open Prices/.test(badge), `geen Open Prices-prijs: ${badge.replace(/\s+/g, ' ')}`);
+  await row.locator('[data-prices]').click();
+  await page.waitForSelector('[data-use]', { timeout: 10000 });
+  await page.screenshot({ path: `${OUT}/22-open-prices.png` });
+  const n = await page.locator('.modal .data-table tbody tr').count();
+  await page.click('[data-use]');
+  await page.goto(B + '#/recept/2');
+  const txt = await page.locator('.ingredients-card').textContent();
+  expect(/uit Open Prices/.test(txt), 'geen bronvermelding op receptpagina');
+  return `wortel: ${n} winkelprijzen; receptpagina: ${txt.match(/Prijzen: [^.]*/)?.[0]}`;
+});
+
 await browser.close();
 console.log(JSON.stringify({ results, errors }, null, 1));

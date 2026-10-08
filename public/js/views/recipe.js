@@ -85,7 +85,7 @@ export async function render(root, params) {
             <div><span class="muted">Prijs per persoon</span><strong>${euro(r.cost_per_serving_cents)}</strong></div>
             <div><span class="muted">Totaal voor ${persons}</span><strong>${euro((r.cost_total_cents * persons) / r.servings)}</strong></div>
           </div>
-          <p class="muted small">Geschatte supermarktprijzen, naar verhouding van de verpakking.${r.missing_price ? ` ${r.missing_price} ingrediënt(en) zonder prijs.` : ''}
+          <p class="muted small">Naar verhouding van de verpakking. ${priceSummary()}${r.missing_price ? ` ${r.missing_price} ingrediënt(en) zonder prijs.` : ''}
             <a href="#/ingredienten">Prijzen beheren</a></p>
           <button class="btn btn-ghost full" data-add-shopping>🛒 Op boodschappenlijst (deze week)</button>
         </section>
@@ -133,6 +133,18 @@ export async function render(root, params) {
           <button class="btn btn-ai" ${m.claude.configured ? '' : 'disabled'}>Vraag</button>
         </form>
       </section>`;
+  }
+
+  function priceSummary() {
+    const linked = r.ingredients.filter((i) => i.ingredient && !i.ingredient.pantry);
+    const op = linked.filter((i) => i.ingredient.price_source === 'open prices').length;
+    const own = linked.filter((i) => i.ingredient.price_source === 'handmatig').length;
+    const est = linked.length - op - own;
+    const parts = [];
+    if (op) parts.push(`${op} uit <a href="https://prices.openfoodfacts.org" target="_blank" rel="noopener">Open Prices</a>`);
+    if (own) parts.push(`${own} zelf ingevuld`);
+    if (est) parts.push(`${est} geschat`);
+    return parts.length ? `Prijzen: ${parts.join(', ')}.` : '';
   }
 
   function sourceSummary() {

@@ -6,7 +6,7 @@ import { addDays } from './seed.js';
 const ING_FIELDS = [
   'name', 'aliases', 'category', ...NUTRIENTS, 'unit_weight_g', 'density', 'pantry',
   'price_cents', 'package_grams', 'package_label', 'jumbo_id', 'jumbo_name', 'jumbo_url', 'jumbo_query', 'jumbo_image',
-  'price_source', 'price_updated_at', 'nutrition_source', 'off_code', 'nutriscore', 'nutrition_updated_at',
+  'price_source', 'price_updated_at', 'nutrition_source', 'off_code', 'nutriscore', 'nutrition_updated_at', 'off_category', 'price_count', 'price_note',
 ];
 
 // ---------- Ingrediënten ----------

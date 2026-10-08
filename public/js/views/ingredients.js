@@ -2,7 +2,7 @@ import { api, meta } from '../api.js';
 import { scanBarcode } from '../scanner.js';
 import { $, esc, euro, num, toast, modal, confirmDialog, debounce, NUTRIENT_LABELS } from '../util.js';
 
-const SOURCE_LABEL = { jumbo: '📦 eerder opgehaald', handmatig: '✍️ handmatig', schatting: '≈ schatting' };
+const SOURCE_LABEL = { 'open prices': '🏷️ Open Prices', jumbo: '📦 eerder opgehaald', handmatig: '✍️ handmatig', schatting: '≈ schatting' };
 
 export function nutritionBadge(i) {
   const src = String(i.nutrition_source || '');
@@ -28,13 +28,15 @@ export async function render(root) {
       <div class="actions">
         <button class="btn" data-new>+ Nieuw ingrediënt</button>
         <button class="btn" data-off-all title="Vul voedingswaarden aan met Open Food Facts (op de achtergrond)">🥫 Voedingswaarden via Open Food Facts</button>
+        <button class="btn" data-prices-all title="Haal Nederlandse winkelprijzen op uit Open Prices (op de achtergrond); handmatige prijzen blijven staan">🏷️ Prijzen via Open Prices</button>
       </div>
     </div>
     <div data-off-status></div>
     <p class="muted">Voedingswaarden per 100 g komen uit <a href="https://nl.openfoodfacts.org" target="_blank" rel="noopener">Open Food Facts</a>
       (open database, ODbL) – per ingrediënt de mediaan van vergelijkbare Nederlandse producten, of één product dat je zelf kiest of scant.
       Waar nog geen OFF-gegevens zijn, staan NEVO-gemiddelden of een schatting van Claude.
-      Prijzen zijn geschatte supermarktprijzen per verpakking; pas ze aan via ✏️ als je de actuele prijs weet.</p>
+      Prijzen komen uit <a href="https://prices.openfoodfacts.org" target="_blank" rel="noopener">Open Prices</a>: de mediaan van recente prijzen in Nederlandse winkels.
+      Waar die nog ontbreken staat een schatting; een zelf ingevulde prijs (✏️) wordt nooit automatisch overschreven.</p>
     <div class="filters">
       <input type="search" class="input grow" placeholder="Zoek ingrediënt…" data-q>
       <select class="input" data-cat><option value="">Alle afdelingen</option>${m.categories.map((c) => `<option>${esc(c)}</option>`).join('')}</select>
@@ -59,10 +61,11 @@ export async function render(root) {
         <td class="small">${esc(i.package_label || (i.package_grams ? `${i.package_grams} g` : ''))}</td>
         <td class="num">${euro(i.price_cents)}</td>
         <td class="num">${i.price_cents != null && i.package_grams ? euro((i.price_cents / i.package_grams) * 1000) : ''}</td>
-        <td class="small" title="${esc(i.price_updated_at || '')}">${SOURCE_LABEL[i.price_source] || esc(i.price_source || '')}</td>
+        <td class="small" title="${esc(i.price_note || i.price_updated_at || '')}">${SOURCE_LABEL[i.price_source] || esc(i.price_source || '')}${i.price_count ? ` <span class="muted">(${i.price_count})</span>` : ''}</td>
         <td class="row-actions">
           <button class="mini" data-edit title="Bewerken">✏️</button>
           <button class="mini" data-off title="Voedingswaarden uit Open Food Facts">🥫</button>
+          <button class="mini" data-prices title="Prijzen uit Open Prices">🏷️</button>
           <button class="mini danger" data-del title="Verwijderen">✕</button>
         </td>
       </tr>`).join('');
@@ -98,6 +101,8 @@ export async function render(root) {
           <label>Verpakking (g) <input class="input" type="number" step="any" min="0" name="package_grams" value="${ing.package_grams ?? ''}"></label>
           <label>Prijs verpakking (€) <input class="input" type="number" step="0.01" min="0" name="price" value="${ing.price_cents != null ? (ing.price_cents / 100).toFixed(2) : ''}"></label>
           <label class="span-2">Verpakkingslabel <input class="input" name="package_label" value="${esc(ing.package_label || '')}" placeholder="bv. 500 g of 6 stuks"></label>
+          <label class="span-2">Open Food Facts-categorie (voor prijzen) <input class="input" name="off_category" value="${esc(ing.off_category || '')}" placeholder="bv. en:carrots"></label>
+          ${ing.price_note ? `<p class="span-2 muted small">Prijs: ${esc(ing.price_note)}</p>` : ''}
           <label class="span-2 check"><input type="checkbox" name="pantry" ${ing.pantry ? 'checked' : ''}> Voorraadkast-artikel (niet standaard op de boodschappenlijst)</label>
         </div>
         <div class="row end"><button class="btn btn-primary">Opslaan</button></div>
@@ -128,6 +133,8 @@ export async function render(root) {
         data.price_cents = newPrice;
         data.price_source = 'handmatig';
         data.price_updated_at = new Date().toISOString().slice(0, 10);
+        data.price_note = 'Zelf ingevuld';
+        data.price_count = null;
       }
       try {
         if (ing.id) await api.put(`/ingredients/${ing.id}`, data);
@@ -207,26 +214,77 @@ export async function render(root) {
     search(ing.name);
   }
 
+  // Voortgang van de achtergrondtaken (Open Food Facts en Open Prices)
+  const QUEUES = [
+    { url: '/off/queue', label: '🥫 Open Food Facts (voedingswaarden)', secs: 6.5, suggestion: (x) => `${num(x.kcal, 0)} kcal` },
+    { url: '/prices/queue', label: '🏷️ Open Prices (prijzen)', secs: 5, suggestion: (x) => euro(x.price_cents) },
+  ];
   let pollTimer = null;
   async function showQueue() {
     const box = $('[data-off-status]', view);
     if (!box) return;
-    const st = await api.get('/off/queue').catch(() => null);
-    if (!st || (!st.running && !st.done)) { box.innerHTML = ''; return; }
-    box.innerHTML = `<div class="notice off-status">
-      <strong>🥫 Open Food Facts:</strong> ${st.running ? `bezig… ${st.done} klaar, nog ${st.pending} te gaan (±${Math.ceil(st.pending * 6.5 / 60)} min)` : `klaar – ${st.updated.length} bijgewerkt, ${st.skipped.length} overgeslagen`}
-      ${st.errors.length ? `<br><span class="error">${esc(st.errors.at(-1))}</span>` : ''}
-      ${st.skipped.length ? `<details><summary>Overgeslagen (${st.skipped.length})</summary><ul>${st.skipped.map((x) => `<li>${esc(x.name)}: ${esc(x.reason)}
-        ${x.suggestion ? ` <button class="mini" data-accept="${x.id}">toch gebruiken (${num(x.suggestion.kcal, 0)} kcal)</button>` : ''}</li>`).join('')}</ul></details>` : ''}
-    </div>`;
+    const states = await Promise.all(QUEUES.map((qd) => api.get(qd.url).catch(() => null)));
+    box.innerHTML = QUEUES.map((qd, i) => {
+      const st = states[i];
+      if (!st || (!st.running && !st.done)) return '';
+      return `<div class="notice off-status" data-queue="${i}">
+        <strong>${qd.label}:</strong> ${st.running ? `bezig… ${st.done} klaar, nog ${st.pending} te gaan (±${Math.max(1, Math.ceil(st.pending * qd.secs / 60))} min)` : `klaar – ${st.updated.length} bijgewerkt, ${st.skipped.length} overgeslagen`}
+        ${st.errors.length ? `<br><span class="error">${esc(st.errors.at(-1))}</span>` : ''}
+        ${st.skipped.length ? `<details><summary>Overgeslagen (${st.skipped.length})</summary><ul>${st.skipped.map((x) => `<li>${esc(x.name)}: ${esc(x.reason)}
+          ${x.suggestion ? ` <button class="mini" data-accept="${x.id}">toch gebruiken (${qd.suggestion(x.suggestion)})</button>` : ''}</li>`).join('')}</ul></details>` : ''}
+      </div>`;
+    }).join('');
     box.querySelectorAll('[data-accept]').forEach((b) => b.addEventListener('click', async () => {
-      const x = st.skipped.find((s) => String(s.id) === b.dataset.accept);
+      const st = states[Number(b.closest('[data-queue]').dataset.queue)];
+      const x = st.skipped.find((sk) => String(sk.id) === b.dataset.accept);
       await api.put(`/ingredients/${x.id}`, x.suggestion);
       b.replaceWith('✔');
       reload();
     }));
     clearTimeout(pollTimer);
-    if (st.running) pollTimer = setTimeout(async () => { await reload(); showQueue(); }, 4000);
+    if (states.some((st) => st?.running)) pollTimer = setTimeout(async () => { await reload(); showQueue(); }, 4000);
+  }
+
+  // Waargenomen prijzen uit Open Prices voor één ingrediënt
+  async function priceDialog(ing) {
+    const md = modal(`<h2>🏷️ Prijzen voor ${esc(ing.name)}</h2><div data-body><p class="muted">Prijzen zoeken in Open Prices…</p></div>`, { wide: true });
+    const body = $('[data-body]', md.el);
+    let r;
+    try {
+      r = await api.get(`/ingredients/${ing.id}/prices`);
+    } catch (err) {
+      body.innerHTML = `<p class="error">${esc(err.message)}</p>`;
+      return;
+    }
+    if (!r.count) {
+      body.innerHTML = `<p>Er staan nog geen recente Nederlandse prijzen voor dit ingrediënt in Open Prices.</p>
+        <p class="muted small">Gezocht via ${ing.off_code ? 'de barcode, ' : ''}${ing.off_category ? `de categorie <code>${esc(ing.off_category)}</code>` : 'vergelijkbare producten uit Open Food Facts'}.
+        Je kunt een categorie instellen via ✏️, of zelf prijzen toevoegen op <a href="https://prices.openfoodfacts.org" target="_blank" rel="noopener">prices.openfoodfacts.org</a>
+        (bijvoorbeeld met een foto van je kassabon) – daar heeft iedereen profijt van.</p>`;
+      return;
+    }
+    body.innerHTML = `
+      <div class="off-median">
+        <div><strong>${euro(r.price_cents)}</strong> per verpakking van ${num(r.package_grams, 0)} g
+          <br><span class="muted small">mediaan ${euro(r.per_kg * 100)} per kg uit ${r.count} prijzen · ${esc(r.stores.join(', '))}</span></div>
+        <button class="btn btn-primary" data-use>Gebruik deze prijs</button>
+      </div>
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th>Datum</th><th>Winkel</th><th>Product</th><th class="num">Prijs</th><th class="num">Per kg</th></tr></thead>
+        <tbody>${r.observations.map((o) => `<tr>
+          <td class="small">${esc(o.date || '')}</td>
+          <td class="small">${esc(o.store)}${o.city ? ` <span class="muted">${esc(o.city)}</span>` : ''}</td>
+          <td class="small">${esc(o.product || '')}${o.discounted ? ' <span class="badge">actie</span>' : ''}</td>
+          <td class="num">${euro(o.price * 100)}<span class="muted small">${o.price_per === 'KILOGRAM' ? '/kg' : o.price_per === 'UNIT' ? '/st' : ''}</span></td>
+          <td class="num">${euro(o.per_kg * 100)}</td></tr>`).join('')}</tbody>
+      </table></div>
+      <p class="muted small">Prijzen: © <a href="https://prices.openfoodfacts.org" target="_blank" rel="noopener">Open Prices</a>-bijdragers, ODbL. Alleen Nederlandse winkels, laatste 2 jaar; bij acties telt de normale prijs.</p>`;
+    $('[data-use]', body).addEventListener('click', async () => {
+      await api.post(`/ingredients/${ing.id}/prices`);
+      toast('Prijs bijgewerkt uit Open Prices', 'success');
+      md.close();
+      reload();
+    });
   }
 
   view.addEventListener('input', debounce((e) => {
@@ -238,6 +296,11 @@ export async function render(root) {
     const ing = tr && all.find((i) => i.id === Number(tr.dataset.id));
     try {
       if (e.target.closest('[data-new]')) return editDialog();
+      if (e.target.closest('[data-prices-all]')) {
+        await api.post('/prices/queue', {});
+        toast('Prijzen worden op de achtergrond opgehaald uit Open Prices', 'success');
+        return showQueue();
+      }
       if (e.target.closest('[data-off-all]')) {
         await api.post('/off/queue', { scope: 'estimates' });
         toast('Open Food Facts wordt op de achtergrond doorzocht', 'success');
@@ -246,6 +309,7 @@ export async function render(root) {
       if (!ing) return;
       if (e.target.closest('[data-edit]')) return editDialog(ing);
       if (e.target.closest('[data-off]')) return offDialog(ing);
+      if (e.target.closest('[data-prices]')) return priceDialog(ing);
       if (e.target.closest('[data-del]')) {
         if (!(await confirmDialog(`“${ing.name}” verwijderen? Recepten die het gebruiken verliezen de koppeling.`))) return;
         await api.del(`/ingredients/${ing.id}`);
