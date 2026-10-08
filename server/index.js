@@ -4,12 +4,10 @@ import { fileURLToPath } from 'node:url';
 import { openDatabase, getSetting, setSetting } from './db.js';
 import * as repo from './repo.js';
 import * as ai from './claude.js';
-import { searchJumbo, ingredientPriceFields, refreshIngredientPrice } from './jumbo.js';
 import { CATEGORIES, mondayOf, addDays } from './seed.js';
 import { searchOff, productByBarcode, ingredientNutritionFields } from './openfoodfacts.js';
 import { enqueue, queueStatus, clearQueue } from './offqueue.js';
 import { lookupBarcode, applyBarcode } from './scan.js';
-import { jumboAccountStatus, loginJumbo, loginJumboWithToken, logoutJumbo, addToJumboList } from './jumboaccount.js';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { UNITS } from './calc.js';
@@ -81,7 +79,6 @@ export function createApp() {
     meals: getSetting('meals', ['ontbijt', 'lunch', 'diner']),
     default_servings: getSetting('default_servings', 4),
     off_auto: getSetting('off_auto', true),
-    jumbo_account: jumboAccountStatus(),
     household: getSetting('household', ''),
     weekly_budget_cents: getSetting('weekly_budget_cents', null),
     claude: ai.claudeStatus(),
@@ -159,7 +156,7 @@ export function createApp() {
     if (!ing) throw notFound();
     const est = await ai.estimateIngredient(ing.name);
     const update = { ...est, nutrition_source: 'Claude (schatting)' };
-    // Bestaande Jumbo-prijs niet overschrijven met een schatting.
+    // Een handmatig ingevoerde prijs niet overschrijven met een schatting.
     if (ing.price_source !== 'schatting') { delete update.price_cents; delete update.package_grams; }
     return repo.saveIngredient(update, ing.id);
   }));
@@ -189,71 +186,6 @@ export function createApp() {
   // ---- Barcode scannen ----
   api.get('/scan/:ean', wrap((req) => lookupBarcode(req.params.ean)));
   api.post('/scan/apply', wrap((req) => applyBarcode(req.body)));
-
-  // ---- Jumbo-account: boodschappenlijst naar de Jumbo-app ----
-  api.get('/jumbo/account', wrap(() => jumboAccountStatus()));
-  api.post('/jumbo/account', wrap((req) => (req.body.token
-    ? loginJumboWithToken(req.body.token, req.body.email)
-    : loginJumbo(req.body.email, req.body.password))));
-  api.delete('/jumbo/account', wrap(() => logoutJumbo()));
-  api.post('/jumbo/cart/preview', wrap(async (req) => {
-    // Welke artikelen van de lijst kunnen naar Jumbo? Optioneel ontbrekende koppelingen automatisch zoeken.
-    const list = repo.getShoppingList(week(req.body.week), 7);
-    const wanted = list.items.filter((i) => !i.checked && !i.have && (req.body.include_pantry || !i.pantry));
-    const linked = [];
-    const unlinked = [];
-    for (const item of wanted) {
-      let ing = item.ingredient_id ? repo.getIngredient(item.ingredient_id) : null;
-      if (ing && !ing.jumbo_id && req.body.autolink) {
-        try {
-          const fields = await refreshIngredientPrice(ing);
-          if (fields) ing = repo.saveIngredient(fields, ing.id);
-        } catch { /* blijft ongekoppeld */ }
-      }
-      if (ing?.jumbo_id) {
-        linked.push({ key: item.key, name: item.name, sku: ing.jumbo_id, title: ing.jumbo_name, quantity: item.packages || 1, price_cents: ing.price_cents, image: ing.jumbo_image });
-      } else unlinked.push({ key: item.key, name: item.name, ingredient_id: item.ingredient_id, jumbo_url: item.jumbo_url });
-    }
-    for (const x of list.extras.filter((e) => !e.checked)) unlinked.push({ key: `x${x.id}`, name: x.name, jumbo_url: `https://www.jumbo.com/zoeken/?searchTerms=${encodeURIComponent(x.name)}` });
-    return { linked, unlinked, account: jumboAccountStatus() };
-  }));
-  api.post('/jumbo/cart', wrap(async (req) => {
-    const items = (req.body.items || []).filter((i) => i.sku).map((i) => ({ sku: String(i.sku), quantity: Number(i.quantity) || 1 }));
-    if (!items.length) throw Object.assign(new Error('Geen producten geselecteerd'), { status: 400 });
-    return addToJumboList(items);
-  }));
-
-  // ---- Jumbo ----
-  api.get('/jumbo/search', wrap((req) => searchJumbo(String(req.query.q || ''), 12)));
-  api.post('/ingredients/:id/jumbo', wrap((req) => {
-    const ing = repo.getIngredient(Number(req.params.id));
-    if (!ing) throw notFound();
-    return repo.saveIngredient(ingredientPriceFields(req.body.product, req.body.query || ing.name), ing.id);
-  }));
-  api.post('/ingredients/:id/refresh-price', wrap(async (req) => {
-    const ing = repo.getIngredient(Number(req.params.id));
-    if (!ing) throw notFound();
-    const fields = await refreshIngredientPrice(ing);
-    if (!fields) throw notFound('Geen product gevonden bij Jumbo');
-    return repo.saveIngredient(fields, ing.id);
-  }));
-  api.post('/jumbo/refresh-all', wrap(async () => {
-    // Alleen ingrediënten die aan een Jumbo-product gekoppeld zijn verversen; rustig aan om de API niet te belasten.
-    const linked = repo.listIngredients().filter((i) => i.jumbo_id);
-    let updated = 0;
-    const errors = [];
-    for (const ing of linked) {
-      try {
-        const fields = await refreshIngredientPrice(ing);
-        if (fields) { repo.saveIngredient(fields, ing.id); updated++; }
-      } catch (err) {
-        errors.push(`${ing.name}: ${err.message}`);
-        if (errors.length >= 3 && updated === 0) break;
-      }
-      await new Promise((r) => setTimeout(r, 300));
-    }
-    return { updated, total: linked.length, errors };
-  }));
 
   // ---- Planning ----
   api.get('/plan', wrap((req) => repo.getPlan(week(req.query.week), 7)));

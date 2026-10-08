@@ -85,7 +85,7 @@ export async function render(root, params) {
             <div><span class="muted">Prijs per persoon</span><strong>${euro(r.cost_per_serving_cents)}</strong></div>
             <div><span class="muted">Totaal voor ${persons}</span><strong>${euro((r.cost_total_cents * persons) / r.servings)}</strong></div>
           </div>
-          <p class="muted small">Prijzen naar verhouding van Jumbo-verpakkingen.${r.missing_price ? ` ${r.missing_price} ingrediënt(en) zonder prijs.` : ''}
+          <p class="muted small">Geschatte supermarktprijzen, naar verhouding van de verpakking.${r.missing_price ? ` ${r.missing_price} ingrediënt(en) zonder prijs.` : ''}
             <a href="#/ingredienten">Prijzen beheren</a></p>
           <button class="btn btn-ghost full" data-add-shopping>🛒 Op boodschappenlijst (deze week)</button>
         </section>

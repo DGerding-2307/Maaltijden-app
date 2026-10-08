@@ -1,7 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { gramsFor, computeRecipe, buildShoppingList, normalizeUnit } from '../server/calc.js';
-import { parseQuantity, normalizeProduct } from '../server/jumbo.js';
 import { extractJsonLdRecipe } from '../server/claude.js';
 
 const ui = { id: 1, name: 'ui', category: 'Groente', kcal: 32, protein: 1.2, carbs: 5.9, sugar: 4, fat: 0.1, sat_fat: 0, fiber: 1.7, salt: 0, unit_weight_g: 100, price_cents: 139, package_grams: 1000 };
@@ -36,18 +35,6 @@ test('boodschappenlijst schaalt naar personen en rondt verpakkingen af', () => {
   assert.equal(item.grams, 1500); // 1200 + 300
   assert.equal(item.packages, 2);
   assert.equal(list.total_cents, 278);
-});
-
-test('Jumbo-product normaliseren', () => {
-  assert.equal(parseQuantity('6 x 0,33 l'), 1980);
-  assert.equal(parseQuantity('500 g'), 500);
-  const p = normalizeProduct({
-    id: '123ABC', title: 'Jumbo Kipfilet 500g', quantity: '500 g',
-    prices: { price: { currency: 'EUR', amount: 599 }, unitPrice: { unit: 'kg', price: { amount: 1198 } } },
-  });
-  assert.equal(p.price_cents, 599);
-  assert.equal(p.package_grams, 500);
-  assert.match(p.url, /jumbo-kipfilet-500g-123ABC$/);
 });
 
 test('JSON-LD recept uit HTML halen', () => {

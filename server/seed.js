@@ -1,6 +1,6 @@
 // Startdata: veelgebruikte Nederlandse ingrediënten en klassieke recepten.
 // Voedingswaarden per 100 g zijn afgerond en gebaseerd op NEVO-gemiddelden (RIVM).
-// Prijzen zijn schattingen van Jumbo-prijzen; ververs ze via "Ingrediënten → Jumbo-prijs ophalen".
+// Prijzen zijn schattingen van supermarktprijzen (Jumbo-niveau, 2026); pas ze aan via Ingrediënten → ✏️.
 
 const AGF = 'Aardappelen, groente & fruit';
 const VV = 'Vlees, vis & vega';

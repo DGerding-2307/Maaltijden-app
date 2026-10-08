@@ -40,15 +40,15 @@ export async function render(root) {
 
     <section class="card">
       <h2>Ingrediënten & prijzen</h2>
-      <p class="muted">Beheer voedingswaarden, verpakkingen en Jumbo-koppelingen van alle ingrediënten.</p>
+      <p class="muted">Beheer voedingswaarden, verpakkingen en prijzen van alle ingrediënten.</p>
       <a class="btn" href="#/ingredienten">🥕 Naar ingrediënten</a>
     </section>
 
     <section class="card">
       <h2>Over</h2>
       <p class="muted small">Voedingswaarden zijn benaderingen op basis van NEVO-gemiddelden (RIVM) en schattingen van Claude.
-        Jumbo-prijzen worden opgehaald via de onofficiële app-API van Jumbo en kunnen afwijken van de prijs in de winkel.
-        Deze app is niet verbonden aan Jumbo of Anthropic.</p>
+        Prijzen zijn schattingen van gangbare supermarktprijzen (Jumbo-niveau) en kunnen afwijken van de prijs in de winkel.
+        Deze app is niet verbonden aan Jumbo, Open Food Facts of Anthropic.</p>
     </section>
   </div>`;
   const form = $('[data-form]', root);

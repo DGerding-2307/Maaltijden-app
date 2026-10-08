@@ -1,9 +1,8 @@
 // Barcode scannen: een product (EAN) omzetten naar een ingrediënt voor een recept.
-// Bronnen: eigen database (eerder gescand) → Open Food Facts (voedingswaarden) → Jumbo (prijs en verpakking).
+// Bronnen: eigen database (eerder gescand) → Open Food Facts (naam, verpakking en voedingswaarden).
 import { getDb } from './db.js';
 import * as repo from './repo.js';
 import { productByBarcode, ingredientNutritionFields } from './openfoodfacts.js';
-import { searchJumbo, ingredientPriceFields } from './jumbo.js';
 
 /** "Jumbo Halfvolle Melk 1L" → "halfvolle melk" */
 export function genericName(name, brands = '') {
@@ -22,19 +21,13 @@ export async function lookupBarcode(ean) {
   const code = String(ean || '').replace(/\D/g, '');
   if (code.length < 8) throw Object.assign(new Error('Ongeldige barcode'), { status: 400 });
   const known = getDb().prepare('SELECT * FROM ingredients WHERE off_code = ?').get(code);
-  const result = { ean: code, ingredient: known || null, product: null, jumbo: null, match: null, warnings: [] };
+  const result = { ean: code, ingredient: known || null, product: null, match: null, warnings: [] };
   try {
     result.product = await productByBarcode(code);
   } catch (err) {
     result.warnings.push(`Open Food Facts: ${err.message}`);
   }
-  try {
-    const hits = await searchJumbo(code, 3);
-    result.jumbo = hits[0] || null;
-  } catch (err) {
-    result.warnings.push(`Jumbo: ${err.message}`);
-  }
-  const name = result.product?.name || result.jumbo?.title || '';
+  const name = result.product?.name || '';
   result.suggested_name = genericName(name, result.product?.brands) || name.toLowerCase();
   if (!known && result.suggested_name) result.match = repo.matchIngredient(result.suggested_name);
   return result;
@@ -42,24 +35,21 @@ export async function lookupBarcode(ean) {
 
 /**
  * Sla het gescande product op als ingrediënt: koppel aan een bestaand ingrediënt of maak een nieuw aan.
- * @param body { ean, product, jumbo, ingredient_id?, name?, update_nutrition? }
+ * @param body { ean, product, ingredient_id?, name?, update_nutrition? }
  */
-export function applyBarcode({ ean, product, jumbo, ingredient_id, name, update_nutrition = true }) {
+export function applyBarcode({ ean, product, ingredient_id, name, update_nutrition = true }) {
   const fields = {};
   if (product?.nutrition && update_nutrition) {
     Object.assign(fields, ingredientNutritionFields({ nutrition: product.nutrition, product }));
     fields.off_code = String(ean || product.code || '');
   }
-  if (jumbo?.price_cents != null && jumbo.package_grams) Object.assign(fields, ingredientPriceFields(jumbo, jumbo.title));
-  else if (product?.grams && !ingredient_id) fields.package_grams = product.grams;
+  if (product?.grams && !ingredient_id) fields.package_grams = product.grams;
   if (ingredient_id) {
     const existing = repo.getIngredient(Number(ingredient_id));
     if (!existing) throw Object.assign(new Error('Ingrediënt niet gevonden'), { status: 404 });
-    // Prijs van een bestaand ingrediënt alleen overschrijven als het nog niet aan Jumbo gekoppeld was
-    if (existing.jumbo_id) for (const k of Object.keys(ingredientPriceFields({}, ''))) delete fields[k];
     return repo.saveIngredient(fields, existing.id);
   }
-  const finalName = String(name || genericName(product?.name || jumbo?.title, product?.brands) || 'nieuw product').trim().toLowerCase();
+  const finalName = String(name || genericName(product?.name, product?.brands) || 'nieuw product').trim().toLowerCase();
   const clash = repo.listIngredients().find((i) => i.name.toLowerCase() === finalName);
   if (clash) return repo.saveIngredient(fields, clash.id);
   return repo.saveIngredient({
@@ -67,7 +57,7 @@ export function applyBarcode({ ean, product, jumbo, ingredient_id, name, update_
     category: product?.category || 'Overig',
     nutrition_source: fields.nutrition_source || 'onbekend',
     price_source: fields.price_source || 'schatting',
-    package_label: jumbo?.package_label || product?.quantity || null,
+    package_label: product?.quantity || null,
     ...fields,
   });
 }

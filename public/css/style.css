@@ -321,7 +321,6 @@ a.plan-entry-title[href]:hover { text-decoration: underline; }
 .shop-cost { text-align: right; font-variant-numeric: tabular-nums; }
 .shop-list li.done .shop-name, .shop-list li.done .shop-cost { text-decoration: line-through; color: var(--muted); }
 .shop-list li.pantry { background: var(--surface-2); }
-.jumbo-link { font-size: .78rem; text-decoration: none; background: #ffd400; color: #1a1a1a; padding: .15rem .45rem; border-radius: 6px; font-weight: 600; white-space: nowrap; }
 .shop-group form { margin-top: .6rem; }
 
 /* ---------- Ingrediënten ---------- */
@@ -330,11 +329,6 @@ a.plan-entry-title[href]:hover { text-decoration: underline; }
 .data-table th { text-align: left; font-size: .75rem; text-transform: uppercase; color: var(--muted); padding: .6rem .7rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
 .data-table td { padding: .5rem .7rem; border-bottom: 1px solid var(--border); vertical-align: top; }
 .data-table tr:hover td { background: var(--surface-2); }
-.jumbo-results { display: flex; flex-direction: column; gap: .4rem; margin-top: .8rem; max-height: 55vh; overflow: auto; }
-.jumbo-product { display: grid; grid-template-columns: 56px 1fr auto; gap: .8rem; align-items: center; text-align: left; padding: .5rem; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); font: inherit; cursor: pointer; }
-.jumbo-product:hover { border-color: #e0b800; background: #fff8d6; color: #1a1a1a; }
-.jumbo-product img { width: 56px; height: 56px; object-fit: contain; background: #fff; border-radius: 8px; }
-.jumbo-product .thumb-emoji { font-size: 2rem; }
 
 /* ---------- Kookmodus ---------- */
 body.cooking .topbar { display: none; }
@@ -412,7 +406,7 @@ body.cooking .topbar { display: none; }
 }
 /* ---------- Print ---------- */
 @media print {
-  .topbar, .actions, .no-print, .recipe-dock, .slot-add, .chat-card, .quick-persons, .portion-ctl button, [data-add-shopping], .jumbo-link, .rating, .fav-big, .mini, .week-nav .btn { display: none !important; }
+  .topbar, .actions, .no-print, .recipe-dock, .slot-add, .chat-card, .quick-persons, .portion-ctl button, [data-add-shopping], .rating, .fav-big, .mini, .week-nav .btn { display: none !important; }
   body { background: #fff; color: #000; }
   main { padding: 0; max-width: none; }
   .card, .day, .stat, .shop-list { box-shadow: none; border-color: #ccc; }
@@ -465,10 +459,3 @@ body.cooking .topbar { display: none; }
 .scan-product .thumb-emoji { font-size: 3rem; }
 label.check.sub { margin-left: 1.6rem; font-weight: 400; }
 label.check .input { width: auto; flex: 1; margin-top: 0; }
-.btn-jumbo { background: #ffd400; border-color: #e6bf00; color: #1a1a1a; }
-.btn-jumbo:hover { background: #ffdd33; }
-.jumbo-cart { list-style: none; padding: 0; margin: .5rem 0; max-height: 50vh; overflow: auto; }
-.jumbo-cart li { display: grid; grid-template-columns: 1fr 5rem 5rem; gap: .6rem; align-items: center; padding: .4rem 0; border-bottom: 1px solid var(--border); }
-.jumbo-cart label { display: flex; gap: .6rem; align-items: center; font-weight: 400; }
-.jumbo-cart img { width: 40px; height: 40px; object-fit: contain; background: #fff; border-radius: 6px; }
-.jumbo-done .big { font-size: 1.15rem; }

@@ -11,7 +11,7 @@ export async function render(root, params) {
     <div class="page-head">
       <h1>✨ Recept toevoegen</h1>
       <p class="muted">Claude zet elk recept om naar een Nederlands recept met metrische hoeveelheden, koppelt ingrediënten aan de database
-        en schat voedingswaarden en Jumbo-prijzen voor onbekende ingrediënten. Je kunt alles nakijken voordat je opslaat.</p>
+        en schat voedingswaarden en prijzen voor onbekende ingrediënten. Je kunt alles nakijken voordat je opslaat.</p>
     </div>
     ${m.claude.configured ? '' : `<div class="notice">Claude is nog niet ingesteld. <a href="#/instellingen">Voeg je Anthropic API-sleutel toe</a> of <a href="#/recept/nieuw">voer een recept zelf in</a>.</div>`}
     <div class="tabs" role="tablist">

@@ -1,7 +1,7 @@
 // Recept toevoegen/bewerken. Wordt ook gebruikt om een door Claude gemaakt concept na te kijken.
 import { api, meta } from '../api.js';
 import { scanBarcode } from '../scanner.js';
-import { $, $$, esc, toast, readImageFile, modal, euro, num } from '../util.js';
+import { $, $$, esc, toast, readImageFile, modal, num } from '../util.js';
 
 export const DRAFT_KEY = 'recipeDraft';
 
@@ -61,7 +61,7 @@ export async function render(root, params) {
       </div>
 
       <h2>Ingrediënten</h2>
-      <p class="muted small">Ingrediënten worden automatisch gekoppeld aan de ingrediëntendatabase voor voedingswaarden en Jumbo-prijzen.
+      <p class="muted small">Ingrediënten worden automatisch gekoppeld aan de ingrediëntendatabase voor voedingswaarden en prijzen.
         Bij eenheden als ‘stuk’ wordt het stuksgewicht van het ingrediënt gebruikt; vul eventueel zelf grammen in.</p>
       <datalist id="ing-names">${ingredients.map((i) => `<option value="${esc(i.name)}">`).join('')}</datalist>
       <datalist id="units">${m.units.map((u) => `<option value="${esc(u)}">`).join('')}</datalist>
@@ -180,7 +180,7 @@ export async function render(root, params) {
   async function scanIngredient() {
     const code = await scanBarcode({ title: 'Ingrediënt scannen' });
     if (!code) return;
-    const md = modal(`<h2>Product ${esc(code)}</h2><div data-body><p class="muted">Opzoeken in Open Food Facts en bij Jumbo…</p></div>`, { wide: true });
+    const md = modal(`<h2>Product ${esc(code)}</h2><div data-body><p class="muted">Opzoeken in Open Food Facts…</p></div>`, { wide: true });
     const body = $('[data-body]', md.el);
     let info;
     try {
@@ -190,30 +190,28 @@ export async function render(root, params) {
       return;
     }
     const p = info.product;
-    const j = info.jumbo;
     const existing = info.ingredient || info.match;
-    if (!p && !j && !info.ingredient) {
-      body.innerHTML = `<p>Dit product is niet gevonden in Open Food Facts of bij Jumbo.</p>
+    if (!p && !info.ingredient) {
+      body.innerHTML = `<p>Dit product is niet gevonden in Open Food Facts.</p>
         ${info.warnings.map((w) => `<p class="muted small">${esc(w)}</p>`).join('')}
         <p class="muted small">Je kunt het product toevoegen aan <a href="https://nl.openfoodfacts.org/cgi/product.pl?code=${esc(code)}" target="_blank" rel="noopener">Open Food Facts</a>
         of het ingrediënt hieronder met de hand invoeren.</p>`;
       return;
     }
-    const grams = p?.grams || j?.package_grams || 100;
+    const grams = p?.grams || 100;
     body.innerHTML = `
       <div class="scan-product">
-        ${p?.image || j?.image ? `<img src="${esc(p?.image || j?.image)}" alt="" referrerpolicy="no-referrer">` : '<span class="thumb-emoji">🛒</span>'}
+        ${p?.image ? `<img src="${esc(p.image)}" alt="" referrerpolicy="no-referrer">` : '<span class="thumb-emoji">🛒</span>'}
         <div>
-          <strong>${esc(p?.name || j?.title || info.ingredient?.name)}</strong>
+          <strong>${esc(p?.name || info.ingredient?.name)}</strong>
           ${p?.nutriscore ? `<span class="nutriscore ns-${esc(p.nutriscore)}">${esc(p.nutriscore.toUpperCase())}</span>` : ''}
-          <div class="muted small">${esc(p?.brands || '')} ${esc(p?.quantity || j?.package_label || '')}</div>
+          <div class="muted small">${esc(p?.brands || '')} ${esc(p?.quantity || '')}</div>
           ${p?.nutrition ? `<div class="small">${num(p.nutrition.kcal, 0)} kcal · ${num(p.nutrition.protein)} g eiwit · ${num(p.nutrition.carbs)} g kh · ${num(p.nutrition.fat)} g vet per 100 g</div>` : '<div class="small muted">Geen voedingswaarden in Open Food Facts</div>'}
-          ${j ? `<div class="small">🟡 Jumbo: ${esc(j.title)} – <strong>${euro(j.price_cents)}</strong></div>` : '<div class="small muted">Niet gevonden bij Jumbo</div>'}
         </div>
       </div>
       <form class="form" data-apply>
         ${existing ? `<label class="check"><input type="radio" name="mode" value="link" checked> Koppel aan bestaand ingrediënt <strong>${esc(existing.name)}</strong></label>
-          <label class="check sub"><input type="checkbox" name="update" ${info.ingredient ? '' : 'checked'}> Voedingswaarden${j ? ' en Jumbo-product' : ''} van dit product overnemen</label>` : ''}
+          <label class="check sub"><input type="checkbox" name="update" ${info.ingredient ? '' : 'checked'}> Voedingswaarden van dit product overnemen</label>` : ''}
         <label class="check"><input type="radio" name="mode" value="new" ${existing ? '' : 'checked'}> Nieuw ingrediënt:
           <input class="input" name="name" value="${esc(info.suggested_name || '')}" aria-label="Naam nieuw ingrediënt"></label>
         <div class="grid-2">
@@ -233,7 +231,7 @@ export async function render(root, params) {
         if (mode === 'link' && f.update && !f.update.checked) ing = existing;
         else {
           ing = await api.post('/scan/apply', {
-            ean: code, product: p, jumbo: j, update_nutrition: true,
+            ean: code, product: p, update_nutrition: true,
             ...(mode === 'link' ? { ingredient_id: existing.id } : { name: f.name.value }),
           });
         }

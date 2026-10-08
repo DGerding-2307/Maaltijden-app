@@ -105,12 +105,6 @@ export function computeRecipe(recipe, rows) {
   };
 }
 
-export function jumboUrl(ingredient, fallbackName) {
-  if (ingredient?.jumbo_url) return ingredient.jumbo_url;
-  const q = ingredient?.jumbo_query || ingredient?.name || fallbackName;
-  return `https://www.jumbo.com/zoeken/?searchTerms=${encodeURIComponent(q)}`;
-}
-
 /**
  * Boodschappenlijst: aggregeer benodigde grammen per ingrediënt over meerdere geplande maaltijden.
  * @param entries [{servings, recipe: {servings}, rows: [...]}]
@@ -163,8 +157,6 @@ export function buildShoppingList(entries) {
       packages,
       density: Number(ing?.density) || 1,
       package_label: ing?.package_label || (ing?.package_grams ? `${ing.package_grams} g` : null),
-      product_name: ing?.jumbo_name || null,
-      jumbo_url: jumboUrl(ing, item.name),
       cost_cents: cost,
       recipes: [...recipes],
     };

@@ -278,28 +278,7 @@ await scenario('UAT-21', 'Ingrediënt aan een recept toevoegen door de barcode t
   await page.waitForSelector('.ingredient-list');
   const txt = await page.locator('.ingredient-list').textContent();
   expect(/250 ml\s*halfvolle melk/.test(txt.replace(/\s+/g, ' ')), 'niet in opgeslagen recept');
-  return 'EAN 8710400000001 → gekoppeld aan ‘halfvolle melk’ (OFF-voeding + Jumbo-product)';
-});
-
-await scenario('UAT-22', 'Boodschappenlijst naar de Jumbo-app zetten', async () => {
-  await page.goto(B + '#/boodschappen');
-  await page.click('[data-to-jumbo]');
-  await page.waitForSelector('[data-login]');
-  await page.fill('[data-login] [name=email]', 'ik@example.nl');
-  await page.fill('[data-login] [name=password]', 'geheim');
-  await page.click('[data-login] button');
-  await page.waitForSelector('[data-send], [data-autolink]', { timeout: 10000 });
-  if (await page.locator('[data-autolink]').count()) {
-    await page.click('[data-autolink]');
-    await page.waitForSelector('[data-send]', { timeout: 60000 });
-  }
-  const n = await page.locator('.jumbo-cart li').count();
-  await page.screenshot({ path: `${OUT}/22-naar-jumbo.png` });
-  await page.click('[data-send] .btn-jumbo');
-  await page.waitForSelector('.jumbo-done', { timeout: 10000 });
-  const done = await page.locator('.jumbo-done').textContent();
-  expect(/staan in je Jumbo-lijst/.test(done), done);
-  return `${n} producten overgezet; ${done.match(/Daar staan nu \d+ producten/)?.[0]}`;
+  return 'EAN 8710400000001 → gekoppeld aan ‘halfvolle melk’ met voedingswaarden uit Open Food Facts';
 });
 
 await browser.close();

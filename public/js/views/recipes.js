@@ -76,7 +76,7 @@ export async function render(root, params) {
           <div class="recipe-meta">
             ${r.total_minutes ? `<span>⏱ ${minutes(r.total_minutes)}</span>` : ''}
             <span>🔥 ${num(r.kcal_per_serving, 0)} kcal</span>
-            <span title="per persoon bij Jumbo">💶 ${euro(r.cost_per_serving_cents)}</span>
+            <span title="geschatte prijs per persoon">💶 ${euro(r.cost_per_serving_cents)}</span>
           </div>
           ${r.pantry_match ? `<div class="pantry-match ${r.pantry_match.missing.length ? '' : 'all'}">
             <strong>${r.pantry_match.matched}/${r.pantry_match.total} in huis</strong>

@@ -1,15 +1,15 @@
 # 🍲 Maaltijden – planner & receptenboek
 
 Een webapplicatie voor op je eigen server: een overzichtelijke weekplanner en een receptenboek met
-Nederlandse recepten, voedingswaarden per persoon (uit Open Food Facts), prijzen per maaltijd bij de Jumbo en een Claude AI-integratie.
+Nederlandse recepten, voedingswaarden per persoon (uit Open Food Facts), geschatte prijzen per maaltijd en een Claude AI-integratie.
 
-## Nieuw in v2.1
+## Nieuw in v2.2
 
 - 📷 **Ingrediënten scannen:** in de recepteditor voeg je een ingrediënt toe door de barcode van het product te scannen.
-  Voedingswaarden komen uit Open Food Facts, prijs en verpakking van Jumbo. Bekende producten worden aan het bestaande ingrediënt gekoppeld.
+  Naam, verpakking en voedingswaarden komen uit Open Food Facts. Bekende producten worden aan het bestaande ingrediënt gekoppeld.
   Werkt met de camera op Android (Chrome), iPhone (Safari) en desktop. Je kunt de cijfers ook intypen.
-- 🟡 **Boodschappenlijst naar de Jumbo-app:** met één knop zet je de producten van je lijst in de boodschappenlijst van je Jumbo-app.
-  Wat er al in je Jumbo-lijst stond, blijft staan. Hiervoor log je één keer in met je Jumbo-account. Zie [Koppeling met je Jumbo-account](#koppeling-met-je-jumbo-account).
+- 🗑️ **Jumbo-koppeling verwijderd:** prijzen ophalen bij Jumbo en de lijst naar de Jumbo-app zetten werkten via een onofficiële, onbetrouwbare API en zijn eruit gehaald.
+  Prijzen zijn nu altijd een schatting of zelf ingevuld (zie [Over de prijzen](#over-de-prijzen)).
 
 ## Nieuw in v2
 
@@ -43,7 +43,7 @@ en receptenapps verwachten. Zie het [UAT-rapport](docs/UAT-rapport.md).
 - Favorieten (★) en waardering (1–5 sterren)
 - **Porties schalen**: − / + of snelknoppen 1–10 personen; hoeveelheden en kosten schalen mee
 - **Voedingswaarden per persoon** (en totaal): energie, eiwit, koolhydraten, suikers, vet, verzadigd vet, vezels, zout, met % referentie-inname en macroverdeling
-- **Prijs per persoon en totaal** op basis van Jumbo-prijzen (naar verhouding van de verpakking)
+- **Prijs per persoon en totaal** op basis van geschatte supermarktprijzen (naar verhouding van de verpakking)
 - **Kookmodus**: grote letters, stap voor stap, scherm blijft aan, automatische timers uit de tekst
 - ✨ **Vraag Claude** over een recept (vervangers, bewaren, vegetarisch maken…)
 - Dupliceren, bewerken, afdrukken
@@ -57,15 +57,13 @@ en receptenapps verwachten. Zie het [UAT-rapport](docs/UAT-rapport.md).
 
 **Boodschappenlijst**
 - Automatisch uit de weekplanning, gegroepeerd per supermarktafdeling
-- Hoeveelheden opgeteld en omgerekend naar aantal Jumbo-verpakkingen + geschatte kosten
+- Hoeveelheden opgeteld en omgerekend naar aantal verpakkingen + geschatte kosten
 - Voorraadkast-artikelen (zout, olie, kruiden) standaard verborgen
 - Afvinken, extra artikelen toevoegen, kopiëren (voor WhatsApp/notities) en afdrukken
-- Link per artikel naar het product bij Jumbo
 
 **Ingrediënten & prijzen**
 - ~100 veelgebruikte ingrediënten met stuksgewicht, verpakking en voedingswaarden per 100 g
 - Voedingswaarden uit **Open Food Facts**: per ingrediënt de mediaan van vergelijkbare Nederlandse producten, of één product dat je kiest of met de camera scant. Nutri-Score en de bron zijn per ingrediënt zichtbaar.
-- Koppelen aan een Jumbo-product en prijzen verversen (los of allemaal tegelijk)
 - Handmatig prijzen en voedingswaarden aanpassen, of laten schatten door Claude
 
 Verder: werkt op telefoon (onderbalk-navigatie, installeerbaar als app), licht/donker thema, optioneel wachtwoord.
@@ -97,9 +95,9 @@ Ontwikkelen met automatisch herstarten: `npm run dev`. Tests: `npm test`.
 De gebruikersacceptatietest opnieuw draaien (vereist Playwright: `npm i -D playwright`):
 
 ```bash
-node test/uat/off-mock.mjs &                                   # nagebootste Open Food Facts en Jumbo
-DB_FILE=/tmp/uat.db OFF_BASE=http://localhost:3999 JUMBO_API_BASE=http://localhost:3999/v17 OFF_MIN_GAP_MS=100 PORT=3123 npm start &
-node test/uat/uat.mjs docs/uat                                 # 22 scenario's, schermafbeeldingen in docs/uat
+node test/uat/off-mock.mjs &                                   # nagebootste Open Food Facts
+DB_FILE=/tmp/uat.db OFF_BASE=http://localhost:3999 OFF_MIN_GAP_MS=100 PORT=3123 npm start &
+node test/uat/uat.mjs docs/uat                                 # 21 scenario's, schermafbeeldingen in docs/uat
 ```
 
 Back-up: via **Instellingen → Back-up downloaden** (alle gegevens, zonder API-sleutel), of kopieer de map `data/`
@@ -128,40 +126,20 @@ Claude wordt alleen aangeroepen als je zelf op een ✨-knop drukt.
 - Per ingrediënt wordt de **mediaan** genomen van producten waarvan de naam het ingrediënt als los woord bevat. ‘ui’ telt dus bij ‘rode ui’, maar niet bij ‘uienringen’.
 - Wijkt een waarde sterk af van de huidige (meer dan 2× zo hoog of laag), dan wordt hij niet automatisch overgenomen. Je ziet hem bij **Ingrediënten → Overgeslagen** en kunt hem daar met één klik toch gebruiken.
 - **Nieuwe ingrediënten** (bijvoorbeeld uit een geïmporteerd recept) krijgen eerst een schatting van Claude en worden daarna automatisch aangevuld met Open Food Facts. Dit kun je uitzetten bij Instellingen.
-- Per ingrediënt kun je via 🥫 zelf zoeken, een barcode invoeren of met de camera scannen. Scannen werkt in Chrome op Android en via HTTPS.
+- Per ingrediënt kun je via 🥫 zelf zoeken, een barcode invoeren of met de camera scannen (Android, iPhone en desktop; de camera vereist HTTPS).
 - Resultaten worden 30 dagen bewaard, zodat dezelfde vraag niet opnieuw naar Open Food Facts gaat.
 - Waar nog geen gegevens uit Open Food Facts zijn, staan NEVO-gemiddelden (RIVM).
 
-## Koppeling met je Jumbo-account
+## Over de prijzen
 
-De knop **🟡 Naar Jumbo-app** op de boodschappenlijst gebruikt [jumbo-wrapper](https://github.com/RinseV/jumbo-wrapper)
-(onofficiële Node.js-wrapper rond de API van de Jumbo-app).
-
-- **Inloggen:** e-mailadres en wachtwoord van je Jumbo-account. Alleen de sessietoken wordt bewaard. Het wachtwoord wordt niet opgeslagen, en de token gaat niet mee in back-ups.
-- **Overzetten:** artikelen die aan een Jumbo-product gekoppeld zijn, gaan met het juiste aantal verpakkingen naar je Jumbo-lijst.
-  De lijst in de app wordt eerst opgehaald en samengevoegd, zodat je eigen artikelen blijven staan.
-  Artikelen zonder koppeling kun je automatisch laten koppelen (het best passende Jumbo-product), of zelf via Ingrediënten → 🟡.
-- **Afgevinkte artikelen, ‘heb ik al’ en de voorraadkast** worden niet overgezet.
-
-Wat je over jumbo-wrapper moet weten:
-- De laatste versie (2.1.0) is van 2022 en gebruikt een verouderde axios met bekende kwetsbaarheden.
-  De app dwingt via `overrides` in `package.json` een actuele axios (1.20) af; `npm audit` meldt 0 kwetsbaarheden.
-- In 2.1.0 sturen de mandje-functies de inlogtoken niet mee. De app geeft de token daarom zelf als header mee.
-- Jumbo heeft geen officiële API. Als Jumbo het inloggen wijzigt, krijg je een duidelijke melding.
-  Je kunt dan in het venster onder ‘Inloggen lukt niet?’ een `x-jumbo-token` plakken. Verder blijven de links per artikel naar jumbo.com en ‘Kopieer lijst’ altijd werken.
-
-## Over de Jumbo-prijzen
-
-Jumbo heeft geen officiële openbare API. De app gebruikt de (onofficiële) API die de Jumbo-app gebruikt.
-Die kan zonder aankondiging veranderen of tijdelijk niet werken. Daarom:
-
-- Alle startingrediënten hebben een **geschatte prijs**, zodat prijzen altijd werken.
-- Via **Ingrediënten → 🟡** koppel je een ingrediënt aan een echt Jumbo-product; daarna kun je de prijzen met één knop verversen.
-- Je kunt prijzen altijd **handmatig** aanpassen.
-- Werkt de API niet meer, dan kun je een andere basis-URL instellen met `JUMBO_API_BASE`.
+Alle ingrediënten hebben een **geschatte supermarktprijs** per verpakking (Jumbo-niveau, 2026).
+Weet je de actuele prijs, pas hem dan aan via **Ingrediënten → ✏️**; de bron staat dan op ‘handmatig’.
 
 De prijs per maaltijd wordt naar verhouding berekend (300 g van een zak van 1 kg = 30% van de prijs).
 De boodschappenlijst rekent met hele verpakkingen.
+
+> Eerdere versies haalden prijzen op via de onofficiële API van de Jumbo-app en konden de lijst naar de Jumbo-app zetten.
+> Omdat die API niet openbaar is en niet betrouwbaar werkt, is dat in v2.2 verwijderd. Eerder opgehaalde prijzen blijven bewaard.
 
 ## Hoe het werkt
 
@@ -177,11 +155,9 @@ Belangrijkste bestanden:
 - `server/calc.js` – eenheden → grammen, voedingswaarden, prijzen, boodschappenlijst
 - `server/repo.js` – database-toegang en het automatisch koppelen van ingrediënten
 - `server/claude.js` – alle Claude-functies
-- `server/jumbo.js` – Jumbo-prijzen
-- `server/jumboaccount.js` – inloggen bij Jumbo en de boodschappenlijst naar de Jumbo-app zetten (via jumbo-wrapper)
 - `server/scan.js` + `public/js/scanner.js` – barcode scannen (BarcodeDetector of ZXing) en koppelen aan ingrediënten
 - `server/openfoodfacts.js` + `server/offqueue.js` – Open Food Facts (zoeken, barcode, mediaan, cache, achtergrondwachtrij)
 - `server/seed.js` – startingrediënten en -recepten
 
 Voedingswaarden zijn benaderingen; gebruik ze als indicatie, niet als medisch advies.
-Deze app is niet verbonden aan Jumbo of Anthropic.
+Deze app is niet verbonden aan Jumbo, Open Food Facts of Anthropic.

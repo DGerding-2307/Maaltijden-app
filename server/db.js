@@ -14,12 +14,12 @@ CREATE TABLE IF NOT EXISTS ingredients (
   unit_weight_g REAL,          -- gewicht van 1 stuk/teen/blik etc.
   density REAL DEFAULT 1,      -- g per ml
   pantry INTEGER NOT NULL DEFAULT 0, -- voorraadkast (zout, olie...) → niet standaard op boodschappenlijst
-  -- prijsinformatie (Jumbo)
+  -- prijsinformatie (geschatte supermarktprijs; jumbo_*-kolommen zijn uit eerdere versies en worden niet meer gevuld)
   price_cents INTEGER,         -- prijs van één verpakking
   package_grams REAL,          -- inhoud van één verpakking in gram
   package_label TEXT,
   jumbo_id TEXT, jumbo_name TEXT, jumbo_url TEXT, jumbo_query TEXT, jumbo_image TEXT,
-  price_source TEXT DEFAULT 'schatting', -- schatting | jumbo | handmatig
+  price_source TEXT DEFAULT 'schatting', -- schatting | handmatig (| jumbo uit eerdere versies)
   price_updated_at TEXT,
   nutrition_source TEXT DEFAULT 'NEVO (benadering)'
 );
@@ -122,6 +122,8 @@ function migrate(db) {
     const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
     if (!cols.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
   }
+  // De Jumbo-accountkoppeling is verwijderd: een eventueel bewaarde sessie opruimen.
+  db.prepare("DELETE FROM settings WHERE key IN ('jumbo_token', 'jumbo_email')").run();
 }
 
 export function getDb() {

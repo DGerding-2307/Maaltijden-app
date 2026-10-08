@@ -2,7 +2,7 @@ import { api, meta } from '../api.js';
 import { scanBarcode } from '../scanner.js';
 import { $, esc, euro, num, toast, modal, confirmDialog, debounce, NUTRIENT_LABELS } from '../util.js';
 
-const SOURCE_LABEL = { jumbo: '🟡 Jumbo', handmatig: '✍️ handmatig', schatting: '≈ schatting' };
+const SOURCE_LABEL = { jumbo: '📦 eerder opgehaald', handmatig: '✍️ handmatig', schatting: '≈ schatting' };
 
 export function nutritionBadge(i) {
   const src = String(i.nutrition_source || '');
@@ -28,13 +28,13 @@ export async function render(root) {
       <div class="actions">
         <button class="btn" data-new>+ Nieuw ingrediënt</button>
         <button class="btn" data-off-all title="Vul voedingswaarden aan met Open Food Facts (op de achtergrond)">🥫 Voedingswaarden via Open Food Facts</button>
-        <button class="btn" data-refresh-all title="Ververs prijzen van ingrediënten die aan een Jumbo-product gekoppeld zijn">🟡 Jumbo-prijzen verversen</button>
       </div>
     </div>
     <div data-off-status></div>
     <p class="muted">Voedingswaarden per 100 g komen uit <a href="https://nl.openfoodfacts.org" target="_blank" rel="noopener">Open Food Facts</a>
       (open database, ODbL) – per ingrediënt de mediaan van vergelijkbare Nederlandse producten, of één product dat je zelf kiest of scant.
-      Waar nog geen OFF-gegevens zijn, staan NEVO-gemiddelden of een schatting van Claude. Prijzen zijn per verpakking.</p>
+      Waar nog geen OFF-gegevens zijn, staan NEVO-gemiddelden of een schatting van Claude.
+      Prijzen zijn geschatte supermarktprijzen per verpakking; pas ze aan via ✏️ als je de actuele prijs weet.</p>
     <div class="filters">
       <input type="search" class="input grow" placeholder="Zoek ingrediënt…" data-q>
       <select class="input" data-cat><option value="">Alle afdelingen</option>${m.categories.map((c) => `<option>${esc(c)}</option>`).join('')}</select>
@@ -50,7 +50,7 @@ export async function render(root) {
     const list = all.filter((i) => (!cat || i.category === cat) && (!q || `${i.name} ${i.aliases}`.toLowerCase().includes(q)));
     $('[data-body]', view).innerHTML = list.map((i) => `
       <tr data-id="${i.id}">
-        <td><strong>${esc(i.name)}</strong>${i.pantry ? ' <span class="badge">voorraad</span>' : ''}${i.jumbo_name ? `<br><small class="muted">${esc(i.jumbo_name)}</small>` : ''}</td>
+        <td><strong>${esc(i.name)}</strong>${i.pantry ? ' <span class="badge">voorraad</span>' : ''}</td>
         <td class="small">${esc(i.category)}</td>
         <td class="num">${num(i.kcal, 0)}</td>
         <td class="num">${num(i.protein)}</td>
@@ -63,8 +63,6 @@ export async function render(root) {
         <td class="row-actions">
           <button class="mini" data-edit title="Bewerken">✏️</button>
           <button class="mini" data-off title="Voedingswaarden uit Open Food Facts">🥫</button>
-          <button class="mini" data-jumbo title="Koppel aan Jumbo-product">🟡</button>
-          ${i.jumbo_id ? '<button class="mini" data-refresh title="Prijs verversen">↻</button>' : ''}
           <button class="mini danger" data-del title="Verwijderen">✕</button>
         </td>
       </tr>`).join('');
@@ -231,47 +229,6 @@ export async function render(root) {
     if (st.running) pollTimer = setTimeout(async () => { await reload(); showQueue(); }, 4000);
   }
 
-  function jumboDialog(ing) {
-    const md = modal(`
-      <h2>🟡 ${esc(ing.name)} koppelen aan Jumbo</h2>
-      <form class="row" data-search><input class="input grow" name="q" value="${esc(ing.jumbo_query || ing.name)}"><button class="btn">Zoeken</button></form>
-      <div class="jumbo-results"><p class="muted">Zoeken…</p></div>`, { wide: true });
-    const results = $('.jumbo-results', md.el);
-    let products = [];
-    const search = async (term) => {
-      results.innerHTML = '<p class="muted">Zoeken…</p>';
-      try {
-        products = await api.get(`/jumbo/search?q=${encodeURIComponent(term)}`);
-        results.innerHTML = products.map((p, i) => `
-          <button class="jumbo-product" data-pick="${i}">
-            ${p.image ? `<img src="${esc(p.image)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : '<span class="thumb-emoji">🛒</span>'}
-            <span><strong>${esc(p.title)}</strong><br><span class="muted small">${esc(p.package_label || '')}${p.package_grams ? ` · ${num(p.package_grams, 0)} g` : ' · ⚠ inhoud onbekend'}</span></span>
-            <span class="num"><strong>${euro(p.price_cents)}</strong>${p.on_promotion ? '<br><span class="badge">actie</span>' : ''}
-              ${p.unit_price ? `<br><span class="muted small">${euro(p.unit_price.cents)}/${esc(p.unit_price.unit)}</span>` : ''}</span>
-          </button>`).join('') || '<p class="muted">Geen producten gevonden.</p>';
-      } catch (err) {
-        results.innerHTML = `<p class="error">${esc(err.message)}</p><p class="muted small">De Jumbo-koppeling gebruikt een onofficiële API die soms niet bereikbaar is. Je kunt de prijs ook handmatig invullen via ✏️.</p>`;
-      }
-    };
-    const form = $('[data-search]', md.el);
-    form.addEventListener('submit', (e) => { e.preventDefault(); search(form.q.value); });
-    results.addEventListener('click', async (e) => {
-      const pick = e.target.closest('[data-pick]');
-      if (!pick) return;
-      const product = products[Number(pick.dataset.pick)];
-      if (!product.package_grams) {
-        const g = prompt('Hoeveel gram/ml zit er in deze verpakking?');
-        if (!g) return;
-        product.package_grams = Number(g);
-      }
-      await api.post(`/ingredients/${ing.id}/jumbo`, { product, query: form.q.value });
-      toast('Gekoppeld aan Jumbo-product', 'success');
-      md.close();
-      reload();
-    });
-    search(form.q.value);
-  }
-
   view.addEventListener('input', debounce((e) => {
     if (e.target.matches('[data-q]')) { q = e.target.value.toLowerCase(); draw(); }
     if (e.target.matches('[data-cat]')) { cat = e.target.value; draw(); }
@@ -286,25 +243,9 @@ export async function render(root) {
         toast('Open Food Facts wordt op de achtergrond doorzocht', 'success');
         return showQueue();
       }
-      if (e.target.closest('[data-refresh-all]')) {
-        const btn = e.target.closest('[data-refresh-all]');
-        btn.disabled = true;
-        btn.textContent = 'Bezig…';
-        const res = await api.post('/jumbo/refresh-all');
-        toast(`${res.updated} van ${res.total} prijzen ververst${res.errors.length ? ` (${res.errors.length} fouten)` : ''}`, res.errors.length ? 'error' : 'success');
-        btn.disabled = false;
-        btn.textContent = '🟡 Jumbo-prijzen verversen';
-        return reload();
-      }
       if (!ing) return;
       if (e.target.closest('[data-edit]')) return editDialog(ing);
-      if (e.target.closest('[data-jumbo]')) return jumboDialog(ing);
       if (e.target.closest('[data-off]')) return offDialog(ing);
-      if (e.target.closest('[data-refresh]')) {
-        await api.post(`/ingredients/${ing.id}/refresh-price`);
-        toast('Prijs ververst', 'success');
-        return reload();
-      }
       if (e.target.closest('[data-del]')) {
         if (!(await confirmDialog(`“${ing.name}” verwijderen? Recepten die het gebruiken verliezen de koppeling.`))) return;
         await api.del(`/ingredients/${ing.id}`);

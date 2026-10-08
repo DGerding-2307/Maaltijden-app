@@ -69,7 +69,7 @@ export async function render(root, params) {
       </div>
 
       <div class="stats">
-        <div class="stat"><span class="stat-label">Weekkosten (Jumbo)</span><span class="stat-value">${euro(plan.total_cost_cents)}</span>
+        <div class="stat"><span class="stat-label">Weekkosten (geschat)</span><span class="stat-value">${euro(plan.total_cost_cents)}</span>
           ${budget ? `<span class="stat-sub ${plan.total_cost_cents > budget ? 'bad' : 'good'}">budget ${euro(budget)}</span>` : ''}</div>
         <div class="stat"><span class="stat-label">Gem. per dag p.p.</span><span class="stat-value">${num(avgKcal, 0)} kcal</span>
           <span class="stat-sub">van geplande maaltijden</span></div>
