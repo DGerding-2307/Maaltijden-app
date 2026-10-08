@@ -47,17 +47,45 @@ export function initialPriceSync() {
 export function createApp() {
   const app = express();
   app.use(express.json({ limit: '25mb' }));
-  app.get('/health', (req, res) => res.json({ ok: true }));
+  // De mobiele app test hiermee of het serveradres klopt (vanaf een ander adres, dus CORS toestaan).
+  app.get('/health', (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.json({ ok: true, app: 'maaltijden', version: APP_VERSION, login: !!process.env.APP_PASSWORD });
+  });
 
-  // Optionele eenvoudige beveiliging voor gebruik buiten je thuisnetwerk.
+  // Optionele beveiliging voor gebruik buiten je thuisnetwerk: inlogpagina met een cookie
+  // (werkt ook in de mobiele app), of HTTP Basic Auth voor scripts.
   const password = process.env.APP_PASSWORD;
   if (password) {
+    const token = crypto.createHash('sha256').update(`maaltijden:${password}`).digest('hex');
+    const cookieOk = (req) => (req.headers.cookie || '').split(';').some((c) => c.trim() === `maaltijden_auth=${token}`);
+    const basicOk = (req) => {
+      const [, b64] = (req.headers.authorization || '').split(' ');
+      return Buffer.from(b64 || '', 'base64').toString().split(':').slice(1).join(':') === password;
+    };
+    const loginPage = (error = '') => `<!doctype html><html lang="nl"><head><meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1"><title>Inloggen – Maaltijden</title>
+      <link rel="icon" href="/icon.svg"><style>
+      body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:system-ui,sans-serif;background:#f7f5f0;color:#1f2a24}
+      form{background:#fff;border:1px solid #e3ded2;border-radius:16px;padding:1.6rem;width:min(340px,90vw);display:grid;gap:.8rem}
+      img{width:64px;height:64px}h1{margin:0;font-size:1.3rem}input{font:inherit;padding:.65rem;border:1px solid #e3ded2;border-radius:10px}
+      button{font:inherit;font-weight:600;padding:.7rem;border:0;border-radius:10px;background:#2f6b4f;color:#fff}.err{color:#c0392b;margin:0}
+      @media (prefers-color-scheme:dark){body{background:#141816;color:#e9ece9}form{background:#1d2320;border-color:#323a35}input{background:#141816;color:#e9ece9;border-color:#323a35}}
+      </style></head><body><form method="post" action="/login"><img src="/icon.svg" alt=""><h1>Maaltijden</h1>
+      ${error ? `<p class="err">${error}</p>` : ''}<label for="pw">Wachtwoord</label>
+      <input id="pw" name="password" type="password" autocomplete="current-password" autofocus required>
+      <button>Inloggen</button></form></body></html>`;
+    app.get('/icon.svg', (req, res) => res.sendFile(path.join(here, '..', 'public', 'icon.svg')));
+    app.post('/login', express.urlencoded({ extended: false }), (req, res) => {
+      if (req.body.password !== password) return res.status(401).send(loginPage('Onjuist wachtwoord'));
+      const secure = req.secure || req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
+      res.set('Set-Cookie', `maaltijden_auth=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000${secure}`);
+      res.redirect('/');
+    });
     app.use((req, res, next) => {
-      const header = req.headers.authorization || '';
-      const [, b64] = header.split(' ');
-      const [, pass] = Buffer.from(b64 || '', 'base64').toString().split(':');
-      if (pass === password) return next();
-      res.set('WWW-Authenticate', 'Basic realm="Maaltijden"').status(401).send('Inloggen vereist');
+      if (cookieOk(req) || basicOk(req)) return next();
+      if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Inloggen vereist' });
+      res.status(401).send(loginPage());
     });
   }
 

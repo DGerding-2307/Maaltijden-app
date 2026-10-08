@@ -56,6 +56,12 @@ export async function render(root) {
         van je gegevens gemaakt in <code>data/backups</code>. Je recepten, planning en instellingen blijven bewaard.</p>
     </section>` : ''}
 
+    ${/MaaltijdenApp/.test(navigator.userAgent) ? `<section class="card">
+      <h2>App</h2>
+      <p class="muted">De app is verbonden met <code>${esc(location.origin)}</code>.</p>
+      <a class="btn" href="http://localhost/?wijzig=1">Andere server kiezen</a>
+    </section>` : ''}
+
     <section class="card">
       <h2>Over</h2>
       <p class="muted small">Voedingswaarden zijn benaderingen op basis van NEVO-gemiddelden (RIVM) en schattingen van Claude.

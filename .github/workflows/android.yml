@@ -1,0 +1,83 @@
+# Bouwt de Android-app (APK) en zet hem bij de release "android-latest":
+# https://github.com/DGerding-2307/Maaltijden-app/releases/tag/android-latest
+# De app opent je eigen Maaltijden-server; nieuwe functies komen dus via de server-update.
+# Een nieuwe APK is alleen nodig als er iets aan de app zelf verandert.
+name: Android-app
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Android-project maken
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: 1.0.${{ github.run_number }}
+        run: |
+          npm ci
+          npx cap add android
+          node scripts/patch-android.mjs
+          npx capacitor-assets generate --android
+          npx cap sync android
+
+      - name: APK bouwen
+        run: |
+          # Altijd dezelfde sleutel, zodat een nieuwe APK over de vorige heen geïnstalleerd kan worden
+          mkdir -p ~/.android
+          cp android-debug.keystore ~/.android/debug.keystore
+          cd android
+          ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk ../Maaltijden.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Maaltijden-apk
+          path: mobile/Maaltijden.apk
+
+      - name: Publiceren bij release android-latest
+        if: github.ref_name == github.event.repository.default_branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes="Android-app voor Maaltijden, versie 1.0.${{ github.run_number }} (${GITHUB_SHA::7}).
+
+          Installeren: open deze pagina op je Android-telefoon, download Maaltijden.apk en open het bestand.
+          Sta zo nodig 'Installeren van onbekende apps' toe voor je browser. Vul bij de eerste start het adres van je server in."
+          if gh release view android-latest >/dev/null 2>&1; then
+            gh release edit android-latest --notes "$notes"
+          else
+            gh release create android-latest --title "Android-app (nieuwste versie)" --notes "$notes" --prerelease --target "$GITHUB_SHA"
+          fi
+          gh release upload android-latest Maaltijden.apk --clobber

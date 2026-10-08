@@ -1,0 +1,19 @@
+{
+  "name": "maaltijden-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Android-app (Capacitor) die je eigen Maaltijden-server opent",
+  "scripts": {
+    "android:prepare": "npx cap add android && node scripts/patch-android.mjs && npx capacitor-assets generate --android && npx cap sync android",
+    "android:build": "cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.2",
+    "@capacitor/app": "8.1.1",
+    "@capacitor/core": "8.5.2"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "3.0.5",
+    "@capacitor/cli": "8.5.2"
+  }
+}

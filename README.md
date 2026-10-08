@@ -3,6 +3,12 @@
 Een webapplicatie voor op je eigen server: een overzichtelijke weekplanner en een receptenboek met
 Nederlandse recepten, voedingswaarden per persoon (uit Open Food Facts), prijzen per maaltijd (uit Open Prices) en een Claude AI-integratie.
 
+## Nieuw in v2.5
+
+- 📱 **Mobiele app voor Android** (download de APK) en **iPhone** (via Safari → Zet op beginscherm), met eigen icoon.
+  Zie [Mobiele app](#mobiele-app).
+- 🔑 Inlogpagina bij `APP_PASSWORD` (in plaats van het browser-inlogvenster), zodat inloggen ook in de app werkt.
+
 ## Nieuw in v2.4
 
 - 🔄 **Automatische updates:** nieuwe versies worden automatisch gebouwd en 's nachts op je server geïnstalleerd,
@@ -84,6 +90,31 @@ en receptenapps verwachten. Zie het [UAT-rapport](docs/UAT-rapport.md).
 
 Verder: werkt op telefoon (onderbalk-navigatie, installeerbaar als app), licht/donker thema, optioneel wachtwoord.
 
+## Mobiele app
+
+### Android
+
+1. Open op je telefoon **[de nieuwste Android-app](https://github.com/DGerding-2307/Maaltijden-app/releases/tag/android-latest)** en download `Maaltijden.apk`.
+2. Open het bestand. Sta zo nodig *Installeren van onbekende apps* toe voor je browser.
+3. Vul bij de eerste start het adres van je server in, bijvoorbeeld `192.168.1.20:3000` (thuis) of je eigen domein (onderweg, met https).
+
+De app toont je eigen Maaltijden-server. Nieuwe functies komen dus automatisch mee met de server-update; je hoeft de app zelden bij te werken.
+Een nieuwe APK installeer je gewoon over de oude heen. Je kunt de camera gebruiken voor het scannen van barcodes en voor foto's.
+Een andere server kies je bij **Instellingen → App → Andere server kiezen**.
+
+De APK wordt automatisch gebouwd door de GitHub-workflow *Android-app* (`mobile/`, gemaakt met [Capacitor](https://capacitorjs.com)).
+Hij is ondertekend met een vaste ontwikkelaarssleutel, zodat updates over elkaar heen passen. Voor publicatie in de Play Store is een eigen sleutel nodig.
+
+### iPhone en iPad
+
+Open je server in **Safari**, tik op **Deel → Zet op beginscherm**. Maaltijden staat dan als app op je beginscherm (met eigen icoon,
+zonder adresbalk) en is altijd de nieuwste versie. Een losse iOS-app (App Store) vereist een Mac met Xcode en een Apple-ontwikkelaarsaccount;
+het Capacitor-project in `mobile/` is daarvoor de basis (`npx cap add ios`).
+
+### Met wachtwoord
+
+Staat `APP_PASSWORD` aan, dan krijg je in de app en in de browser een inlogpagina. Je blijft een jaar ingelogd op dat apparaat.
+
 ## Demo in de browser
 
 `npm run demo:build` maakt in `dist-demo/` een versie die volledig in de browser draait. Hij gebruikt dezelfde frontend en datalaag,
@@ -155,7 +186,7 @@ Back-up: via **Instellingen → Back-up downloaden** (alle gegevens, zonder API-
 
 ### Bereikbaar vanaf internet?
 
-Zet dan `APP_PASSWORD` in `.env` (de browser vraagt om in te loggen) en zet de app achter een reverse proxy
+Zet dan `APP_PASSWORD` in `.env` (je krijgt een inlogpagina; werkt ook in de mobiele app) en zet de app achter een reverse proxy
 met HTTPS (bijv. Caddy, Nginx Proxy Manager of Traefik). Met HTTPS kun je de app ook op je telefoon
 ‘Op beginscherm zetten’.
 
