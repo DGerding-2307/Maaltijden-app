@@ -1,4 +1,4 @@
-import { api, meta } from '../api.js';
+import { api, meta, liveSync } from '../api.js';
 import {
   $, $$, esc, euro, num, addDays, mondayOf, todayISO, fmtDate, weekNumber, DAY_NAMES, toast, modal, confirmDialog, debounce, minutes,
 } from '../util.js';
@@ -17,16 +17,21 @@ export async function render(root, params) {
 
   function entryCard(e) {
     const title = e.recipe_id ? e.recipe_title : e.title;
-    return `<div class="plan-entry ${e.recipe_id ? '' : 'free'}" draggable="true" data-entry="${e.id}">
-      <a class="plan-entry-title" ${e.recipe_id ? `href="#/recept/${e.recipe_id}?personen=${e.servings}"` : ''}>${esc(title)}</a>
+    return `<div class="plan-entry ${e.recipe_id ? '' : 'free'} ${e.leftover_of ? 'leftover' : ''}" draggable="true" data-entry="${e.id}">
+      <a class="plan-entry-title" ${e.recipe_id ? `href="#/recept/${e.recipe_id}?personen=${e.servings}"` : ''}>${e.leftover_of ? '♻️ ' : ''}${esc(title)}</a>
+      ${e.leftover_of ? '<span class="muted small">restjes – geen boodschappen</span>' : ''}
+      ${e.note && !e.leftover_of ? `<span class="muted small">${esc(e.note)}</span>` : ''}
       <div class="plan-entry-meta">
         <span class="servings-ctl">
           <button class="mini" data-serv="-1" aria-label="Minder personen">−</button>
           <span title="personen">👤 ${e.servings}</span>
           <button class="mini" data-serv="1" aria-label="Meer personen">+</button>
         </span>
-        ${e.recipe_id ? `<span class="muted">${euro(e.cost_cents)}</span>` : ''}
-        <button class="mini danger" data-remove aria-label="Verwijderen">✕</button>
+        ${e.recipe_id && !e.leftover_of ? `<span class="muted">${euro(e.cost_cents)}</span>` : ''}
+      </div>
+      <div class="entry-actions">
+        <button class="mini" data-entry-menu aria-label="Verplaatsen, restjes, bewerken" title="Verplaatsen, restjes, bewerken">⋯</button>
+        <button class="mini danger" data-remove aria-label="Verwijderen" title="Verwijderen">✕</button>
       </div>
     </div>`;
   }
@@ -84,7 +89,7 @@ export async function render(root, params) {
                   ${d.entries.filter((e) => e.meal === meal).map(entryCard).join('')}
                   <button class="slot-add" data-add aria-label="Toevoegen aan ${esc(meal)} op ${DAY_NAMES[i]}">+</button>
                 </div>`).join('')}
-              ${d.entries.filter((e) => !meals.includes(e.meal)).map(entryCard).join('')}
+              ${d.entries.some((e) => !meals.includes(e.meal)) ? `<div class="slot"><div class="slot-label">extra</div>${d.entries.filter((e) => !meals.includes(e.meal)).map(entryCard).join('')}</div>` : ''}
               <footer class="day-foot">
                 ${d.entries.length ? `<span title="per persoon">${num(d.nutrition_per_person.kcal, 0)} kcal p.p.</span><span>${euro(d.cost_cents)}</span>` : '<span class="muted">Nog niets gepland</span>'}
               </footer>
@@ -154,6 +159,7 @@ export async function render(root, params) {
         await api.put(`/plan/${entry.id}`, { servings });
         return load();
       }
+      if (e.target.closest('[data-entry-menu]') && entry) return entryMenu(entry);
       if (e.target.closest('[data-remove]') && entry) {
         await api.del(`/plan/${entry.id}`);
         return load();
@@ -185,6 +191,64 @@ export async function render(root, params) {
     } catch (err) {
       toast(err.message, 'error');
     }
+  }
+
+  // Werkt ook op telefoon (waar slepen niet kan): verplaatsen, restjes inplannen, titel/notitie bewerken.
+  function entryMenu(entry) {
+    const title = entry.recipe_id ? entry.recipe_title : entry.title;
+    const nextDay = addDays(entry.date, 1);
+    const allMeals = [...new Set([...meals, entry.meal])];
+    const md = modal(`
+      <h2>${esc(title)}</h2>
+      <form class="form" data-move>
+        <h3>Verplaatsen of aanpassen</h3>
+        <div class="grid-2">
+          <label>Dag <input type="date" class="input" name="date" value="${entry.date}" required></label>
+          <label>Moment <select class="input" name="meal">${allMeals.map((x) => `<option ${x === entry.meal ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>
+          <label>Personen <input type="number" class="input" min="1" name="servings" value="${entry.servings}"></label>
+          ${entry.recipe_id ? '' : `<label>Titel <input class="input" name="title" value="${esc(entry.title || '')}"></label>`}
+          <label class="span-2">Notitie <input class="input" name="note" value="${esc(entry.note || '')}" placeholder="bv. ‘dubbele portie koken’"></label>
+        </div>
+        <div class="row end"><button class="btn btn-primary">Opslaan</button></div>
+      </form>
+      ${entry.recipe_id && !entry.leftover_of ? `<hr>
+      <form class="form" data-leftovers>
+        <h3>♻️ Restjes inplannen</h3>
+        <p class="muted small">Kook je meer dan je opeet? Plan de restjes in: ze tellen mee voor de voedingswaarden, maar niet voor de boodschappen.</p>
+        <div class="grid-2">
+          <label>Dag <input type="date" class="input" name="date" value="${nextDay}"></label>
+          <label>Moment <select class="input" name="meal">${meals.map((x) => `<option ${x === 'lunch' ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>
+          <label>Porties restjes <input type="number" class="input" min="1" name="servings" value="1"></label>
+          <label class="check"><input type="checkbox" name="extra" checked> Kook ${'${n}'} porties extra</label>
+        </div>
+        <div class="row end"><button class="btn">Restjes inplannen</button></div>
+      </form>` : ''}`);
+    const lf = $('[data-leftovers]', md.el);
+    if (lf) {
+      const label = lf.extra.closest('label');
+      const upd = () => { label.lastChild.textContent = ` Kook ${lf.servings.value} portie(s) extra bij deze maaltijd`; };
+      lf.servings.addEventListener('input', upd);
+      upd();
+      lf.addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        const n = Number(lf.servings.value) || 1;
+        await api.post(`/plan/${entry.id}/leftovers`, { date: lf.date.value, meal: lf.meal.value, servings: n });
+        if (lf.extra.checked) await api.put(`/plan/${entry.id}`, { servings: entry.servings + n });
+        toast('Restjes ingepland', 'success');
+        md.close();
+        load();
+      });
+    }
+    $('[data-move]', md.el).addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const f = ev.target;
+      await api.put(`/plan/${entry.id}`, {
+        date: f.date.value, meal: f.meal.value, servings: Number(f.servings.value) || 1, note: f.note.value,
+        ...(f.title ? { title: f.title.value } : {}),
+      });
+      md.close();
+      load();
+    });
   }
 
   function pickRecipe(date, meal) {
@@ -314,7 +378,9 @@ export async function render(root, params) {
   root.addEventListener('click', onClick);
   root.addEventListener('dragstart', onDragStart);
   await load();
+  const stopSync = liveSync(load);
   return () => {
+    stopSync();
     root.removeEventListener('click', onClick);
     root.removeEventListener('dragstart', onDragStart);
   };

@@ -239,13 +239,19 @@ export async function importRecipe({ url, text, image }) {
   return { ...recipe, ...source, truncated };
 }
 
-export async function generateRecipe({ prompt, servings }) {
-  const content = [{
+export async function generateRecipe({ prompt, servings, image }) {
+  const content = [];
+  if (image?.data && /^image\//.test(image.media_type)) {
+    // Foto van koelkast/voorraadkast: Claude bedenkt iets met wat er te zien is.
+    content.push({ type: 'image', source: { type: 'base64', media_type: image.media_type, data: image.data } });
+    content.push({ type: 'text', text: 'Op deze foto staat wat ik in huis heb. Gebruik zoveel mogelijk van deze ingrediënten; basisvoorraad (olie, zout, peper, kruiden) mag je aannemen.' });
+  }
+  content.push({
     type: 'text',
-    text: `Bedenk een recept op basis van deze wens: "${prompt}".
+    text: `Bedenk een recept op basis van deze wens: "${prompt || 'iets lekkers met wat ik in huis heb'}".
 Aantal personen: ${servings || 4}.${getSetting('household', '') ? `\nHuishouden/voorkeuren: ${getSetting('household', '')}` : ''}
 Maak het praktisch, betaalbaar en lekker, passend bij de Nederlandse keuken of wat Nederlanders graag eten.`,
-  }];
+  });
   return structuredCall({ system: `${SYSTEM}\n\n${recipeInstructions()}`, content, schema: RECIPE_SCHEMA });
 }
 

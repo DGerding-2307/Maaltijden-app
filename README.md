@@ -1,7 +1,23 @@
 # 🍲 Maaltijden – planner & receptenboek
 
 Een webapplicatie voor op je eigen server: een overzichtelijke weekplanner en een receptenboek met
-Nederlandse recepten, voedingswaarden per persoon, prijzen per maaltijd bij de Jumbo en een Claude AI-integratie.
+Nederlandse recepten, voedingswaarden per persoon (uit Open Food Facts), prijzen per maaltijd bij de Jumbo en een Claude AI-integratie.
+
+## Nieuw in v2
+
+Versie 2 is gebaseerd op een gebruikersacceptatietest langs wat gebruikers in recensies van andere maaltijdplanners
+en receptenapps verwachten. Zie het [UAT-rapport](docs/UAT-rapport.md).
+
+- 🥫 **Open Food Facts** als bron voor voedingswaarden: zoeken, barcode scannen, mediaan van vergelijkbare producten, Nutri-Score, automatisch aanvullen
+- 🏠 **‘Heb ik al in huis’** op de boodschappenlijst, en ‘altijd in huis’ voor voorraadkast-artikelen
+- 👨‍👩‍👧 **Live bijwerken:** planner en boodschappenlijst verversen vanzelf als een huisgenoot iets wijzigt
+- ♻️ **Restjes inplannen** zonder dubbele boodschappen
+- 📱 **Verplaatsen en bewerken op de telefoon** via het ⋯-menu per maaltijd
+- 🧺 **Wat kan ik maken?** met de ingrediënten die je in huis hebt, en ✨ een recept op basis van een foto van je koelkast
+- 🌱⚡💶 **Snelfilters:** vegetarisch, snel, goedkoop
+- 📷 **Eigen foto's** uploaden bij recepten
+- 💾 **Back-up** downloaden en terugzetten
+- 📴 **Offline** de laatst bekeken recepten, planning en boodschappenlijst inzien
 
 ## Functies
 
@@ -39,7 +55,8 @@ Nederlandse recepten, voedingswaarden per persoon, prijzen per maaltijd bij de J
 - Link per artikel naar het product bij Jumbo
 
 **Ingrediënten & prijzen**
-- ~100 veelgebruikte ingrediënten met voedingswaarden per 100 g (afgerond, op basis van NEVO-gemiddelden), stuksgewicht en verpakking
+- ~100 veelgebruikte ingrediënten met stuksgewicht, verpakking en voedingswaarden per 100 g
+- Voedingswaarden uit **Open Food Facts**: per ingrediënt de mediaan van vergelijkbare Nederlandse producten, of één product dat je kiest of met de camera scant. Nutri-Score en de bron zijn per ingrediënt zichtbaar.
 - Koppelen aan een Jumbo-product en prijzen verversen (los of allemaal tegelijk)
 - Handmatig prijzen en voedingswaarden aanpassen, of laten schatten door Claude
 
@@ -69,6 +86,17 @@ ANTHROPIC_API_KEY=sk-ant-... npm start
 
 Ontwikkelen met automatisch herstarten: `npm run dev`. Tests: `npm test`.
 
+De gebruikersacceptatietest opnieuw draaien (vereist Playwright: `npm i -D playwright`):
+
+```bash
+node test/uat/off-mock.mjs &                                   # nagebootste Open Food Facts
+DB_FILE=/tmp/uat.db OFF_BASE=http://localhost:3999 OFF_MIN_GAP_MS=100 PORT=3123 npm start &
+node test/uat/uat.mjs docs/uat                                 # 20 scenario's, schermafbeeldingen in docs/uat
+```
+
+Back-up: via **Instellingen → Back-up downloaden** (alle gegevens, zonder API-sleutel), of kopieer de map `data/`
+(database + geüploade foto's).
+
 ### Bereikbaar vanaf internet?
 
 Zet dan `APP_PASSWORD` in `.env` (de browser vraagt om in te loggen) en zet de app achter een reverse proxy
@@ -83,6 +111,18 @@ met HTTPS (bijv. Caddy, Nginx Proxy Manager of Traefik). Met HTTPS kun je de app
 
 Standaard wordt het model `claude-opus-5-5` gebruikt; met `CLAUDE_MODEL` kun je een ander model kiezen.
 Claude wordt alleen aangeroepen als je zelf op een ✨-knop drukt.
+
+## Over Open Food Facts
+
+[Open Food Facts](https://nl.openfoodfacts.org) is een open database van voedingsmiddelen (licentie ODbL, © Open Food Facts-bijdragers).
+
+- Bij de **eerste start** vergelijkt de app alle ingrediënten op de achtergrond met Open Food Facts. Open Food Facts staat maximaal 10 zoekopdrachten per minuut toe, dus dit duurt ongeveer 12 minuten.
+- Per ingrediënt wordt de **mediaan** genomen van producten waarvan de naam het ingrediënt als los woord bevat. ‘ui’ telt dus bij ‘rode ui’, maar niet bij ‘uienringen’.
+- Wijkt een waarde sterk af van de huidige (meer dan 2× zo hoog of laag), dan wordt hij niet automatisch overgenomen. Je ziet hem bij **Ingrediënten → Overgeslagen** en kunt hem daar met één klik toch gebruiken.
+- **Nieuwe ingrediënten** (bijvoorbeeld uit een geïmporteerd recept) krijgen eerst een schatting van Claude en worden daarna automatisch aangevuld met Open Food Facts. Dit kun je uitzetten bij Instellingen.
+- Per ingrediënt kun je via 🥫 zelf zoeken, een barcode invoeren of met de camera scannen. Scannen werkt in Chrome op Android en via HTTPS.
+- Resultaten worden 30 dagen bewaard, zodat dezelfde vraag niet opnieuw naar Open Food Facts gaat.
+- Waar nog geen gegevens uit Open Food Facts zijn, staan NEVO-gemiddelden (RIVM).
 
 ## Over de Jumbo-prijzen
 
@@ -112,6 +152,7 @@ Belangrijkste bestanden:
 - `server/repo.js` – database-toegang en het automatisch koppelen van ingrediënten
 - `server/claude.js` – alle Claude-functies
 - `server/jumbo.js` – Jumbo-prijzen
+- `server/openfoodfacts.js` + `server/offqueue.js` – Open Food Facts (zoeken, barcode, mediaan, cache, achtergrondwachtrij)
 - `server/seed.js` – startingrediënten en -recepten
 
 Voedingswaarden zijn benaderingen; gebruik ze als indicatie, niet als medisch advies.

@@ -2,6 +2,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 process.env.DB_FILE = ':memory:';
+process.env.OFF_DISABLED = '1';
 const { openDatabase } = await import('../server/db.js');
 const { createApp } = await import('../server/index.js');
 

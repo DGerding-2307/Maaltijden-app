@@ -109,7 +109,7 @@ export async function render(root, params) {
                 </tr>`).join('')}
             </tbody>
           </table>
-          <p class="muted small">*Referentie-inname van een gemiddelde volwassene (2000 kcal). Berekend op basis van NEVO-gemiddelden.
+          <p class="muted small">*Referentie-inname van een gemiddelde volwassene (2000 kcal). ${sourceSummary()}
             ${r.missing_nutrition ? `<br>⚠️ ${r.missing_nutrition} ingrediënt(en) konden niet worden meegeteld.` : ''}</p>
           ${macroBar(r.nutrition_per_serving)}
         </section>
@@ -133,6 +133,18 @@ export async function render(root, params) {
           <button class="btn btn-ai" ${m.claude.configured ? '' : 'disabled'}>Vraag</button>
         </form>
       </section>`;
+  }
+
+  function sourceSummary() {
+    const linked = r.ingredients.filter((i) => i.ingredient);
+    const off = linked.filter((i) => String(i.ingredient.nutrition_source || '').startsWith('Open Food Facts')).length;
+    const ai = linked.filter((i) => String(i.ingredient.nutrition_source || '').startsWith('Claude')).length;
+    const other = linked.length - off - ai;
+    const parts = [];
+    if (off) parts.push(`${off} via <a href="https://nl.openfoodfacts.org" target="_blank" rel="noopener">Open Food Facts</a>`);
+    if (other) parts.push(`${other} NEVO-gemiddelde`);
+    if (ai) parts.push(`${ai} schatting van Claude`);
+    return `Bronnen per ingrediënt: ${parts.join(', ') || '–'}.`;
   }
 
   function macroBar(n) {

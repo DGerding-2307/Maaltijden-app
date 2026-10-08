@@ -6,7 +6,7 @@ import { addDays } from './seed.js';
 const ING_FIELDS = [
   'name', 'aliases', 'category', ...NUTRIENTS, 'unit_weight_g', 'density', 'pantry',
   'price_cents', 'package_grams', 'package_label', 'jumbo_id', 'jumbo_name', 'jumbo_url', 'jumbo_query', 'jumbo_image',
-  'price_source', 'price_updated_at', 'nutrition_source',
+  'price_source', 'price_updated_at', 'nutrition_source', 'off_code', 'nutriscore', 'nutrition_updated_at',
 ];
 
 // ---------- Ingrediënten ----------
@@ -112,7 +112,7 @@ export function getRecipe(id) {
   return { ...recipe, ...computed, ingredients: computed.lines, lines: undefined };
 }
 
-export function listRecipes({ q = '', tag = '', category = '', favorite = false, maxMinutes = 0, sort = 'title' } = {}) {
+export function listRecipes({ q = '', tag = '', category = '', favorite = false, maxMinutes = 0, maxPrice = 0, have = [], sort = 'title' } = {}) {
   const db = getDb();
   const all = db.prepare('SELECT * FROM recipes').all().map(parseRecipe);
   const term = normalizeName(q);
@@ -130,9 +130,33 @@ export function listRecipes({ q = '', tag = '', category = '', favorite = false,
     for (const row of ingNames) byRecipe.set(row.recipe_id, (byRecipe.get(row.recipe_id) || '') + ' ' + normalizeName(row.name));
     list = list.filter((r) => normalizeName(`${r.title} ${r.description} ${r.tags.join(' ')}`).includes(term) || (byRecipe.get(r.id) || '').includes(term));
   }
+  // "Wat kan ik maken?": ingrediënten die je in huis hebt (voorraadkast-artikelen tellen niet mee)
+  // Een term telt als hij het gekoppelde ingrediënt is, of als los woord/deel van de ingrediëntnaam
+  // voorkomt ("rijst" → witte rijst én zilvervliesrijst).
+  const haveIds = new Set();
+  const haveNames = [];
+  for (const h of have) {
+    const m = matchIngredient(h);
+    if (m) haveIds.add(m.id);
+    const n = normalizeName(h);
+    if (n.length >= 3) haveNames.push(n, singular(n));
+  }
   const summaries = list.map((r) => {
-    const c = computeRecipe(r, rowsFor(r.id));
+    const rows = rowsFor(r.id);
+    const c = computeRecipe(r, rows);
+    let pantryMatch = null;
+    if (have.length) {
+      const needed = rows.filter((row) => !row.optional && !row.ingredient?.pantry);
+      const hits = needed.filter((row) => (row.ingredient_id && haveIds.has(row.ingredient_id))
+        || haveNames.some((n) => normalizeName(`${row.name} ${row.ingredient?.name || ''}`).includes(n)));
+      pantryMatch = {
+        matched: hits.length,
+        total: needed.length,
+        missing: needed.filter((row) => !hits.includes(row)).map((row) => row.ingredient?.name || row.name),
+      };
+    }
     return {
+      pantry_match: pantryMatch,
       ...r,
       steps: undefined,
       total_minutes: (r.prep_minutes || 0) + (r.cook_minutes || 0),
@@ -141,7 +165,7 @@ export function listRecipes({ q = '', tag = '', category = '', favorite = false,
       cost_per_serving_cents: c.cost_per_serving_cents,
       missing_price: c.missing_price,
     };
-  });
+  }).filter((r) => (!maxPrice || r.cost_per_serving_cents <= maxPrice) && (!have.length || r.pantry_match.matched > 0));
   const sorters = {
     title: (a, b) => a.title.localeCompare(b.title, 'nl'),
     newest: (a, b) => b.id - a.id,
@@ -150,7 +174,10 @@ export function listRecipes({ q = '', tag = '', category = '', favorite = false,
     time: (a, b) => a.total_minutes - b.total_minutes,
     rating: (a, b) => (b.rating || 0) - (a.rating || 0),
   };
-  summaries.sort(sorters[sort] || sorters.title);
+  if (have.length) {
+    summaries.sort((a, b) => (b.pantry_match.matched / b.pantry_match.total) - (a.pantry_match.matched / a.pantry_match.total)
+      || a.pantry_match.missing.length - b.pantry_match.missing.length);
+  } else summaries.sort(sorters[sort] || sorters.title);
   return summaries;
 }
 
@@ -247,7 +274,8 @@ export function getPlan(start, days = 7) {
       info = {
         kcal_per_serving: c.nutrition_per_serving.kcal,
         nutrition_per_serving: c.nutrition_per_serving,
-        cost_cents: Math.round(c.cost_total_cents * factor),
+        // Restjes zijn al betaald bij de oorspronkelijke maaltijd
+        cost_cents: row.leftover_of ? 0 : Math.round(c.cost_total_cents * factor),
         cost_per_serving_cents: c.cost_per_serving_cents,
       };
     }
@@ -271,10 +299,10 @@ export function getPlan(start, days = 7) {
   return { start, end, days: daysOut, total_cost_cents: total };
 }
 
-export function addPlanEntry({ date, meal = 'diner', recipe_id = null, title = null, servings = 2, note = '' }) {
+export function addPlanEntry({ date, meal = 'diner', recipe_id = null, title = null, servings = 2, note = '', leftover_of = null }) {
   const { lastInsertRowid } = getDb()
-    .prepare('INSERT INTO meal_plan (date, meal, recipe_id, title, servings, note) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(date, meal, recipe_id || null, title || null, Number(servings) || 2, note || '');
+    .prepare('INSERT INTO meal_plan (date, meal, recipe_id, title, servings, note, leftover_of) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .run(date, meal, recipe_id || null, title || null, Number(servings) || 2, note || '', leftover_of || null);
   return Number(lastInsertRowid);
 }
 
@@ -288,6 +316,10 @@ export function updatePlanEntry(id, data) {
   return true;
 }
 
+export function getPlanEntry(id) {
+  return getDb().prepare('SELECT * FROM meal_plan WHERE id = ?').get(id) || null;
+}
+
 export function deletePlanEntry(id) {
   getDb().prepare('DELETE FROM meal_plan WHERE id = ?').run(id);
 }
@@ -295,9 +327,9 @@ export function deletePlanEntry(id) {
 export function copyWeek(fromStart, toStart) {
   return tx((db) => {
     const rows = db.prepare('SELECT * FROM meal_plan WHERE date BETWEEN ? AND ?').all(fromStart, addDays(fromStart, 6));
-    const ins = db.prepare('INSERT INTO meal_plan (date, meal, recipe_id, title, servings, note, position) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    const ins = db.prepare('INSERT INTO meal_plan (date, meal, recipe_id, title, servings, note, position, leftover_of) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
     const offset = Math.round((new Date(toStart) - new Date(fromStart)) / 86400000);
-    for (const r of rows) ins.run(addDays(r.date, offset), r.meal, r.recipe_id, r.title, r.servings, r.note, r.position);
+    for (const r of rows) ins.run(addDays(r.date, offset), r.meal, r.recipe_id, r.title, r.servings, r.note, r.position, r.leftover_of ? 1 : null);
     return rows.length;
   });
 }
@@ -311,14 +343,18 @@ export function clearWeek(start) {
 export function getShoppingList(start, days = 7) {
   const db = getDb();
   const end = addDays(start, days - 1);
-  const plan = db.prepare('SELECT * FROM meal_plan WHERE date BETWEEN ? AND ? AND recipe_id IS NOT NULL').all(start, end);
+  const plan = db.prepare('SELECT * FROM meal_plan WHERE date BETWEEN ? AND ? AND recipe_id IS NOT NULL AND leftover_of IS NULL').all(start, end);
   const entries = plan.map((p) => {
     const recipe = parseRecipe(db.prepare('SELECT * FROM recipes WHERE id = ?').get(p.recipe_id));
     return { servings: p.servings, recipe, rows: rowsFor(p.recipe_id) };
   });
   const list = buildShoppingList(entries);
-  const checks = new Map(db.prepare('SELECT item_key, checked FROM shopping_state WHERE week = ?').all(start).map((r) => [r.item_key, !!r.checked]));
-  for (const item of list.items) item.checked = checks.get(item.key) ?? false;
+  const states = new Map(db.prepare('SELECT item_key, checked, have FROM shopping_state WHERE week = ?').all(start).map((r) => [r.item_key, r]));
+  for (const item of list.items) {
+    item.checked = !!states.get(item.key)?.checked;
+    item.have = !!states.get(item.key)?.have;
+    if (item.have && item.cost_cents != null && !item.pantry) list.total_cents -= item.cost_cents;
+  }
   const extras = db.prepare('SELECT * FROM shopping_extras WHERE week = ? ORDER BY id').all(start).map((e) => ({ ...e, checked: !!e.checked }));
   return { start, end, ...list, extras, meals: plan.length };
 }
@@ -326,6 +362,48 @@ export function getShoppingList(start, days = 7) {
 export function setShoppingCheck(week, key, checked) {
   getDb().prepare(`INSERT INTO shopping_state (week, item_key, checked) VALUES (?, ?, ?)
     ON CONFLICT(week, item_key) DO UPDATE SET checked = excluded.checked`).run(week, key, checked ? 1 : 0);
+}
+
+/** "Heb ik al in huis": artikel hoeft deze week niet gekocht te worden. */
+export function setShoppingHave(week, key, have) {
+  getDb().prepare(`INSERT INTO shopping_state (week, item_key, have) VALUES (?, ?, ?)
+    ON CONFLICT(week, item_key) DO UPDATE SET have = excluded.have`).run(week, key, have ? 1 : 0);
+}
+
+// ---------- Back-up ----------
+
+const BACKUP_TABLES = ['ingredients', 'recipes', 'recipe_ingredients', 'meal_plan', 'shopping_state', 'shopping_extras', 'settings'];
+
+export function exportAll() {
+  const db = getDb();
+  const data = { app: 'maaltijden', version: 2, exported_at: new Date().toISOString(), tables: {} };
+  for (const t of BACKUP_TABLES) {
+    let rows = db.prepare(`SELECT * FROM ${t}`).all();
+    if (t === 'settings') rows = rows.filter((r) => r.key !== 'anthropic_api_key');
+    data.tables[t] = rows;
+  }
+  return data;
+}
+
+export function importAll(data) {
+  if (data?.app !== 'maaltijden' || !data.tables) throw Object.assign(new Error('Dit is geen back-up van de Maaltijden-app'), { status: 400 });
+  return tx((db) => {
+    const apiKey = db.prepare("SELECT value FROM settings WHERE key = 'anthropic_api_key'").get();
+    db.exec('PRAGMA defer_foreign_keys = ON');
+    for (const t of [...BACKUP_TABLES].reverse()) db.prepare(`DELETE FROM ${t}`).run();
+    const counts = {};
+    for (const t of BACKUP_TABLES) {
+      const rows = data.tables[t] || [];
+      const cols = db.prepare(`PRAGMA table_info(${t})`).all().map((c) => c.name);
+      for (const row of rows) {
+        const keys = Object.keys(row).filter((k) => cols.includes(k));
+        db.prepare(`INSERT INTO ${t} (${keys.join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`).run(...keys.map((k) => row[k]));
+      }
+      counts[t] = rows.length;
+    }
+    if (apiKey) db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('anthropic_api_key', ?)").run(apiKey.value);
+    return counts;
+  });
 }
 
 export function addShoppingExtra(week, name) {

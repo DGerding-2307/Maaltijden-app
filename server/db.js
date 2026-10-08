@@ -83,6 +83,12 @@ CREATE TABLE IF NOT EXISTS shopping_extras (
   checked INTEGER NOT NULL DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS off_cache (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  fetched_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -96,9 +102,26 @@ export function openDatabase(file = process.env.DB_FILE || path.resolve('data/ma
   db = new DatabaseSync(file);
   db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
   db.exec(SCHEMA);
+  migrate(db);
   const count = db.prepare('SELECT COUNT(*) AS c FROM ingredients').get().c;
   if (count === 0 && process.env.SKIP_SEED !== '1') seedDatabase(db);
   return db;
+}
+
+// Kolommen die in latere versies zijn toegevoegd; bestaande databases worden automatisch bijgewerkt.
+const MIGRATIONS = [
+  ['ingredients', 'off_code', 'TEXT'],
+  ['ingredients', 'nutriscore', 'TEXT'],
+  ['ingredients', 'nutrition_updated_at', 'TEXT'],
+  ['meal_plan', 'leftover_of', 'INTEGER'],
+  ['shopping_state', 'have', 'INTEGER NOT NULL DEFAULT 0'],
+];
+
+function migrate(db) {
+  for (const [table, column, type] of MIGRATIONS) {
+    const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+    if (!cols.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+  }
 }
 
 export function getDb() {

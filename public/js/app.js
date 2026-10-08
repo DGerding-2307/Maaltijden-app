@@ -47,6 +47,16 @@ async function router() {
 window.addEventListener('hashchange', router);
 router();
 
-if ('serviceWorker' in navigator && location.protocol === 'https:') {
+// Offline-melding
+const offlineBar = document.createElement('div');
+offlineBar.className = 'offline-bar';
+offlineBar.textContent = 'Offline – je ziet de laatst opgehaalde gegevens. Wijzigingen lukken pas weer met verbinding.';
+const updateOnline = () => offlineBar.classList.toggle('show', !navigator.onLine);
+window.addEventListener('online', updateOnline);
+window.addEventListener('offline', updateOnline);
+document.body.append(offlineBar);
+updateOnline();
+
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
 }

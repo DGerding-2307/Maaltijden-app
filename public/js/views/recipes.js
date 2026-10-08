@@ -15,7 +15,7 @@ export async function render(root, params) {
   const m = await meta(true);
   const state = {
     q: params.q || '', tag: params.tag || '', category: params.category || '', favorite: params.favorite === '1',
-    maxMinutes: params.maxMinutes || '', sort: params.sort || 'title',
+    maxMinutes: params.maxMinutes || '', sort: params.sort || 'title', maxPrice: params.maxPrice || '', have: params.have || '',
   };
 
   root.innerHTML = `<div class="view">
@@ -42,6 +42,19 @@ export async function render(root, params) {
       </select>
       <label class="chip-toggle"><input type="checkbox" data-f="favorite" ${state.favorite ? 'checked' : ''}> ★ Favorieten</label>
     </div>
+    <div class="quick-filters">
+      <button class="tag ${state.tag === 'vegetarisch' ? 'active' : ''}" data-quick="veg">🌱 Vegetarisch</button>
+      <button class="tag ${String(state.maxMinutes) === '30' ? 'active' : ''}" data-quick="fast">⚡ Snel (≤ 30 min)</button>
+      <button class="tag ${String(state.maxPrice) === '250' ? 'active' : ''}" data-quick="cheap">💶 Goedkoop (≤ € 2,50 p.p.)</button>
+    </div>
+    <form class="pantry-search" data-have-form>
+      <label for="have-input">🧺 Wat kan ik maken met wat ik in huis heb?</label>
+      <div class="row">
+        <input id="have-input" class="input grow" name="have" value="${esc(state.have)}" placeholder="bv. kip, prei, rijst, paprika (komma's)">
+        <button class="btn">Zoek</button>
+        ${state.have ? '<button type="button" class="btn btn-ghost" data-clear-have>Wissen</button>' : ''}
+      </div>
+    </form>
     <div class="tags">
       ${m.tags.slice(0, 18).map((t) => `<button class="tag ${t.tag === state.tag ? 'active' : ''}" data-tag="${esc(t.tag)}">${esc(t.tag)} <span>${t.count}</span></button>`).join('')}
     </div>
@@ -65,6 +78,10 @@ export async function render(root, params) {
             <span>🔥 ${num(r.kcal_per_serving, 0)} kcal</span>
             <span title="per persoon bij Jumbo">💶 ${euro(r.cost_per_serving_cents)}</span>
           </div>
+          ${r.pantry_match ? `<div class="pantry-match ${r.pantry_match.missing.length ? '' : 'all'}">
+            <strong>${r.pantry_match.matched}/${r.pantry_match.total} in huis</strong>
+            ${r.pantry_match.missing.length ? `<span class="muted small">mist: ${esc(r.pantry_match.missing.slice(0, 4).join(', '))}${r.pantry_match.missing.length > 4 ? '…' : ''}</span>` : '<span class="small">alles in huis!</span>'}
+          </div>` : ''}
           <div class="recipe-tags">${r.tags.slice(0, 3).map((t) => `<span class="tag small">${esc(t)}</span>`).join('')}</div>
         </div>
       </article>`).join('') || `<div class="empty"><p>Geen recepten gevonden.</p><a class="btn btn-ai" href="#/importeren">✨ Voeg een recept toe met Claude</a></div>`;
@@ -76,7 +93,29 @@ export async function render(root, params) {
     state[f] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
     load();
   }, 200));
+  view.addEventListener('submit', (e) => {
+    if (!e.target.matches('[data-have-form]')) return;
+    e.preventDefault();
+    state.have = e.target.have.value.trim();
+    load();
+  });
   view.addEventListener('click', async (e) => {
+    const quick = e.target.closest('[data-quick]');
+    if (quick) {
+      const k = quick.dataset.quick;
+      if (k === 'veg') state.tag = state.tag === 'vegetarisch' ? '' : 'vegetarisch';
+      if (k === 'fast') state.maxMinutes = String(state.maxMinutes) === '30' ? '' : '30';
+      if (k === 'cheap') state.maxPrice = String(state.maxPrice) === '250' ? '' : '250';
+      quick.classList.toggle('active');
+      view.querySelector('[data-f="maxMinutes"]').value = state.maxMinutes;
+      return load();
+    }
+    if (e.target.closest('[data-clear-have]')) {
+      state.have = '';
+      view.querySelector('#have-input').value = '';
+      e.target.closest('[data-clear-have]').remove();
+      return load();
+    }
     const tag = e.target.closest('[data-tag]');
     if (tag) {
       state.tag = state.tag === tag.dataset.tag ? '' : tag.dataset.tag;

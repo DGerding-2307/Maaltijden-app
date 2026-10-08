@@ -19,6 +19,28 @@ export const api = {
   del: (url) => request('DELETE', url),
 };
 
+/**
+ * Huisgenoten zien elkaars wijzigingen: elke paar seconden controleren of er op de server iets is veranderd.
+ * Niet verversen terwijl iemand aan het typen is of een venster open heeft.
+ */
+export function liveSync(reload, interval = 5000) {
+  let version = null;
+  // Direct een beginstand vastleggen, zodat ook de eerste wijziging van een huisgenoot opvalt.
+  request('GET', '/changes').then((r) => { version ??= r.version; }).catch(() => {});
+  const timer = setInterval(async () => {
+    if (document.hidden) return;
+    try {
+      const { version: v } = await request('GET', '/changes');
+      const el = document.activeElement;
+      const typing = ['TEXTAREA', 'SELECT'].includes(el?.tagName) || (el?.tagName === 'INPUT' && !['checkbox', 'radio', 'button'].includes(el.type));
+      const busy = document.querySelector('.modal-backdrop, details.menu[open]') || typing;
+      if (version != null && v !== version && !busy) await reload();
+      if (!busy) version = v;
+    } catch { /* offline: later opnieuw */ }
+  }, interval);
+  return () => clearInterval(timer);
+}
+
 let metaCache = null;
 export async function meta(refresh = false) {
   if (!metaCache || refresh) metaCache = await api.get('/meta');

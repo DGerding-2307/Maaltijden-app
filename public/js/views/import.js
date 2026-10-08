@@ -1,6 +1,6 @@
 // Recepten toevoegen met Claude: via link, tekst, foto/PDF of laten bedenken.
 import { api, meta } from '../api.js';
-import { $, $$, esc, toast } from '../util.js';
+import { $, $$, esc, toast, readImageFile } from '../util.js';
 import { DRAFT_KEY } from './editor.js';
 
 export async function render(root, params) {
@@ -42,34 +42,36 @@ export async function render(root, params) {
         </label>
         <label>Extra toelichting (optioneel) <input class="input" name="text" placeholder="bv. ‘alleen het recept rechts op de pagina’"></label>`,
       generate: `<label>Waar heb je zin in?
-          <textarea class="input" name="prompt" rows="4" required placeholder="Bijv. ‘iets met de kip en prei die nog in de koelkast liggen’, ‘vegetarische stamppot’, ‘snelle pasta onder €2 p.p.’">${esc(params.idee || '')}</textarea></label>
+          <textarea class="input" name="prompt" rows="4" placeholder="Bijv. ‘iets met de kip en prei die nog in de koelkast liggen’, ‘vegetarische stamppot’, ‘snelle pasta onder €2 p.p.’">${esc(params.idee || '')}</textarea></label>
+        <label class="dropzone small-drop" data-drop>
+          <input type="file" name="file" accept="image/*" capture="environment" hidden>
+          <span data-drop-label>📷 Optioneel: foto van je koelkast of voorraadkast – Claude kookt met wat erop staat</span>
+          <img data-preview alt="" hidden>
+        </label>
         <label>Personen <input class="input narrow" type="number" min="1" name="servings" value="${m.default_servings}"></label>`,
     };
     form.innerHTML = `${forms[tab]}
       <div class="row end"><button class="btn btn-ai" type="submit" ${m.claude.configured ? '' : 'disabled'}>${tab === 'generate' ? 'Bedenk recept' : 'Importeer recept'}</button></div>
       <div class="progress-msg" hidden></div>`;
     file = null;
-    if (tab === 'photo') bindPhoto();
+    if (tab === 'photo' || tab === 'generate') bindPhoto();
   }
 
   function bindPhoto() {
     const input = $('input[type=file]', form);
     const drop = $('[data-drop]', form);
-    const setFile = (f) => {
+    const setFile = async (f) => {
       if (!f) return;
       if (f.size > 20 * 1024 * 1024) return toast('Bestand is te groot (max 20 MB)', 'error');
-      const reader = new FileReader();
-      reader.onload = () => {
-        const [, data] = String(reader.result).split(',');
-        file = { media_type: f.type, data };
-        $('[data-drop-label]', form).textContent = `✔ ${f.name}`;
-        if (f.type.startsWith('image/')) {
-          const img = $('[data-preview]', form);
-          img.src = reader.result;
-          img.hidden = false;
-        }
-      };
-      reader.readAsDataURL(f);
+      // Foto's verkleinen: sneller uploaden en goedkoper voor Claude
+      const read = await readImageFile(f);
+      file = { media_type: read.media_type, data: read.data };
+      $('[data-drop-label]', form).textContent = `✔ ${f.name}`;
+      if (read.media_type.startsWith('image/')) {
+        const img = $('[data-preview]', form);
+        img.src = read.preview;
+        img.hidden = false;
+      }
     };
     input.addEventListener('change', () => setFile(input.files[0]));
     drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('drop'); });
@@ -97,7 +99,10 @@ export async function render(root, params) {
     btn.disabled = true;
     try {
       let draft;
-      if (tab === 'generate') draft = await api.post('/ai/generate', { prompt: fd.get('prompt'), servings: Number(fd.get('servings')) });
+      if (tab === 'generate') {
+        if (!fd.get('prompt') && !file) throw new Error('Beschrijf waar je zin in hebt of voeg een foto toe');
+        draft = await api.post('/ai/generate', { prompt: fd.get('prompt'), servings: Number(fd.get('servings')), image: file });
+      }
       else if (tab === 'url') draft = await api.post('/ai/import', { url: fd.get('url') });
       else if (tab === 'text') draft = await api.post('/ai/import', { text: fd.get('text') });
       else {

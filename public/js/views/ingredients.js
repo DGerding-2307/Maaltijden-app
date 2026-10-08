@@ -3,6 +3,18 @@ import { $, esc, euro, num, toast, modal, confirmDialog, debounce, NUTRIENT_LABE
 
 const SOURCE_LABEL = { jumbo: '🟡 Jumbo', handmatig: '✍️ handmatig', schatting: '≈ schatting' };
 
+export function nutritionBadge(i) {
+  const src = String(i.nutrition_source || '');
+  if (src.startsWith('Open Food Facts')) return `<span class="src src-off" title="${esc(src)}">🥫 OFF</span>`;
+  if (src.startsWith('Claude')) return `<span class="src src-ai" title="${esc(src)}">✨ schatting</span>`;
+  if (src.startsWith('NEVO')) return `<span class="src" title="${esc(src)}">NEVO</span>`;
+  return `<span class="src" title="${esc(src)}">${esc(src || '–')}</span>`;
+}
+
+export function nutriscore(grade) {
+  return grade ? `<span class="nutriscore ns-${esc(grade)}" title="Nutri-Score ${esc(grade.toUpperCase())}">${esc(grade.toUpperCase())}</span>` : '';
+}
+
 export async function render(root) {
   const m = await meta();
   let all = await api.get('/ingredients');
@@ -14,17 +26,20 @@ export async function render(root) {
       <h1>Ingrediënten & prijzen</h1>
       <div class="actions">
         <button class="btn" data-new>+ Nieuw ingrediënt</button>
+        <button class="btn" data-off-all title="Vul voedingswaarden aan met Open Food Facts (op de achtergrond)">🥫 Voedingswaarden via Open Food Facts</button>
         <button class="btn" data-refresh-all title="Ververs prijzen van ingrediënten die aan een Jumbo-product gekoppeld zijn">🟡 Jumbo-prijzen verversen</button>
       </div>
     </div>
-    <p class="muted">Voedingswaarden per 100 g (NEVO-gemiddelden). Prijzen zijn per verpakking; de prijs per maaltijd wordt naar verhouding berekend.
-      Koppel een ingrediënt aan een Jumbo-product om actuele prijzen op te halen.</p>
+    <div data-off-status></div>
+    <p class="muted">Voedingswaarden per 100 g komen uit <a href="https://nl.openfoodfacts.org" target="_blank" rel="noopener">Open Food Facts</a>
+      (open database, ODbL) – per ingrediënt de mediaan van vergelijkbare Nederlandse producten, of één product dat je zelf kiest of scant.
+      Waar nog geen OFF-gegevens zijn, staan NEVO-gemiddelden of een schatting van Claude. Prijzen zijn per verpakking.</p>
     <div class="filters">
       <input type="search" class="input grow" placeholder="Zoek ingrediënt…" data-q>
       <select class="input" data-cat><option value="">Alle afdelingen</option>${m.categories.map((c) => `<option>${esc(c)}</option>`).join('')}</select>
     </div>
     <div class="table-wrap"><table class="data-table">
-      <thead><tr><th>Ingrediënt</th><th>Afdeling</th><th class="num">kcal</th><th class="num">eiwit</th><th class="num">1 stuk</th><th>Verpakking</th><th class="num">Prijs</th><th class="num">€/kg</th><th>Bron</th><th></th></tr></thead>
+      <thead><tr><th>Ingrediënt</th><th>Afdeling</th><th class="num">kcal</th><th class="num">eiwit</th><th>Voeding</th><th class="num">1 stuk</th><th>Verpakking</th><th class="num">Prijs</th><th class="num">€/kg</th><th>Prijsbron</th><th></th></tr></thead>
       <tbody data-body></tbody>
     </table></div>
   </div>`;
@@ -38,6 +53,7 @@ export async function render(root) {
         <td class="small">${esc(i.category)}</td>
         <td class="num">${num(i.kcal, 0)}</td>
         <td class="num">${num(i.protein)}</td>
+        <td class="small">${nutritionBadge(i)} ${nutriscore(i.nutriscore)}</td>
         <td class="num">${i.unit_weight_g ? `${num(i.unit_weight_g)} g` : ''}</td>
         <td class="small">${esc(i.package_label || (i.package_grams ? `${i.package_grams} g` : ''))}</td>
         <td class="num">${euro(i.price_cents)}</td>
@@ -45,6 +61,7 @@ export async function render(root) {
         <td class="small" title="${esc(i.price_updated_at || '')}">${SOURCE_LABEL[i.price_source] || esc(i.price_source || '')}</td>
         <td class="row-actions">
           <button class="mini" data-edit title="Bewerken">✏️</button>
+          <button class="mini" data-off title="Voedingswaarden uit Open Food Facts">🥫</button>
           <button class="mini" data-jumbo title="Koppel aan Jumbo-product">🟡</button>
           ${i.jumbo_id ? '<button class="mini" data-refresh title="Prijs verversen">↻</button>' : ''}
           <button class="mini danger" data-del title="Verwijderen">✕</button>
@@ -70,7 +87,11 @@ export async function render(root) {
         </div>
         <h3>Voedingswaarden per 100 g</h3>
         <div class="grid-4">${fields}</div>
-        ${m.claude.configured && ing.id ? '<button type="button" class="btn btn-ai" data-estimate>✨ Laat Claude schatten</button>' : ''}
+        <p class="muted small">Bron: ${esc(ing.nutrition_source || '–')}</p>
+        <div class="row wrap">
+          ${ing.id ? '<button type="button" class="btn" data-off-dialog>🥫 Zoek in Open Food Facts</button>' : ''}
+          ${m.claude.configured && ing.id ? '<button type="button" class="btn btn-ai" data-estimate>✨ Laat Claude schatten</button>' : ''}
+        </div>
         <h3>Gewicht & prijs</h3>
         <div class="grid-4">
           <label>Gewicht 1 stuk (g) <input class="input" type="number" step="any" min="0" name="unit_weight_g" value="${ing.unit_weight_g ?? ''}"></label>
@@ -83,6 +104,7 @@ export async function render(root) {
         <div class="row end"><button class="btn btn-primary">Opslaan</button></div>
       </form>`, { wide: true });
     const form = $('[data-form]', md.el);
+    $('[data-off-dialog]', md.el)?.addEventListener('click', () => { md.close(); offDialog(ing); });
     $('[data-estimate]', md.el)?.addEventListener('click', async (e) => {
       e.target.disabled = true;
       e.target.textContent = 'Claude schat…';
@@ -115,6 +137,115 @@ export async function render(root) {
         reload();
       } catch (err) { toast(err.message, 'error'); }
     });
+  }
+
+  function offDialog(ing) {
+    const md = modal(`
+      <h2>🥫 Voedingswaarden voor ${esc(ing.name)}</h2>
+      <p class="muted small">Zoek in <a href="https://nl.openfoodfacts.org" target="_blank" rel="noopener">Open Food Facts</a>. Kies één product,
+        of de mediaan van alle gevonden producten (aanbevolen voor algemene ingrediënten zoals groente).</p>
+      <form class="row wrap" data-search>
+        <input class="input grow" name="q" value="${esc(ing.name)}" aria-label="Zoekterm">
+        <button class="btn">Zoeken</button>
+      </form>
+      <form class="row wrap" data-barcode>
+        <input class="input grow" name="code" inputmode="numeric" placeholder="of barcode (EAN), bv. 8710400…" aria-label="Barcode">
+        <button class="btn" type="submit">Opzoeken</button>
+        ${'BarcodeDetector' in window ? '<button class="btn" type="button" data-scan>📷 Scan</button>' : ''}
+      </form>
+      <video data-video playsinline hidden></video>
+      <div class="off-results"><p class="muted">Zoeken… (Open Food Facts staat max. 10 zoekopdrachten per minuut toe)</p></div>`, { wide: true, onClose: stopScan });
+    const results = $('.off-results', md.el);
+    let data = null;
+    let stream = null;
+    function stopScan() { stream?.getTracks().forEach((t) => t.stop()); stream = null; }
+    const row = (p, i) => `
+      <button class="off-product" data-pick="${i}" ${p.nutrition ? '' : 'disabled'}>
+        ${p.image ? `<img src="${esc(p.image)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : '<span class="thumb-emoji">🥫</span>'}
+        <span><strong>${esc(p.name)}</strong> ${nutriscore(p.nutriscore)}<br><span class="muted small">${esc(p.brands)} ${esc(p.quantity)}</span></span>
+        <span class="num small">${p.nutrition ? `${num(p.nutrition.kcal, 0)} kcal · ${num(p.nutrition.protein)} g eiwit<br>${num(p.nutrition.carbs)} g kh · ${num(p.nutrition.fat)} g vet` : 'geen voedingswaarden'}</span>
+      </button>`;
+    const show = () => {
+      results.innerHTML = `
+        ${data.median ? `<div class="off-median">
+          <div><strong>Mediaan van ${data.median.count} producten</strong><br>
+            <span class="muted small">${num(data.median.nutrition.kcal, 0)} kcal · ${num(data.median.nutrition.protein)} g eiwit · ${num(data.median.nutrition.carbs)} g kh · ${num(data.median.nutrition.fat)} g vet · ${num(data.median.nutrition.salt)} g zout per 100 g</span></div>
+          <button class="btn btn-primary" data-median>Gebruik mediaan</button></div>` : ''}
+        ${data.products.map(row).join('') || '<p class="muted">Niets gevonden. Probeer een andere zoekterm.</p>'}
+        <p class="muted small">Gegevens: © Open Food Facts-bijdragers, ODbL.</p>`;
+    };
+    const fail = (err) => {
+      results.innerHTML = `<p class="error">${esc(err.message)}</p>`;
+    };
+    const search = async (q) => {
+      results.innerHTML = '<p class="muted">Zoeken…</p>';
+      try { data = await api.get(`/off/search?q=${encodeURIComponent(q)}`); show(); } catch (err) { fail(err); }
+    };
+    const lookup = async (code) => {
+      results.innerHTML = '<p class="muted">Opzoeken…</p>';
+      try {
+        const p = await api.get(`/off/product/${encodeURIComponent(code)}`);
+        data = { products: [p], median: null };
+        show();
+      } catch (err) { fail(err); }
+    };
+    const save = async (body) => {
+      await api.post(`/ingredients/${ing.id}/off`, body);
+      toast('Voedingswaarden bijgewerkt uit Open Food Facts', 'success');
+      md.close();
+      reload();
+    };
+    $('[data-search]', md.el).addEventListener('submit', (e) => { e.preventDefault(); search(e.target.q.value); });
+    $('[data-barcode]', md.el).addEventListener('submit', (e) => { e.preventDefault(); lookup(e.target.code.value); });
+    $('[data-scan]', md.el)?.addEventListener('click', async () => {
+      const video = $('[data-video]', md.el);
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        video.srcObject = stream;
+        video.hidden = false;
+        await video.play();
+        const detector = new window.BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a'] });
+        const tick = async () => {
+          if (!stream) return;
+          const codes = await detector.detect(video).catch(() => []);
+          if (codes[0]) {
+            stopScan();
+            video.hidden = true;
+            $('[data-barcode]', md.el).code.value = codes[0].rawValue;
+            lookup(codes[0].rawValue);
+          } else requestAnimationFrame(tick);
+        };
+        tick();
+      } catch (err) { toast(`Camera niet beschikbaar: ${err.message}`, 'error'); }
+    });
+    results.addEventListener('click', (e) => {
+      if (e.target.closest('[data-median]')) return save({ median: data.median, query: data.query });
+      const pick = e.target.closest('[data-pick]');
+      if (pick) save({ product: data.products[Number(pick.dataset.pick)] });
+    });
+    search(ing.name);
+  }
+
+  let pollTimer = null;
+  async function showQueue() {
+    const box = $('[data-off-status]', view);
+    if (!box) return;
+    const st = await api.get('/off/queue').catch(() => null);
+    if (!st || (!st.running && !st.done)) { box.innerHTML = ''; return; }
+    box.innerHTML = `<div class="notice off-status">
+      <strong>🥫 Open Food Facts:</strong> ${st.running ? `bezig… ${st.done} klaar, nog ${st.pending} te gaan (±${Math.ceil(st.pending * 6.5 / 60)} min)` : `klaar – ${st.updated.length} bijgewerkt, ${st.skipped.length} overgeslagen`}
+      ${st.errors.length ? `<br><span class="error">${esc(st.errors.at(-1))}</span>` : ''}
+      ${st.skipped.length ? `<details><summary>Overgeslagen (${st.skipped.length})</summary><ul>${st.skipped.map((x) => `<li>${esc(x.name)}: ${esc(x.reason)}
+        ${x.suggestion ? ` <button class="mini" data-accept="${x.id}">toch gebruiken (${num(x.suggestion.kcal, 0)} kcal)</button>` : ''}</li>`).join('')}</ul></details>` : ''}
+    </div>`;
+    box.querySelectorAll('[data-accept]').forEach((b) => b.addEventListener('click', async () => {
+      const x = st.skipped.find((s) => String(s.id) === b.dataset.accept);
+      await api.put(`/ingredients/${x.id}`, x.suggestion);
+      b.replaceWith('✔');
+      reload();
+    }));
+    clearTimeout(pollTimer);
+    if (st.running) pollTimer = setTimeout(async () => { await reload(); showQueue(); }, 4000);
   }
 
   function jumboDialog(ing) {
@@ -167,6 +298,11 @@ export async function render(root) {
     const ing = tr && all.find((i) => i.id === Number(tr.dataset.id));
     try {
       if (e.target.closest('[data-new]')) return editDialog();
+      if (e.target.closest('[data-off-all]')) {
+        await api.post('/off/queue', { scope: 'estimates' });
+        toast('Open Food Facts wordt op de achtergrond doorzocht', 'success');
+        return showQueue();
+      }
       if (e.target.closest('[data-refresh-all]')) {
         const btn = e.target.closest('[data-refresh-all]');
         btn.disabled = true;
@@ -180,6 +316,7 @@ export async function render(root) {
       if (!ing) return;
       if (e.target.closest('[data-edit]')) return editDialog(ing);
       if (e.target.closest('[data-jumbo]')) return jumboDialog(ing);
+      if (e.target.closest('[data-off]')) return offDialog(ing);
       if (e.target.closest('[data-refresh]')) {
         await api.post(`/ingredients/${ing.id}/refresh-price`);
         toast('Prijs ververst', 'success');
@@ -196,4 +333,6 @@ export async function render(root) {
   });
 
   draw();
+  showQueue();
+  return () => clearTimeout(pollTimer);
 }

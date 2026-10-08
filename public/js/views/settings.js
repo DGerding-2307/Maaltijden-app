@@ -1,5 +1,5 @@
 import { api, meta } from '../api.js';
-import { $, esc, toast } from '../util.js';
+import { $, esc, toast, confirmDialog } from '../util.js';
 
 export async function render(root) {
   const m = await meta(true);
@@ -22,8 +22,21 @@ export async function render(root) {
       <p>Status: ${m.claude.configured ? `<strong class="good">✔ ingesteld</strong>${m.claude.from_env ? ' (via ANTHROPIC_API_KEY)' : ''}` : '<strong class="bad">niet ingesteld</strong>'} · model <code>${esc(m.claude.model)}</code></p>
       ${m.claude.from_env ? '' : `<label>Anthropic API-sleutel <input class="input" type="password" name="anthropic_api_key" autocomplete="off" placeholder="${m.claude.configured ? '•••••••• (laat leeg om te behouden)' : 'sk-ant-…'}"></label>`}
 
+      <h2>Voedingswaarden</h2>
+      <label class="check"><input type="checkbox" name="off_auto" ${m.off_auto ? 'checked' : ''}>
+        Nieuwe ingrediënten automatisch aanvullen met <a href="https://nl.openfoodfacts.org" target="_blank" rel="noopener">Open Food Facts</a></label>
+
       <div class="row end"><button class="btn btn-primary">Opslaan</button></div>
     </form>
+
+    <section class="card">
+      <h2>Back-up</h2>
+      <p class="muted">Download al je recepten, ingrediënten, planning en instellingen als één bestand (zonder API-sleutel), of zet een back-up terug.</p>
+      <div class="row wrap">
+        <a class="btn" href="/api/backup" download>⬇️ Back-up downloaden</a>
+        <label class="btn">⬆️ Back-up terugzetten<input type="file" accept="application/json,.json" data-restore hidden></label>
+      </div>
+    </section>
 
     <section class="card">
       <h2>Ingrediënten & prijzen</h2>
@@ -39,6 +52,18 @@ export async function render(root) {
     </section>
   </div>`;
   const form = $('[data-form]', root);
+  $('[data-restore]', root).addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      if (!(await confirmDialog('Alle huidige gegevens worden vervangen door de back-up. Doorgaan?', 'Terugzetten'))) return;
+      const { restored } = await api.post('/restore', data);
+      toast(`Teruggezet: ${restored.recipes} recepten, ${restored.ingredients} ingrediënten`, 'success');
+      await meta(true);
+    } catch (err) { toast(err.message, 'error'); }
+    e.target.value = '';
+  });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(form);
@@ -47,6 +72,7 @@ export async function render(root) {
       weekly_budget_cents: fd.get('budget') ? Math.round(Number(fd.get('budget')) * 100) : null,
       meals: String(fd.get('meals')).split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
       household: fd.get('household'),
+      off_auto: fd.has('off_auto'),
     };
     const key = fd.get('anthropic_api_key');
     if (key) body.anthropic_api_key = String(key).trim();

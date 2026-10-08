@@ -1,4 +1,4 @@
-import { api } from '../api.js';
+import { api, liveSync } from '../api.js';
 import { $, esc, euro, num, qty, addDays, mondayOf, todayISO, fmtDate, weekNumber, toast } from '../util.js';
 
 const COUNT_UNITS = ['stuk', 'teen', 'blik', 'pak', 'zakje', 'bos', 'plak'];
@@ -31,7 +31,8 @@ export async function render(root, params) {
   }
 
   function draw() {
-    const items = data.items.filter((i) => showPantry || !i.pantry);
+    const inHouse = data.items.filter((i) => i.have && (showPantry || !i.pantry));
+    const items = data.items.filter((i) => (showPantry || !i.pantry) && !i.have);
     const pantryCount = data.items.filter((i) => i.pantry).length;
     const groups = new Map();
     for (const item of items) {
@@ -57,7 +58,10 @@ export async function render(root, params) {
         <div class="stat"><span class="stat-label">Geschat bij Jumbo</span><span class="stat-value">${euro(data.total_cents)}</span><span class="stat-sub">hele verpakkingen, excl. voorraadkast</span></div>
         <div class="stat"><span class="stat-label">Nog te halen</span><span class="stat-value">${open.length}</span><span class="stat-sub">${euro(openCost)}</span></div>
       </div>
-      <label class="chip-toggle no-print"><input type="checkbox" data-pantry ${showPantry ? 'checked' : ''}> Toon voorraadkast (${pantryCount}: zout, olie, kruiden…)</label>
+      <div class="row wrap no-print">
+        <label class="chip-toggle"><input type="checkbox" data-pantry ${showPantry ? 'checked' : ''}> Toon voorraadkast (${pantryCount}: zout, olie, kruiden…)</label>
+        <span class="muted small">Tik 🏠 bij wat je al in huis hebt. Wijzigingen van huisgenoten verschijnen vanzelf.</span>
+      </div>
 
       ${!data.items.length && !data.extras.length ? `<div class="empty"><p>Nog niets op de lijst. Plan eerst maaltijden in.</p><a class="btn btn-primary" href="#/planner?week=${start}">Naar de planner</a></div>` : ''}
 
@@ -74,10 +78,19 @@ export async function render(root, params) {
                   <span class="shop-pack">${i.packages ? `${i.packages}× ${esc(i.package_label || '')}` : ''}</span>
                   <span class="shop-cost">${i.cost_cents != null ? euro(i.cost_cents) : ''}</span>
                 </label>
+                <button class="mini no-print have-btn" data-have="${esc(i.key)}" title="Heb ik al in huis – niet kopen">🏠</button>
                 <a class="jumbo-link no-print" href="${esc(i.jumbo_url)}" target="_blank" rel="noopener" title="${esc(i.product_name || 'Zoek bij Jumbo')}">Jumbo ↗</a>
               </li>`).join('')}
           </ul>
         </section>`).join('')}
+
+      ${inHouse.length ? `<details class="shop-group in-house no-print">
+        <summary><h2>🏠 Al in huis (${inHouse.length})</h2></summary>
+        <ul class="shop-list">${inHouse.map((i) => `<li>
+          <span class="shop-name"><strong>${esc(i.name)}</strong> <span class="muted">${amount(i)}</span></span>
+          ${i.ingredient_id ? `<button class="mini" data-always="${i.ingredient_id}" title="Nooit meer op de lijst zetten (voorraadkast)">altijd in huis</button>` : ''}
+          <button class="mini" data-unhave="${esc(i.key)}">toch kopen</button></li>`).join('')}</ul>
+      </details>` : ''}
 
       <section class="shop-group">
         <h2>Extra boodschappen</h2>
@@ -118,6 +131,18 @@ export async function render(root, params) {
     load();
   });
   view.addEventListener('click', async (e) => {
+    const have = e.target.closest('[data-have], [data-unhave]');
+    if (have) {
+      const key = have.dataset.have || have.dataset.unhave;
+      await api.put('/shopping/have', { week: start, key, have: !!have.dataset.have });
+      return load();
+    }
+    const always = e.target.closest('[data-always]');
+    if (always) {
+      await api.put(`/ingredients/${always.dataset.always}`, { pantry: true });
+      toast('Staat voortaan bij de voorraadkast', 'success');
+      return load();
+    }
     if (e.target.closest('[data-del-extra]')) {
       await api.del(`/shopping/extras/${e.target.closest('[data-del-extra]').dataset.delExtra}`);
       load();
@@ -125,7 +150,7 @@ export async function render(root, params) {
     if (e.target.closest('[data-print]')) window.print();
     if (e.target.closest('[data-copy]')) {
       const lines = [`Boodschappen week ${weekNumber(start)}`];
-      const items = data.items.filter((i) => !i.checked && (showPantry || !i.pantry));
+      const items = data.items.filter((i) => !i.checked && !i.have && (showPantry || !i.pantry));
       let cat = '';
       for (const i of items) {
         if (i.category !== cat) { cat = i.category; lines.push('', `*${cat}*`); }
@@ -143,4 +168,5 @@ export async function render(root, params) {
   });
 
   await load();
+  return liveSync(load);
 }

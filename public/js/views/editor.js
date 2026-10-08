@@ -1,6 +1,6 @@
 // Recept toevoegen/bewerken. Wordt ook gebruikt om een door Claude gemaakt concept na te kijken.
 import { api, meta } from '../api.js';
-import { $, $$, esc, toast } from '../util.js';
+import { $, $$, esc, toast, readImageFile } from '../util.js';
 
 export const DRAFT_KEY = 'recipeDraft';
 
@@ -51,7 +51,11 @@ export async function render(root, params) {
         <label>Kooktijd (min) <input class="input" type="number" min="0" name="cook_minutes" value="${recipe.cook_minutes ?? ''}"></label>
         <label>Keuken <input class="input" name="cuisine" value="${esc(recipe.cuisine || 'Nederlands')}"></label>
         <label>Tags (komma's) <input class="input" name="tags" value="${esc((recipe.tags || []).join(', '))}" placeholder="stamppot, winter, snel"></label>
-        <label class="span-2">Afbeelding (URL) <input class="input" name="image_url" value="${esc(recipe.image_url || '')}" placeholder="https://…"></label>
+        <div class="span-2 photo-field">
+          <img data-photo-preview src="${esc(recipe.image_url || '')}" alt="" ${recipe.image_url ? '' : 'hidden'} referrerpolicy="no-referrer">
+          <label class="grow">Foto <input class="input" name="image_url" value="${esc(recipe.image_url || '')}" placeholder="https://… of upload een eigen foto"></label>
+          <label class="btn">📷 Foto uploaden<input type="file" accept="image/*" data-photo hidden></label>
+        </div>
         <label class="span-2">Bron (URL) <input class="input" name="source_url" value="${esc(recipe.source_url || '')}"></label>
       </div>
 
@@ -151,6 +155,20 @@ export async function render(root, params) {
     const i = Number(rowEl.dataset.i);
     if (e.target.closest('[data-del]')) { rows.splice(i, 1); drawRows(); }
     if (e.target.closest('[data-up]') && i > 0) { [rows[i - 1], rows[i]] = [rows[i], rows[i - 1]]; drawRows(); }
+  });
+
+  $('[data-photo]', view).addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const img = await readImageFile(file);
+      const { url } = await api.post('/uploads', { media_type: img.media_type, data: img.data });
+      form.image_url.value = url;
+      const prev = $('[data-photo-preview]', view);
+      prev.src = url;
+      prev.hidden = false;
+      toast('Foto toegevoegd', 'success');
+    } catch (err) { toast(err.message, 'error'); }
   });
 
   form.addEventListener('submit', async (e) => {
