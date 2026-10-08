@@ -1,0 +1,41 @@
+# Handmatig: een openbaar bestand (bv. een productinformatieblad) ophalen en tijdelijk bij de
+# release "downloads" zetten, zodat het verwerkt kan worden. Met "opruimen" wordt die release verwijderd.
+name: Bestand ophalen
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'Link naar het bestand'
+        type: string
+        default: ''
+      opruimen:
+        description: 'Tijdelijke release verwijderen'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  ophalen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Downloaden en publiceren
+        if: ${{ !inputs.opruimen }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          URL: ${{ inputs.url }}
+        run: |
+          curl -fsSL -m 120 -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36" -o bestand.bin "$URL"
+          file bestand.bin
+          gh release view downloads -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create downloads -R "$GITHUB_REPOSITORY" --title "Downloads (tijdelijk)" --notes "Tijdelijk opgehaalde bestanden." --prerelease
+          gh release upload downloads bestand.bin -R "$GITHUB_REPOSITORY" --clobber
+
+      - name: Opruimen
+        if: ${{ inputs.opruimen }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release delete downloads -R "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
