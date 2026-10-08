@@ -119,7 +119,7 @@ export async function render(root, params) {
         <div class="card-head"><h3>📅 Gepland voor deze dag</h3>
           ${notLogged.length > 1 ? '<button class="btn small" data-action="plan-all">✓ Alles gegeten</button>' : ''}</div>
         ${day.planned.map((p) => `<div class="planned-item">
-          <span><span>${MEAL_ICONS[p.meal] || '🍽️'} <a href="#/recept/${p.recipe_id}">${esc(p.title)}</a></span>
+          <span><span>${MEAL_ICONS[p.meal] || '🍽️'} ${p.recipe_id ? `<a href="#/recept/${p.recipe_id}">${esc(p.title)}</a>` : esc(p.title)}</span>
             <span class="muted small">${esc(p.meal)} · ${num(p.kcal_per_serving, 0)} kcal per portie</span></span>
           ${p.logged ? '<span class="good small">✓ in dagboek</span>' : `<button class="btn small" data-plan="${p.id}">✓ Gegeten</button>`}
         </div>`).join('')}

@@ -91,3 +91,53 @@ test('standaardrecepten hebben een foto met bronvermelding; een eigen foto verva
   assert.equal(after.image_url, '/uploads/eigen.jpg');
   assert.equal(after.image_credit, null);
 });
+
+test('vlees of vis bij een geplande maaltijd: boodschappen, kosten, voeding, kopiëren en restjes', async () => {
+  const recipes = await get('/recipes');
+  const pannenkoek = recipes.find((r) => r.title === 'Hollandse pannenkoeken');
+  const slavink = (await get('/ingredients?q=slavink')).find((i) => i.name === 'slavink');
+  assert.ok(slavink, 'slavink is een standaardingrediënt');
+  const date = '2031-03-03'; // een maandag zonder andere planning
+  const { id } = await send('POST', '/plan', { date, meal: 'diner', recipe_id: pannenkoek.id, servings: 3 });
+  let plan = await get(`/plan?week=${date}`);
+  let entry = plan.days[0].entries.find((e) => e.id === id);
+  assert.equal(entry.has_meat, false);
+  const before = { kcal: entry.kcal_per_serving, cost: entry.cost_cents };
+
+  const extras = await send('POST', `/plan/${id}/extras`, { ingredient_id: slavink.id });
+  assert.equal(extras[0].quantity, 1);
+  assert.equal(extras[0].unit, 'stuk');
+  plan = await get(`/plan?week=${date}`);
+  entry = plan.days[0].entries.find((e) => e.id === id);
+  assert.equal(entry.extras.length, 1);
+  assert.ok(entry.kcal_per_serving > before.kcal + 200, `${before.kcal} → ${entry.kcal_per_serving}`);
+  assert.ok(entry.cost_cents > before.cost, `${before.cost} → ${entry.cost_cents}`);
+
+  // Boodschappenlijst: 3 personen × 1 slavink
+  const shop = await get(`/shopping?week=${date}`);
+  const item = shop.items.find((i) => i.name === 'slavink');
+  assert.equal(item.quantity, 3);
+  assert.equal(item.grams, 300);
+
+  // Hoeveelheid aanpassen
+  await send('PUT', `/plan/extras/${extras[0].id}`, { quantity: 2, unit: 'stuk' });
+  assert.equal((await get(`/shopping?week=${date}`)).items.find((i) => i.name === 'slavink').quantity, 6);
+
+  // Restjes nemen het vlees mee, maar komen niet op de boodschappenlijst
+  const { id: leftId } = await send('POST', `/plan/${id}/leftovers`, { date: '2031-03-04', meal: 'lunch', servings: 1 });
+  plan = await get(`/plan?week=${date}`);
+  const left = plan.days[1].entries.find((e) => e.id === leftId);
+  assert.equal(left.extras[0].name, 'slavink');
+  assert.equal(left.cost_cents, 0);
+  assert.equal((await get(`/shopping?week=${date}`)).items.find((i) => i.name === 'slavink').quantity, 6);
+
+  // Week kopiëren neemt het vlees mee
+  await send('POST', '/plan/copy-week', { from: date, to: '2031-03-10' });
+  const next = await get('/plan?week=2031-03-10');
+  assert.equal(next.days[0].entries[0].extras[0].name, 'slavink');
+
+  // Verwijderen
+  await send('DELETE', `/plan/extras/${extras[0].id}`);
+  plan = await get(`/plan?week=${date}`);
+  assert.equal(plan.days[0].entries.find((e) => e.id === id).extras.length, 0);
+});

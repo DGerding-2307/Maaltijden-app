@@ -1,4 +1,5 @@
 import { api, meta, liveSync } from '../api.js';
+import { meatDialog, extrasDialog } from '../meat.js';
 import {
   $, $$, esc, euro, num, addDays, mondayOf, todayISO, fmtDate, weekNumber, DAY_NAMES, toast, modal, confirmDialog, debounce, minutes,
   savedPerson, rememberPerson,
@@ -20,10 +21,13 @@ export async function render(root, params) {
   }
 
   function entryCard(e) {
-    const title = e.recipe_id ? e.recipe_title : e.title;
+    const title = e.recipe_id ? e.recipe_title : (e.title || (e.extras?.length ? e.extras.map((x) => x.name).join(', ') : 'Losse ingrediënten'));
     return `<div class="plan-entry ${e.recipe_id ? '' : 'free'} ${e.leftover_of ? 'leftover' : ''}" draggable="true" data-entry="${e.id}">
       <a class="plan-entry-title" ${e.recipe_id ? `href="#/recept/${e.recipe_id}?personen=${e.servings}"` : ''}>${e.leftover_of ? '♻️ ' : ''}${esc(title)}</a>
       ${e.leftover_of ? '<span class="muted small">restjes – geen boodschappen</span>' : ''}
+      ${!e.recipe_id && e.extras?.length ? '<button class="plan-extras" data-ingredients title="Ingrediënten en hoeveelheden wijzigen">🥕 ingrediënten wijzigen</button>'
+        : e.extras?.length ? `<button class="plan-extras" data-meat title="Vlees of vis wijzigen">🥩 + ${e.extras.map((x) => esc(x.name)).join(', ')}</button>`
+        : e.recipe_id && !e.has_meat && !e.leftover_of ? '<button class="plan-extras add" data-meat title="Vlees of vis bij dit gerecht kiezen">+ 🥩 vlees/vis</button>' : ''}
       ${e.note && !e.leftover_of ? `<span class="muted small">${esc(e.note)}</span>` : ''}
       <div class="plan-entry-meta">
         <span class="servings-ctl">
@@ -171,6 +175,8 @@ export async function render(root, params) {
         return load();
       }
       if (e.target.closest('[data-entry-menu]') && entry) return entryMenu(entry);
+      if (e.target.closest('[data-meat]') && entry) return meatDialog(entry, load);
+      if (e.target.closest('[data-ingredients]') && entry) return extrasDialog(entry, load, { mode: 'all' });
       if (e.target.closest('[data-eat]') && entry) {
         if (entry.eaten) {
           const day = await api.get(`/diary?persoon=${person.id}&datum=${entry.date}`);
@@ -284,7 +290,9 @@ export async function render(root, params) {
       <form class="row" data-free>
         <input class="input grow" placeholder="Of vrije tekst, bv. ‘Uit eten’ of ‘Restjes’" data-free-title>
         <button class="btn">Toevoegen</button>
-      </form>`);
+      </form>
+      <div class="row wrap"><button class="btn" type="button" data-loose>🥕 Losse ingrediënten (zonder recept)</button>
+        <span class="muted small">bv. kipschnitzel met friet en sla</span></div>`);
     const drawList = () => {
       const q = $('[data-q]', md.el).value.toLowerCase();
       const list = recipes.filter((r) => !q || r.title.toLowerCase().includes(q) || r.tags.join(' ').includes(q));
@@ -298,6 +306,13 @@ export async function render(root, params) {
     $('[data-q]', md.el).addEventListener('input', drawList);
     const servings = () => Number($('[data-servings]', md.el).value) || m.default_servings;
     md.el.addEventListener('click', async (e) => {
+      if (e.target.closest('[data-loose]')) {
+        const { id } = await api.post('/plan', { date, meal, title: '', servings: servings() });
+        md.close();
+        const entry = { id, date, meal, servings: servings(), extras: [] };
+        // Niets gekozen? Dan de lege maaltijd weer weghalen.
+        return extrasDialog(entry, load, { mode: 'all', onClose: async (extras) => { if (!extras.length) await api.del(`/plan/${id}`); load(); } });
+      }
       const pick = e.target.closest('[data-pick]');
       if (!pick) return;
       await api.post('/plan', { date, meal, recipe_id: Number(pick.dataset.pick), servings: servings() });

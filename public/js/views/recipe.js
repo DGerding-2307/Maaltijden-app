@@ -6,6 +6,7 @@ import {
 import { recipeThumb } from './recipes.js';
 import { linkIngredientDialog } from '../link-ingredient.js';
 import { ingThumb } from '../ingredient-form.js';
+import { meatOptions, defaultPortion } from '../meat.js';
 
 /** Bronvermelding bij een meegeleverde foto (vrije licentie). */
 function photoCredit(r) {
@@ -226,7 +227,9 @@ export async function render(root, params) {
     out.classList.remove('typing');
   }
 
-  function planDialog() {
+  async function planDialog() {
+    const meats = await meatOptions();
+    const hasMeat = r.ingredients.some((row) => row.ingredient?.category === 'Vlees, vis & vega');
     const md = modal(`
       <h2>📅 ${esc(r.title)} inplannen</h2>
       <form class="form" data-form>
@@ -234,6 +237,9 @@ export async function render(root, params) {
         <div class="quick-dates">${Array.from({ length: 7 }, (_, i) => addDays(todayISO(), i)).map((d) => `<button type="button" class="tag" data-date="${d}">${fmtDate(d, { weekday: 'short', day: 'numeric' })}</button>`).join('')}</div>
         <label>Moment <select class="input" name="meal">${m.meals.map((x) => `<option ${x === (r.category === 'Ontbijt' ? 'ontbijt' : r.category === 'Lunch' ? 'lunch' : 'diner') ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>
         <label>Personen <input type="number" class="input narrow" min="1" name="servings" value="${persons}"></label>
+        <label>🥩 Vlees of vis erbij${hasMeat ? ' <span class="muted small">(optioneel)</span>' : ''}
+          <select class="input" name="meat"><option value="">– niets extra –</option>
+            ${meats.map((i) => `<option value="${i.id}">${esc(i.name)}</option>`).join('')}</select></label>
         <div class="row end"><button class="btn btn-primary">Inplannen</button></div>
       </form>`);
     const form = $('[data-form]', md.el);
@@ -243,7 +249,11 @@ export async function render(root, params) {
     });
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      await api.post('/plan', { date: form.date.value, meal: form.meal.value, recipe_id: r.id, servings: Number(form.servings.value) });
+      const meat = meats.find((i) => i.id === Number(form.meat.value));
+      await api.post('/plan', {
+        date: form.date.value, meal: form.meal.value, recipe_id: r.id, servings: Number(form.servings.value),
+        extras: meat ? [{ ingredient_id: meat.id, ...defaultPortion(meat) }] : [],
+      });
       toast(`Ingepland op ${fmtDate(form.date.value, { weekday: 'long', day: 'numeric', month: 'long' })}`, 'success');
       md.close();
     });

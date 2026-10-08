@@ -190,7 +190,8 @@ export function getDay(personId, date) {
   if (!person) throw Object.assign(new Error('Persoon niet gevonden'), { status: 404 });
   const entries = getDb().prepare('SELECT * FROM food_log WHERE person_id = ? AND date = ? ORDER BY id').all(personId, date);
   const byMeal = Object.fromEntries(MEALS.map((m) => [m, entries.filter((e) => e.meal === m)]));
-  const planned = repo.getPlan(date, 1).days[0].entries.filter((p) => p.recipe_id);
+  // Geplande maaltijden: recepten en maaltijden van losse ingrediënten
+  const planned = repo.getPlan(date, 1).days[0].entries.filter((p) => p.recipe_id || p.extras?.length);
   const loggedPlan = new Set(entries.map((e) => e.plan_entry_id).filter(Boolean));
   const weight = getDb().prepare('SELECT * FROM weight_log WHERE person_id = ? AND date = ?').get(personId, date) || null;
   return {
@@ -199,7 +200,10 @@ export function getDay(personId, date) {
     targets: person.targets,
     totals: totalsOf(entries),
     meals: MEALS.map((m) => ({ meal: m, entries: byMeal[m], totals: totalsOf(byMeal[m]) })),
-    planned: planned.map((p) => ({ id: p.id, title: p.recipe_title, meal: p.meal, recipe_id: p.recipe_id, kcal_per_serving: p.kcal_per_serving, logged: loggedPlan.has(p.id) })),
+    planned: planned.map((p) => ({
+      id: p.id, meal: p.meal, recipe_id: p.recipe_id, kcal_per_serving: p.kcal_per_serving, logged: loggedPlan.has(p.id),
+      title: [p.recipe_title || p.title, ...(p.extras || []).map((x) => x.name)].filter(Boolean).join(' + '),
+    })),
     weight,
   };
 }
@@ -214,7 +218,12 @@ export function logPlannedDay(personId, date, onlyId = null) {
   tx(() => {
     for (const p of day.planned) {
       if (p.logged || (onlyId && p.id !== Number(onlyId))) continue;
-      addLogEntry({ person_id: personId, date, meal: mealForPlan(p.meal), type: 'recipe', recipe_id: p.recipe_id, servings: 1, plan_entry_id: p.id });
+      if (p.recipe_id) addLogEntry({ person_id: personId, date, meal: mealForPlan(p.meal), type: 'recipe', recipe_id: p.recipe_id, servings: 1, plan_entry_id: p.id });
+      // Vlees, vis of losse ingrediënten die bij deze maaltijd gekozen is (1 portie)
+      for (const x of repo.extrasFor(p.id)) {
+        if (!x.ingredient_id || !x.grams_per_person) continue;
+        addLogEntry({ person_id: personId, date, meal: mealForPlan(p.meal), type: 'ingredient', ingredient_id: x.ingredient_id, grams: x.grams_per_person, plan_entry_id: p.id });
+      }
       added++;
     }
   });

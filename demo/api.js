@@ -109,6 +109,9 @@ const ROUTES = [
     if (!src?.recipe_id) throw notFound('Maaltijd niet gevonden');
     return { id: repo.addPlanEntry({ date: req.body.date, meal: req.body.meal || 'lunch', recipe_id: src.recipe_id, servings: Number(req.body.servings) || 1, leftover_of: src.id, note: 'restjes' }) };
   }],
+  ['POST', '/plan/:id/extras', (req) => repo.addPlanExtra(Number(req.params.id), req.body)],
+  ['PUT', '/plan/extras/:id', (req) => repo.updatePlanExtra(Number(req.params.id), req.body) || Promise.reject(notFound())],
+  ['DELETE', '/plan/extras/:id', (req) => repo.deletePlanExtra(Number(req.params.id))],
   ['POST', '/plan/copy-week', (req) => ({ copied: repo.copyWeek(week(req.body.from), week(req.body.to)) })],
   ['POST', '/plan/clear-week', (req) => repo.clearWeek(week(req.body.week))],
 

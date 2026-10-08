@@ -69,7 +69,7 @@ export function buildIcs({ baseUrl = '', pastDays = 60, futureDays = 28 } = {}) 
       if (day.date < from || day.date > to) continue;
       for (const e of day.entries) {
         const [time, minutes] = MEAL_TIMES[e.meal] || MEAL_TIMES.tussendoor;
-        const title = e.recipe_id ? e.recipe_title : e.title;
+        const title = `${e.recipe_id ? e.recipe_title : e.title}${e.extras?.length ? ` + ${e.extras.map((x) => x.name).join(', ')}` : ''}`;
         const extra = e.leftover_of ? ' (restjes)' : '';
         const desc = [
           `${e.meal} · ${e.servings} ${e.servings === 1 ? 'persoon' : 'personen'}`,

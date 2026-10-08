@@ -69,6 +69,18 @@ CREATE TABLE IF NOT EXISTS meal_plan (
 );
 CREATE INDEX IF NOT EXISTS idx_plan_date ON meal_plan(date);
 
+-- Extra's bij een geplande maaltijd (bv. vlees of vis bij een gerecht zonder vlees); hoeveelheid per persoon
+CREATE TABLE IF NOT EXISTS plan_extras (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  plan_entry_id INTEGER NOT NULL REFERENCES meal_plan(id) ON DELETE CASCADE,
+  ingredient_id INTEGER REFERENCES ingredients(id) ON DELETE SET NULL,
+  name TEXT NOT NULL,
+  quantity REAL,
+  unit TEXT NOT NULL DEFAULT 'g',
+  position INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_plan_extras ON plan_extras(plan_entry_id);
+
 CREATE TABLE IF NOT EXISTS shopping_state (
   week TEXT NOT NULL,
   item_key TEXT NOT NULL,

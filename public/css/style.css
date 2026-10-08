@@ -638,3 +638,15 @@ label.check .input { width: auto; flex: 1; margin-top: 0; }
 .row-opts p { flex-basis: 100%; margin: 0; }
 .mini.on { background: var(--primary-soft); color: var(--primary); }
 .badge.rule { background: var(--primary-soft); color: var(--primary); }
+
+/* Vlees of vis bij een maaltijd */
+.plan-extras { display: block; width: 100%; text-align: left; border: 0; background: none; padding: .1rem 0; font: inherit; font-size: .78rem; color: var(--text); cursor: pointer; }
+.plan-extras.add { color: var(--muted); opacity: .8; }
+.plan-extras:hover { text-decoration: underline; }
+.meat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .4rem; margin-top: .6rem; max-height: 45vh; overflow: auto; }
+.meat-option { display: flex; align-items: center; gap: .5rem; padding: .45rem .55rem; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); font: inherit; cursor: pointer; text-align: left; }
+.meat-option:hover { border-color: var(--primary); background: var(--primary-soft); }
+.meat-emoji { display: inline-flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+.meat-current { list-style: none; padding: 0; margin: 0 0 .5rem; display: grid; gap: .4rem; }
+.meat-current li { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; padding: .4rem .5rem; border-radius: 10px; background: var(--surface-2); }
+.meat-current select, .meat-current input { width: auto; margin: 0; }

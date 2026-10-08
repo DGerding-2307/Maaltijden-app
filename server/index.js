@@ -344,6 +344,10 @@ export function createApp() {
     if (!src?.recipe_id) throw notFound('Maaltijd niet gevonden');
     return { id: repo.addPlanEntry({ date: req.body.date, meal: req.body.meal || 'lunch', recipe_id: src.recipe_id, servings: Number(req.body.servings) || 1, leftover_of: src.id, note: 'restjes' }) };
   }));
+  // Vlees of vis bij een maaltijd (hoeveelheid per persoon)
+  api.post('/plan/:id/extras', wrap((req) => repo.addPlanExtra(Number(req.params.id), req.body)));
+  api.put('/plan/extras/:id', wrap((req) => repo.updatePlanExtra(Number(req.params.id), req.body) || Promise.reject(notFound())));
+  api.delete('/plan/extras/:id', wrap((req) => repo.deletePlanExtra(Number(req.params.id))));
   api.post('/plan/copy-week', wrap((req) => ({ copied: repo.copyWeek(week(req.body.from), week(req.body.to)) })));
   api.post('/plan/clear-week', wrap((req) => repo.clearWeek(week(req.body.week))));
 

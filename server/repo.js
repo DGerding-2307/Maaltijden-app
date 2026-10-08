@@ -1,6 +1,6 @@
 // Data-toegang: recepten, ingrediënten, planning en boodschappen.
 import { getDb, tx } from './db.js';
-import { computeRecipe, buildShoppingList, NUTRIENTS } from './calc.js';
+import { computeRecipe, buildShoppingList, NUTRIENTS, effectiveAmount, pricePerGram } from './calc.js';
 import { addDays } from './seed.js';
 
 const ING_FIELDS = [
@@ -321,9 +321,25 @@ export function getPlan(start, days = 7) {
         // Restjes zijn al betaald bij de oorspronkelijke maaltijd
         cost_cents: row.leftover_of ? 0 : c.cost_total_cents,
         cost_per_serving_cents: c.cost_per_serving_cents,
+        // Zit er al vlees, vis of een vleesvervanger in? Anders biedt de planner '+ vlees' aan.
+        has_meat: c.lines.some((l) => l.ingredient?.category === 'Vlees, vis & vega'),
       };
     }
-    return { ...row, ...info };
+    const extras = extrasFor(row.id);
+    if (extras.length) {
+      // Vlees/vis erbij: per persoon optellen bij de voedingswaarden, kosten voor alle personen
+      const n = { ...(info?.nutrition_per_serving || Object.fromEntries(NUTRIENTS.map((k) => [k, 0]))) };
+      for (const x of extras) for (const k of NUTRIENTS) n[k] = Math.round(((n[k] || 0) + x.nutrition[k]) * 10) / 10;
+      const extraCost = row.leftover_of ? 0 : Math.round(extras.reduce((s, x) => s + (x.cost_cents || 0), 0) * row.servings);
+      info = {
+        ...info,
+        kcal_per_serving: n.kcal,
+        nutrition_per_serving: n,
+        cost_cents: (info?.cost_cents || 0) + extraCost,
+        cost_per_serving_cents: (info?.cost_per_serving_cents || 0) + Math.round(extraCost / (row.servings || 1)),
+      };
+    }
+    return { ...row, ...info, extras };
   });
   // Dagtotalen per persoon (som van per-portie waarden) en kosten
   const daysOut = [];
@@ -343,11 +359,66 @@ export function getPlan(start, days = 7) {
   return { start, end, days: daysOut, total_cost_cents: total };
 }
 
-export function addPlanEntry({ date, meal = 'diner', recipe_id = null, title = null, servings = 2, note = '', leftover_of = null }) {
-  const { lastInsertRowid } = getDb()
+// ---------- Extra's bij een maaltijd (vlees, vis …) ----------
+
+/** Extra's van een planningsregel, met voedingswaarden en kosten per persoon. */
+export function extrasFor(entryId) {
+  const db = getDb();
+  const ingStmt = db.prepare('SELECT * FROM ingredients WHERE id = ?');
+  return db.prepare('SELECT * FROM plan_extras WHERE plan_entry_id = ? ORDER BY position, id').all(entryId).map((x) => {
+    const ing = x.ingredient_id ? ingStmt.get(x.ingredient_id) : null;
+    const grams = effectiveAmount(x, ing).grams;
+    const ppg = pricePerGram(ing);
+    return {
+      ...x,
+      image_url: ing?.image_url || null,
+      grams_per_person: Math.round(grams),
+      nutrition: Object.fromEntries(NUTRIENTS.map((k) => [k, ((Number(ing?.[k]) || 0) * grams) / 100])),
+      cost_cents: ppg != null ? ppg * grams : null,
+    };
+  });
+}
+
+/** Standaardportie per persoon: 1 stuk als het ingrediënt een stuksgewicht heeft, anders 125 g. */
+export function addPlanExtra(entryId, { ingredient_id, quantity, unit }) {
+  const db = getDb();
+  if (!getPlanEntry(entryId)) throw Object.assign(new Error('Maaltijd niet gevonden'), { status: 404 });
+  const ing = getIngredient(Number(ingredient_id));
+  if (!ing) throw Object.assign(new Error('Ingrediënt niet gevonden'), { status: 404 });
+  const u = unit || (ing.unit_weight_g >= 30 ? 'stuk' : 'g');
+  const q = Number(quantity) > 0 ? Number(quantity) : u === 'stuk' ? 1 : 125;
+  const pos = db.prepare('SELECT COUNT(*) c FROM plan_extras WHERE plan_entry_id = ?').get(entryId).c;
+  db.prepare('INSERT INTO plan_extras (plan_entry_id, ingredient_id, name, quantity, unit, position) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(entryId, ing.id, ing.name, q, u, pos);
+  return extrasFor(entryId);
+}
+
+export function updatePlanExtra(id, { quantity, unit }) {
+  const x = getDb().prepare('SELECT * FROM plan_extras WHERE id = ?').get(id);
+  if (!x) return null;
+  getDb().prepare('UPDATE plan_extras SET quantity = ?, unit = ? WHERE id = ?').run(Number(quantity) > 0 ? Number(quantity) : x.quantity, unit || x.unit, id);
+  return extrasFor(x.plan_entry_id);
+}
+
+export function deletePlanExtra(id) {
+  getDb().prepare('DELETE FROM plan_extras WHERE id = ?').run(id);
+}
+
+function copyExtras(db, fromEntryId, toEntryId) {
+  db.prepare(`INSERT INTO plan_extras (plan_entry_id, ingredient_id, name, quantity, unit, position)
+    SELECT ?, ingredient_id, name, quantity, unit, position FROM plan_extras WHERE plan_entry_id = ?`).run(toEntryId, fromEntryId);
+}
+
+export function addPlanEntry({ date, meal = 'diner', recipe_id = null, title = null, servings = 2, note = '', leftover_of = null, extras = [] }) {
+  const db = getDb();
+  const { lastInsertRowid } = db
     .prepare('INSERT INTO meal_plan (date, meal, recipe_id, title, servings, note, leftover_of) VALUES (?, ?, ?, ?, ?, ?, ?)')
     .run(date, meal, recipe_id || null, title || null, Number(servings) || 2, note || '', leftover_of || null);
-  return Number(lastInsertRowid);
+  const id = Number(lastInsertRowid);
+  // Restjes krijgen hetzelfde vlees als de oorspronkelijke maaltijd
+  if (leftover_of) copyExtras(db, leftover_of, id);
+  for (const x of extras || []) if (x?.ingredient_id) addPlanExtra(id, x);
+  return id;
 }
 
 export function updatePlanEntry(id, data) {
@@ -373,7 +444,10 @@ export function copyWeek(fromStart, toStart) {
     const rows = db.prepare('SELECT * FROM meal_plan WHERE date BETWEEN ? AND ?').all(fromStart, addDays(fromStart, 6));
     const ins = db.prepare('INSERT INTO meal_plan (date, meal, recipe_id, title, servings, note, position, leftover_of) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
     const offset = Math.round((new Date(toStart) - new Date(fromStart)) / 86400000);
-    for (const r of rows) ins.run(addDays(r.date, offset), r.meal, r.recipe_id, r.title, r.servings, r.note, r.position, r.leftover_of ? 1 : null);
+    for (const r of rows) {
+      const { lastInsertRowid } = ins.run(addDays(r.date, offset), r.meal, r.recipe_id, r.title, r.servings, r.note, r.position, r.leftover_of ? 1 : null);
+      copyExtras(db, r.id, Number(lastInsertRowid));
+    }
     return rows.length;
   });
 }
@@ -392,6 +466,15 @@ export function getShoppingList(start, days = 7) {
     const recipe = parseRecipe(db.prepare('SELECT * FROM recipes WHERE id = ?').get(p.recipe_id));
     return { servings: p.servings, recipe, rows: rowsFor(p.recipe_id) };
   });
+  // Vlees/vis bij een maaltijd: hoeveelheid per persoon × aantal personen
+  const ingStmt = db.prepare('SELECT * FROM ingredients WHERE id = ?');
+  const withExtras = db.prepare(`SELECT p.id, p.servings, COALESCE(r.title, p.title) AS title FROM meal_plan p LEFT JOIN recipes r ON r.id = p.recipe_id
+    WHERE p.date BETWEEN ? AND ? AND p.leftover_of IS NULL AND EXISTS (SELECT 1 FROM plan_extras x WHERE x.plan_entry_id = p.id)`).all(start, end);
+  for (const p of withExtras) {
+    const rows = db.prepare('SELECT * FROM plan_extras WHERE plan_entry_id = ?').all(p.id)
+      .map((x) => ({ ...x, ingredient: x.ingredient_id ? ingStmt.get(x.ingredient_id) || null : null }));
+    entries.push({ servings: p.servings, recipe: { servings: 1, title: p.title || 'maaltijd' }, rows });
+  }
   const list = buildShoppingList(entries);
   const states = new Map(db.prepare('SELECT item_key, checked, have FROM shopping_state WHERE week = ?').all(start).map((r) => [r.item_key, r]));
   for (const item of list.items) {
@@ -418,7 +501,7 @@ export function setShoppingHave(week, key, have) {
 
 // Geheimen gaan nooit mee in een back-up en blijven bij terugzetten behouden.
 const SECRET_SETTINGS = ['anthropic_api_key', 'calendar_token'];
-const BACKUP_TABLES = ['ingredients', 'recipes', 'recipe_ingredients', 'meal_plan', 'shopping_state', 'shopping_extras', 'settings', 'people', 'food_log', 'weight_log'];
+const BACKUP_TABLES = ['ingredients', 'recipes', 'recipe_ingredients', 'meal_plan', 'plan_extras', 'shopping_state', 'shopping_extras', 'settings', 'people', 'food_log', 'weight_log'];
 
 export function exportAll() {
   const db = getDb();

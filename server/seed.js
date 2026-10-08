@@ -255,6 +255,17 @@ const I = [
   ['zwarte olijven', CO, 145, 1, 3, 0, 15, 2, 3, 2.2, null, 150, 179, 0, 'olijven,kalamata olijven', 1, '150 g (uitgelekt)'],
   ['komijn', KR, 375, 18, 44, 2, 22, 1.5, 11, 0.4, null, 35, 129, 1, 'komijnpoeder,djinten,cumin', 0.5, '35 g'],
   ['honing', BR, 304, 0.3, 82, 82, 0, 0, 0, 0, null, 350, 299, 1, '', 1.4, '350 g'],
+  // v2.8: vlees en vis om bij een maaltijd te kiezen
+  ['gehaktbal', VV, 230, 16, 6, 1, 16, 6.5, 0.5, 1.3, 100, 400, 449, 0, 'gehaktballen', 1, '4 stuks'],
+  ['slavink', VV, 260, 14, 4, 1, 21, 8, 0, 1.6, 100, 400, 399, 0, 'slavinken', 1, '4 stuks'],
+  ['schnitzel', VV, 230, 18, 12, 1, 12, 3, 0.5, 1.0, 125, 250, 399, 0, 'varkensschnitzel,schnitzels', 1, '2 stuks'],
+  ['kipschnitzel', VV, 210, 18, 13, 1, 9, 1.5, 0.5, 1.1, 125, 250, 379, 0, 'kipschnitzels', 1, '2 stuks'],
+  ['hamburger', VV, 230, 18, 2, 1, 17, 7, 0, 1.2, 100, 400, 449, 0, 'hamburgers,burger', 1, '4 stuks'],
+  ['biefstuk', VV, 130, 23, 0, 0, 4, 1.7, 0, 0.1, 150, 300, 749, 0, 'biefstukken,steak', 1, '2 stuks'],
+  ['karbonade', VV, 200, 20, 0, 0, 13, 5, 0, 0.1, 175, 700, 649, 0, 'karbonades,schouderkarbonade,haaskarbonade', 1, '4 stuks'],
+  ['kipdrumsticks', VV, 170, 19, 0, 0, 10, 3, 0, 0.2, 110, 1000, 549, 0, 'drumsticks,kippenpoten,kippenboutjes', 1, '1 kg'],
+  ['braadworst', VV, 290, 13, 2, 1, 26, 10, 0, 1.8, 100, 400, 399, 0, 'braadworsten,saucijs', 1, '4 stuks'],
+  ['vegaburger', VV, 200, 15, 8, 1, 11, 1.5, 4, 1.2, 90, 360, 399, 0, 'vegetarische burger,vega burger,plantaardige burger', 1, '4 stuks'],
 ];
 
 // Recepten: [naam ingrediënt (of alias), hoeveelheid, eenheid, notitie, optioneel]
