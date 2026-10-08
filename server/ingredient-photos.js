@@ -1320,5 +1320,293 @@ export const INGREDIENT_PHOTOS = {
     "page": "https://commons.wikimedia.org/wiki/File:Black_Pepper_-_Piper_nigrum_-_Le_Jardin_du_Roi_-_01.jpg",
     "source": "Wikimedia Commons",
     "title": "Black Pepper - Piper nigrum - Le Jardin du Roi - 01.jpg"
+  },
+  "achtkoek-met-pudding": {
+    "author": "Marius Vassnes",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+    "page": "https://commons.wikimedia.org/wiki/File:Homemade_spandauer_(pastry)_with_vanilla_cream_and_powdered_sugar.png",
+    "source": "Wikimedia Commons",
+    "title": "Homemade spandauer (pastry) with vanilla cream and powdered sugar.png"
+  },
+  "amandelbroodje": {
+    "author": "Andy Li",
+    "license": "CC0",
+    "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+    "page": "https://commons.wikimedia.org/wiki/File:Almond_Danish_-_Jacob%27s_Bakery_%2B_Cafe_2025-09-10.jpg",
+    "source": "Wikimedia Commons",
+    "title": "Almond Danish - Jacob's Bakery + Cafe 2025-09-10.jpg"
+  },
+  "beenham": {
+    "author": "Michael Coté from Austin, Texas, Texas",
+    "license": "CC BY 2.0",
+    "license_url": "https://creativecommons.org/licenses/by/2.0",
+    "page": "https://commons.wikimedia.org/wiki/File:Glazed_and_sliced_ham.jpg",
+    "source": "Wikimedia Commons",
+    "title": "Glazed and sliced ham.jpg"
+  },
+  "borek-feta-spinazie": {
+    "author": "Tanya Bakogiannis",
+    "license": "CC BY 3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0",
+    "page": "https://commons.wikimedia.org/wiki/File:Spanikopita_Greek_dish.jpg",
+    "source": "Wikimedia Commons",
+    "title": "Spanikopita Greek dish.jpg"
+  },
+  "borek-roomkaas-honing": {
+    "author": "Andy Li",
+    "license": "CC0",
+    "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+    "page": "https://commons.wikimedia.org/wiki/File:Vegan_Spinach_Borek_-_Baker_Street_Coffee,_Brighton_2024-01-22.jpg",
+    "source": "Wikimedia Commons",
+    "title": "Vegan Spinach Borek - Baker Street Coffee, Brighton 2024-01-22.jpg"
+  },
+  "couscous": {
+    "author": "Thriving Vegetarian",
+    "license": "CC BY 2.0",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/",
+    "page": "https://www.flickr.com/photos/90155432@N02/8419734939",
+    "source": "Openverse (flickr)",
+    "title": "Asian Couscous"
+  },
+  "croqui-mozzarella-tomaat": {
+    "author": "Edoderoo",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+    "page": "https://commons.wikimedia.org/wiki/File:Kroketbroodje_Jumbo_20190411_175526274.jpg",
+    "source": "Wikimedia Commons",
+    "title": "Kroketbroodje Jumbo 20190411 175526274.jpg"
+  },
+  "croqui-spinazie-feta": {
+    "author": "Gatimetradicionale",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+    "page": "https://commons.wikimedia.org/wiki/File:Gatimetradicionale.jpg",
+    "source": "Wikimedia Commons",
+    "title": "Gatimetradicionale.jpg"
+  },
+  "gember": {
+    "author": "HaJunkiyada",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+    "page": "https://commons.wikimedia.org/wiki/File:Liat_Portal_for_Foodie_Disorder_-_Fresh_ginger_root_from_San_Francisco_farmers_market.jpg",
+    "source": "Wikimedia Commons",
+    "title": "Liat Portal for Foodie Disorder - Fresh ginger root from San Francisco farmers market.jpg"
+  },
+  "groene-currypasta": {
+    "author": "Jeremy Keith from Brighton &amp; Hove, United Kingdom",
+    "license": "CC BY 2.0",
+    "license_url": "https://creativecommons.org/licenses/by/2.0",
+    "page": "https://commons.wikimedia.org/wiki/File:Green_curry_paste_(2297633292).jpg",
+    "source": "Wikimedia Commons",
+    "title": "Green curry paste (2297633292).jpg"
+  },
+  "kaas-uienbroodje": {
+    "author": "Famartin",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+    "page": "https://commons.wikimedia.org/wiki/File:2021-10-05_19_02_40_A_Pau_Hana_Cafe_egg,_green_onion,_cheddar_and_parmesan_cheese_bake_served_aboard_a_Hawaiian_Airlines_flight_from_California_to_Hawaii.jpg",
+    "source": "Wikimedia Commons",
+    "title": "2021-10-05 19 02 40 A Pau Hana Cafe egg, green onion, cheddar and parmesan cheese bake served aboard a Hawaiian Airlines flight from California to Hawaii.jpg"
+  },
+  "kaasbol": {
+    "author": "Melsj",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+    "page": "https://commons.wikimedia.org/wiki/File:P%C3%A3o_de_queijo_2.jpg",
+    "source": "Wikimedia Commons",
+    "title": "Pão de queijo 2.jpg"
+  },
+  "kaasspiraal": {
+    "author": "Ruth and Dave",
+    "license": "CC BY 2.0",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/",
+    "page": "https://www.flickr.com/photos/95142644@N00/1184197008",
+    "source": "Openverse (flickr)",
+    "title": "Mediterranean twists"
+  },
+  "kipdijfilet": {
+    "author": "gran",
+    "license": "CC BY 3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0",
+    "page": "https://commons.wikimedia.org/wiki/File:Raw_chicken_thighs.jpg",
+    "source": "Wikimedia Commons",
+    "title": "Raw chicken thighs.jpg"
+  },
+  "krokantje-meerzaden": {
+    "author": "Pete McClymont",
+    "license": "CC BY 2.0",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/",
+    "page": "https://www.flickr.com/photos/99272161@N00/8664914807",
+    "source": "Openverse (flickr)",
+    "title": "2013 04 20_rolls_0002"
+  },
+  "krokantje-rozijnen": {
+    "author": "User:Tepeyac",
+    "license": "Public domain",
+    "license_url": null,
+    "page": "https://commons.wikimedia.org/wiki/File:Pain_aux_raisins.jpg",
+    "source": "Wikimedia Commons",
+    "title": "Pain aux raisins.jpg"
+  },
+  "krokantje-volkoren-korn": {
+    "author": "muffinn",
+    "license": "CC BY 2.0",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/",
+    "page": "https://www.flickr.com/photos/26445715@N00/15874319300",
+    "source": "Openverse (flickr)",
+    "title": "Perfect Homemade Wholemeal Bread Rolls"
+  },
+  "krokantje-zonnepit": {
+    "author": "muffinn",
+    "license": "CC BY 2.0",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/",
+    "page": "https://www.flickr.com/photos/26445715@N00/14309554440",
+    "source": "Openverse (flickr)",
+    "title": "Seeded granary rolls"
+  },
+  "meergranen-triangel": {
+    "author": "Kritzolina",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+    "page": "https://commons.wikimedia.org/wiki/File:Vierkornbrot_01.jpg",
+    "source": "Wikimedia Commons",
+    "title": "Vierkornbrot 01.jpg"
+  },
+  "mini-beignet-aardbei": {
+    "author": "Willis Lam",
+    "license": "CC BY-SA 2.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/2.0",
+    "page": "https://commons.wikimedia.org/wiki/File:Open_Krispy_Kreme_Powdered_Strawberry_Filled_Doughnut_(18586529876).jpg",
+    "source": "Wikimedia Commons",
+    "title": "Open Krispy Kreme Powdered Strawberry Filled Doughnut (18586529876).jpg"
+  },
+  "mini-beignet-appel": {
+    "author": "Kitchen1000",
+    "license": "Public domain",
+    "license_url": null,
+    "page": "https://commons.wikimedia.org/wiki/File:Apple_fritters.jpg",
+    "source": "Wikimedia Commons",
+    "title": "Apple fritters.jpg"
+  },
+  "mini-beignet-karamel": {
+    "author": "Lara604",
+    "license": "CC BY-SA 2.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/2.0",
+    "page": "https://commons.wikimedia.org/wiki/File:Buttermilk_Beignets_(4515741642).jpg",
+    "source": "Wikimedia Commons",
+    "title": "Buttermilk Beignets (4515741642).jpg"
+  },
+  "mini-beignet-naturel": {
+    "author": "HarshLight",
+    "license": "CC BY 2.0",
+    "license_url": "https://creativecommons.org/licenses/by/2.0",
+    "page": "https://commons.wikimedia.org/wiki/File:Beignets!.jpg",
+    "source": "Wikimedia Commons",
+    "title": "Beignets!.jpg"
+  },
+  "mini-beignet-witte-chocolade": {
+    "author": "Lara604",
+    "license": "CC BY-SA 2.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/2.0",
+    "page": "https://commons.wikimedia.org/wiki/File:Buttermilk_Beignets_(4515741642).jpg",
+    "source": "Wikimedia Commons",
+    "title": "Buttermilk Beignets (4515741642).jpg"
+  },
+  "mini-turks-brood": {
+    "author": "E4024",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+    "page": "https://commons.wikimedia.org/wiki/File:Turkish_bread_somun.jpg",
+    "source": "Wikimedia Commons",
+    "title": "Turkish bread somun.jpg"
+  },
+  "pistolet-bruin": {
+    "author": "Roban Kramer",
+    "license": "CC BY-SA 2.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/2.0",
+    "page": "https://commons.wikimedia.org/wiki/File:Whole_wheat_%22brown_rolls%22,_March_2007.jpg",
+    "source": "Wikimedia Commons",
+    "title": "Whole wheat \"brown rolls\", March 2007.jpg"
+  },
+  "pistolet-sesam": {
+    "author": "Algont at Dutch Wikipedia",
+    "license": "CC BY-SA 3.0",
+    "license_url": "http://creativecommons.org/licenses/by-sa/3.0/",
+    "page": "https://commons.wikimedia.org/wiki/File:Kaiserbroodjes1151.JPG",
+    "source": "Wikimedia Commons",
+    "title": "Kaiserbroodjes1151.JPG"
+  },
+  "pistolet-tijger": {
+    "author": "Sprogz from UK",
+    "license": "CC BY 2.0",
+    "license_url": "https://creativecommons.org/licenses/by/2.0",
+    "page": "https://commons.wikimedia.org/wiki/File:Tiger_Giraffe_Bread_Rolls_(9130659366).jpg",
+    "source": "Wikimedia Commons",
+    "title": "Tiger Giraffe Bread Rolls (9130659366).jpg"
+  },
+  "pistolet-wit": {
+    "author": "FranHogan",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+    "page": "https://commons.wikimedia.org/wiki/File:Fresh_made_bread_09.jpg",
+    "source": "Wikimedia Commons",
+    "title": "Fresh made bread 09.jpg"
+  },
+  "pistolet-wit-belgisch": {
+    "author": "Égoïté",
+    "license": "CC BY 3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0",
+    "page": "https://commons.wikimedia.org/wiki/File:Pistolets_bruxellois.jpg",
+    "source": "Wikimedia Commons",
+    "title": "Pistolets bruxellois.jpg"
+  },
+  "pompoenbroodje-bruin": {
+    "author": "muffinn",
+    "license": "CC BY 2.0",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/",
+    "page": "https://www.flickr.com/photos/26445715@N00/14309554440",
+    "source": "Openverse (flickr)",
+    "title": "Seeded granary rolls"
+  },
+  "roomboter-chocoladebroodje": {
+    "author": "Christine Rondeau from Vancouver, Canada",
+    "license": "CC BY 2.0",
+    "license_url": "https://creativecommons.org/licenses/by/2.0",
+    "page": "https://commons.wikimedia.org/wiki/File:Pain_au_chocolat_from_French_Made_Baking.jpg",
+    "source": "Wikimedia Commons",
+    "title": "Pain au chocolat from French Made Baking.jpg"
+  },
+  "trio-snack-hartig": {
+    "author": "Ernesto Andrade",
+    "license": "CC BY 2.0",
+    "license_url": "https://creativecommons.org/licenses/by/2.0",
+    "page": "https://commons.wikimedia.org/wiki/File:Savory_sponge_cake_roll.jpg",
+    "source": "Wikimedia Commons",
+    "title": "Savory sponge cake roll.jpg"
+  },
+  "trio-snack-zoet": {
+    "author": "Peter Isotalo",
+    "license": "CC BY-SA 3.0",
+    "license_url": "http://creativecommons.org/licenses/by-sa/3.0/",
+    "page": "https://commons.wikimedia.org/wiki/File:Glazed_apple_Danish.jpg",
+    "source": "Wikimedia Commons",
+    "title": "Glazed apple Danish.jpg"
+  },
+  "vegaburger": {
+    "author": "Geo Lightspeed7",
+    "license": "CC BY 4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0",
+    "page": "https://commons.wikimedia.org/wiki/File:Veggie_burger_made_from_chickpeas_oats_rye_flour_carrot_onion_garlic_spices_an_egg_to_bind_ingredients.jpg",
+    "source": "Wikimedia Commons",
+    "title": "Veggie burger made from chickpeas oats rye flour carrot onion garlic spices an egg to bind ingredients.jpg"
+  },
+  "vegan-kip-kerriesnack": {
+    "author": "Upendra Kanda",
+    "license": "CC BY 2.0",
+    "license_url": "https://creativecommons.org/licenses/by/2.0",
+    "page": "https://commons.wikimedia.org/wiki/File:Curry_puffs_(1862141216).jpg",
+    "source": "Wikimedia Commons",
+    "title": "Curry puffs (1862141216).jpg"
   }
 };

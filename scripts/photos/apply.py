@@ -1,7 +1,8 @@
 # Zet de gekozen kandidaatfoto's om naar public/img/recipes/<sleutel>.jpg (4:3, 960×720)
 # en schrijft de bronvermeldingen naar server/photos.js.
-# Gebruik: python3 scripts/photos/apply.py <kandidatenmap> <keuzes.json> [--ingredienten]
+# Gebruik: python3 scripts/photos/apply.py <kandidatenmap> <keuzes.json> [--ingredienten] [--aanvullen]
 #   --ingredienten: vierkant 480×480 naar public/img/ingredients en server/ingredient-photos.js
+#   --aanvullen: bestaande bronvermeldingen behouden (voor een tweede zoekronde)
 #   keuzes.json: { "<sleutel>": <kandidaatnummer>, ... } of { "<sleutel>": { "n": 1, "crop": [x0, y0, x1, y1] } }
 #   (crop in fracties van de breedte/hoogte, om een deel van de foto te gebruiken)
 import json, os, sys
@@ -16,7 +17,11 @@ out_dir = os.path.join(root, 'public', 'img', 'ingredients' if ingredients else 
 size = (480, 480) if ingredients else (960, 720)
 os.makedirs(out_dir, exist_ok=True)
 
+js_file = os.path.join(root, 'server', 'ingredient-photos.js' if ingredients else 'photos.js')
 photos = {}
+if '--aanvullen' in sys.argv:
+    text = open(js_file).read()
+    photos = json.loads(text[text.index('= ') + 2:text.rindex(';')])
 for key, choice in sorted(choices.items()):
     n = choice['n'] if isinstance(choice, dict) else choice
     cand = next(c for c in meta[key] if c['n'] == n)
@@ -32,8 +37,9 @@ for key, choice in sorted(choices.items()):
 body = json.dumps(photos, ensure_ascii=False, indent=2)
 what = 'ingrediënten' if ingredients else 'standaardrecepten'
 folder = 'ingredients' if ingredients else 'recipes'
-with open(os.path.join(root, 'server', 'ingredient-photos.js' if ingredients else 'photos.js'), 'w') as f:
+photos = dict(sorted(photos.items()))
+with open(js_file, 'w') as f:
     f.write(f'// Gegenereerd door scripts/photos/apply.py – foto\'s bij de {what} (vrije licenties).\n')
     f.write(f'// Bestanden staan in public/img/{folder}/<sleutel>.jpg.\n')
     f.write(f'export const {"INGREDIENT_PHOTOS" if ingredients else "PHOTOS"} = {body};\n')
-print(f'{len(photos)} foto\'s verwerkt')
+print(f'{len(choices)} foto\'s verwerkt, {len(photos)} in totaal')

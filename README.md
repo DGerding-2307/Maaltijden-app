@@ -29,7 +29,7 @@ Versie 3 is gebouwd na een tweede ronde recensies (dit keer ook van calorie-apps
 - 🥐 **88 Jumbo bake-offbroodjes en -snacks** als standaardingrediënten, met voedingswaarden en allergenen uit het
   [Jumbo-productinformatieblad](https://www.jumbo.com/dam/service/allergenen/Consumenteninfoblad%20productinformatie%20bakeoff%20broodjes%2008-05-2023.pdf).
   Gewicht per stuk en prijs zijn geschat.
-- 🖼️ **Standaardfoto's bij 165 ingrediënten** (vrije licenties via Wikimedia Commons, met bronvermelding). Een eigen foto blijft altijd staan.
+- 🖼️ **Standaardfoto's bij 201 ingrediënten** (vrije licenties via Wikimedia Commons en Openverse, met bronvermelding). Een eigen foto blijft altijd staan.
 
 Bestaande installaties krijgen alles automatisch bij de update. Wat je zelf hebt verwijderd of aangepast, blijft zoals het is.
 
@@ -141,7 +141,7 @@ en receptenapps verwachten. Zie het [UAT-rapport](docs/UAT-rapport.md).
 
 **Ingrediënten & prijzen**
 - 223 standaardingrediënten met stuksgewicht, verpakking en voedingswaarden per 100 g, waarvan 88 Jumbo bake-offbroodjes en -snacks (met allergenen)
-- Foto's bij de ingrediënten (165 standaardfoto's, of je eigen foto); ingrediënt aanmaken vanuit een webwinkel-link (Claude leest de productpagina)
+- Foto's bij de ingrediënten (201 standaardfoto's, of je eigen foto); ingrediënt aanmaken vanuit een webwinkel-link (Claude leest de productpagina)
 - Voedingswaarden uit **Open Food Facts**: per ingrediënt de mediaan van vergelijkbare Nederlandse producten, of één product dat je kiest of met de camera scant. Nutri-Score en de bron zijn per ingrediënt zichtbaar.
 - Handmatig prijzen en voedingswaarden aanpassen, of laten schatten door Claude
 

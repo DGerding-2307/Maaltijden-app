@@ -178,7 +178,7 @@ UAT-01 t/m UAT-24 zijn in dezelfde ronde opnieuw uitgevoerd en blijven geslaagd.
 
 - **Jumbo bake-off:** de voedingswaarden en allergenen komen uit het Jumbo-productinformatieblad (8 mei 2023).
   Gewicht per stuk en prijs zijn geschat, omdat de Jumbo-website vanuit de testomgeving niet bereikbaar was. Pas ze zo nodig aan bij *Ingrediënten*.
-- **Standaardfoto's van ingrediënten:** 165 van de 223 ingrediënten hebben een foto met een vrije licentie. Voor de rest (vooral specifieke bake-offbroodjes)
+- **Standaardfoto's van ingrediënten:** 201 van de 223 ingrediënten hebben een foto met een vrije licentie (in twee zoekrondes). Voor de rest (o.a. halfvolle melk, azijn, broccoli en een paar bake-offbroodjes)
   is geen passende vrije foto gevonden. Je kunt zelf een foto uploaden of een webwinkel-link gebruiken.
 - **Calorie-apps** hebben grote, gecontroleerde productdatabases. Maaltijden gebruikt Open Food Facts (open, door gebruikers ingevoerd) en NEVO-schattingen.
   Controleer daarom bij producten die je vaak eet de waarden op de verpakking.
