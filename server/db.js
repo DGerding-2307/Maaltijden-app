@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
-import { seedDatabase, OFF_CATEGORY_BY_NAME } from './seed.js';
+import { syncBuiltins, OFF_CATEGORY_BY_NAME } from './seed.js';
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS ingredients (
@@ -96,16 +96,49 @@ CREATE TABLE IF NOT EXISTS settings (
 `;
 
 let db;
+let lastSync = null;
 
-export function openDatabase(file = process.env.DB_FILE || path.resolve('data/maaltijden.db')) {
+/** Wat de laatste start heeft toegevoegd aan standaardrecepten en -ingrediënten. */
+export function lastBuiltinSync() {
+  return lastSync;
+}
+
+/**
+ * @param file        databasebestand
+ * @param appVersion  versie van de app; bij een andere versie dan de vorige keer wordt eerst een back-up gemaakt
+ */
+export function openDatabase(file = process.env.DB_FILE || path.resolve('data/maaltijden.db'), { appVersion = null } = {}) {
   if (file !== ':memory:') fs.mkdirSync(path.dirname(file), { recursive: true });
   db = new DatabaseSync(file);
   db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
+  if (appVersion && file !== ':memory:') backupBeforeUpgrade(file, appVersion);
   db.exec(SCHEMA);
   migrate(db);
   const count = db.prepare('SELECT COUNT(*) AS c FROM ingredients').get().c;
-  if (count === 0 && process.env.SKIP_SEED !== '1') seedDatabase(db);
+  // Nieuwe database: alles invullen. Bestaande database: nieuwe standaardrecepten en -ingrediënten toevoegen.
+  if (process.env.SKIP_SEED !== '1') lastSync = syncBuiltins(db, { fresh: count === 0 });
+  if (appVersion) setSetting('app_version', appVersion);
   return db;
+}
+
+/**
+ * Bij een nieuwe versie: eerst een kopie van de database maken in data/backups/ (de laatste 5 blijven bewaard),
+ * zodat je na een mislukte update altijd terug kunt.
+ */
+function backupBeforeUpgrade(file, appVersion) {
+  const hasSettings = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'settings'").get();
+  if (!hasSettings) return;
+  const row = db.prepare("SELECT value FROM settings WHERE key = 'app_version'").get();
+  const previous = row ? JSON.parse(row.value) : 'onbekend';
+  if (previous === appVersion) return;
+  const dir = path.join(path.dirname(file), 'backups');
+  fs.mkdirSync(dir, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 16);
+  const target = path.join(dir, `maaltijden-${String(previous).replace(/[^\w.-]/g, '_')}-${stamp}.db`);
+  db.exec(`VACUUM INTO '${target.replace(/'/g, "''")}'`);
+  const old = fs.readdirSync(dir).filter((f) => f.startsWith('maaltijden-') && f.endsWith('.db')).sort((a, b) => fs.statSync(path.join(dir, b)).mtimeMs - fs.statSync(path.join(dir, a)).mtimeMs);
+  for (const f of old.slice(5)) fs.rmSync(path.join(dir, f), { force: true });
+  console.log(`Back-up gemaakt vóór update ${previous} → ${appVersion}: ${target}`);
 }
 
 // Kolommen die in latere versies zijn toegevoegd; bestaande databases worden automatisch bijgewerkt.
@@ -118,6 +151,7 @@ const MIGRATIONS = [
   ['ingredients', 'off_category', 'TEXT'],
   ['ingredients', 'price_count', 'INTEGER'],
   ['ingredients', 'price_note', 'TEXT'],
+  ['recipes', 'builtin_key', 'TEXT'],
 ];
 
 function migrate(db) {
@@ -127,6 +161,8 @@ function migrate(db) {
   }
   // De Jumbo-accountkoppeling is verwijderd: een eventueel bewaarde sessie opruimen.
   db.prepare("DELETE FROM settings WHERE key IN ('jumbo_token', 'jumbo_email')").run();
+  // 'pandanrijst' is sinds v2.4 een eigen ingrediënt
+  db.prepare("UPDATE ingredients SET aliases = replace(aliases, 'pandanrijst,', '') WHERE name = 'witte rijst'").run();
   // Bestaande databases: Open Food Facts-categorie invullen voor de standaardingrediënten
   const setCat = db.prepare('UPDATE ingredients SET off_category = ? WHERE name = ? AND off_category IS NULL');
   for (const [name, tag] of Object.entries(OFF_CATEGORY_BY_NAME)) setCat.run(tag, name);

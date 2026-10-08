@@ -1,8 +1,13 @@
 FROM node:22-alpine
 WORKDIR /app
+ARG APP_VERSION=dev
 ENV NODE_ENV=production \
     DB_FILE=/app/data/maaltijden.db \
-    PORT=3000
+    PORT=3000 \
+    APP_VERSION=$APP_VERSION
+LABEL org.opencontainers.image.title="Maaltijden" \
+      org.opencontainers.image.description="Maaltijdplanner en receptenboek" \
+      org.opencontainers.image.version=$APP_VERSION
 COPY package*.json ./
 RUN npm ci --omit=dev
 COPY server ./server

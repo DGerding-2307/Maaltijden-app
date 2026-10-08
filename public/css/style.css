@@ -483,3 +483,5 @@ body.cooking .topbar { display: none; }
 .scan-product .thumb-emoji { font-size: 3rem; }
 label.check.sub { margin-left: 1.6rem; font-weight: 400; }
 label.check .input { width: auto; flex: 1; margin-top: 0; }
+.update-bar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); z-index: 250; display: flex; gap: .8rem; align-items: center; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--primary); border-radius: 12px; padding: .6rem .9rem; box-shadow: var(--shadow); max-width: calc(100vw - 2rem); }
+@media (max-width: 720px) { .update-bar { bottom: calc(5rem + env(safe-area-inset-bottom, 0px)); } }

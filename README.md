@@ -3,6 +3,15 @@
 Een webapplicatie voor op je eigen server: een overzichtelijke weekplanner en een receptenboek met
 Nederlandse recepten, voedingswaarden per persoon (uit Open Food Facts), prijzen per maaltijd (uit Open Prices) en een Claude AI-integratie.
 
+## Nieuw in v2.4
+
+- 🔄 **Automatische updates:** nieuwe versies worden automatisch gebouwd en 's nachts op je server geïnstalleerd,
+  zonder dat je bestanden hoeft aan te passen. Vóór elke update wordt een back-up van je gegevens gemaakt.
+  Zie [Automatische updates](#automatische-updates).
+- 📖 **50 recepten:** 34 nieuwe recepten, waaronder butter chicken met een pot Patak's en pandanrijst, bami goreng,
+  lasagne, chili con carne, kipsaté, gado-gado, soepen, salades, lunch, ontbijt en een appelcrumble.
+  Bestaande installaties krijgen de nieuwe recepten automatisch bij de update. Wat je zelf hebt verwijderd of aangepast, blijft zoals het is.
+
 ## Nieuw in v2.3
 
 - 🏷️ **Echte winkelprijzen uit Open Prices:** de open prijsdatabase van Open Food Facts, met een officiële API.
@@ -44,7 +53,8 @@ en receptenapps verwachten. Zie het [UAT-rapport](docs/UAT-rapport.md).
 - ✨ **Weekmenu met Claude**: kiest uit je receptenboek op basis van wensen, kooktijd, budget en huishouden
 
 **Receptenboek**
-- 16 klassieke Nederlandse startrecepten (stamppotten, hutspot, snert, hachee, pannenkoeken, nasi…)
+- 50 startrecepten: Hollandse klassiekers (stamppotten, hutspot, snert, hachee, pannenkoeken), Indisch (nasi, bami, saté, gado-gado),
+  pasta's, curry's (o.a. butter chicken met Patak's en pandanrijst), soepen, salades, ontbijt, lunch en een toetje
 - Zoeken op naam, tag of ingrediënt; filteren op categorie, bereidingstijd en favorieten; sorteren op prijs, kcal, tijd, waardering
 - Favorieten (★) en waardering (1–5 sterren)
 - **Porties schalen**: − / + of snelknoppen 1–10 personen; hoeveelheden en kosten schalen mee
@@ -82,15 +92,43 @@ Claude, Open Food Facts, Open Prices, de camera en back-up downloaden werken in 
 
 ## Installeren
 
-### Met Docker (aanbevolen)
+### Met Docker (aanbevolen, met automatische updates)
+
+Je hebt alleen `docker-compose.yml` en een `.env` nodig; de broncode hoeft niet op je server.
 
 ```bash
-git clone <deze repo> maaltijden && cd maaltijden
-cp .env.example .env        # vul ANTHROPIC_API_KEY in (of later via Instellingen)
-docker compose up -d --build
+mkdir maaltijden && cd maaltijden
+curl -O https://raw.githubusercontent.com/DGerding-2307/Maaltijden-app/ccr-9030d78f-1ocilx/docker-compose.yml
+curl -o .env https://raw.githubusercontent.com/DGerding-2307/Maaltijden-app/ccr-9030d78f-1ocilx/.env.example
+# vul in .env eventueel ANTHROPIC_API_KEY in (kan ook later via Instellingen)
+docker compose up -d
 ```
 
-Open daarna `http://<server-ip>:3000`. De database staat in `./data/maaltijden.db` – maak daar back-ups van.
+Open daarna `http://<server-ip>:3000`. Je gegevens staan in `./data`.
+
+### Automatische updates
+
+- Bij elke wijziging in de code bouwt GitHub automatisch een nieuw Docker-image (`ghcr.io/dgerding-2307/maaltijden-app:latest`),
+  voor gewone servers en NAS-systemen (amd64) én voor de Raspberry Pi (arm64). Eerst draaien alle tests; faalt er een, dan komt er geen nieuwe versie.
+- De **updater** in `docker-compose.yml` ([nicholas-fedor/watchtower](https://github.com/nicholas-fedor/watchtower), het onderhouden vervolg op Watchtower)
+  kijkt elke nacht om 04:00 of er een nieuwe versie is. Zo ja: downloaden, de app herstarten, oude image opruimen. Alleen de Maaltijden-app wordt bijgewerkt.
+- Bij het starten van een nieuwe versie:
+  1. wordt eerst een **back-up** van de database gemaakt in `data/backups/` (de laatste 5 blijven bewaard);
+  2. wordt de database automatisch bijgewerkt (nieuwe kolommen, nieuwe standaardrecepten en -ingrediënten);
+  3. krijgt wie de app open heeft een melding "Er is een nieuwe versie geïnstalleerd" met een knop om te vernieuwen.
+- Je ziet de geïnstalleerde versie bij **Instellingen → Versie en updates**.
+- Liever direct updaten? `docker compose pull && docker compose up -d`.
+- Terug naar een vorige versie: zet in `docker-compose.yml` een vaste versie, bijv. `image: ghcr.io/dgerding-2307/maaltijden-app:sha-1234567`,
+  en zet zo nodig de back-up uit `data/backups/` terug als `data/maaltijden.db`.
+
+> **Eenmalig:** het eerste image verschijnt nadat de GitHub-workflow voor het eerst heeft gedraaid. Controleer daarna op GitHub bij
+> *Packages → maaltijden-app → Package settings* dat de zichtbaarheid **Public** is; anders kan je server het image niet downloaden
+> (of log op de server één keer in met `docker login ghcr.io`).
+
+**Al geïnstalleerd met `build: .` (versie 2.3 of ouder)?** Vervang één keer je `docker-compose.yml` door de nieuwe versie en
+draai `docker compose up -d`. Je `data/`-map blijft gewoon in gebruik. Daarna gaan updates vanzelf.
+
+Zelf bouwen uit de broncode kan nog steeds: `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build`.
 
 ### Zonder Docker
 

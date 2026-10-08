@@ -47,6 +47,27 @@ async function router() {
 window.addEventListener('hashchange', router);
 router();
 
+// Na een automatische update draait de server een nieuwe versie: vraag om de pagina te vernieuwen.
+let loadedVersion = null;
+async function checkVersion() {
+  try {
+    const res = await fetch('/api/changes', { cache: 'no-store' });
+    const { app_version: v } = await res.json();
+    if (!v) return;
+    loadedVersion ??= v;
+    if (v !== loadedVersion && !document.querySelector('.update-bar')) {
+      const bar = document.createElement('div');
+      bar.className = 'update-bar';
+      bar.innerHTML = `<span>Er is een nieuwe versie (${v}) geïnstalleerd.</span><button class="btn btn-primary" type="button">Vernieuwen</button>`;
+      bar.querySelector('button').addEventListener('click', () => location.reload());
+      document.body.append(bar);
+    }
+  } catch { /* offline */ }
+}
+checkVersion();
+setInterval(() => !document.hidden && checkVersion(), 60000);
+document.addEventListener('visibilitychange', () => !document.hidden && checkVersion());
+
 // Offline-melding
 const offlineBar = document.createElement('div');
 offlineBar.className = 'offline-bar';

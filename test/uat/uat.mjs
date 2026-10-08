@@ -170,7 +170,7 @@ await scenario('UAT-12', '‘Wat kan ik maken?’ met ingrediënten in huis', as
   const first = await page.locator('.recipe-card .recipe-title').first().textContent();
   const match = await page.locator('.pantry-match').first().textContent();
   await page.screenshot({ path: `${OUT}/12-wat-kan-ik-maken.png` });
-  expect(/Kip kerrie|Wraps|Nasi/.test(first), `onverwacht: ${first}`);
+  expect(/Butter chicken|Kip kerrie|Wraps|Nasi/.test(first), `onverwacht: ${first}`);
   return `${first} – ${match.replace(/\s+/g, ' ').trim()}`;
 });
 

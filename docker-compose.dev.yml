@@ -1,0 +1,12 @@
+# Zelf bouwen uit de broncode in plaats van het kant-en-klare image te gebruiken:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+# (de updater kun je dan uitzetten: docker compose stop updater)
+services:
+  maaltijden:
+    image: maaltijden-app:dev
+    build:
+      context: .
+      args:
+        APP_VERSION: dev
+    labels:
+      - com.centurylinklabs.watchtower.enable=false

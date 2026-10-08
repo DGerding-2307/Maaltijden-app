@@ -1,7 +1,7 @@
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { openDatabase, getSetting, setSetting } from './db.js';
+import { openDatabase, getSetting, setSetting, lastBuiltinSync } from './db.js';
 import * as repo from './repo.js';
 import * as ai from './claude.js';
 import { CATEGORIES, mondayOf, addDays } from './seed.js';
@@ -15,6 +15,9 @@ import crypto from 'node:crypto';
 import { UNITS } from './calc.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+// Versie: uit het Docker-image (APP_VERSION) of anders uit package.json
+export const APP_VERSION = process.env.APP_VERSION
+  || JSON.parse(fs.readFileSync(path.join(here, '..', 'package.json'), 'utf8')).version;
 const uploadDir = () => path.resolve(process.env.UPLOAD_DIR || path.join(path.dirname(process.env.DB_FILE && process.env.DB_FILE !== ':memory:' ? process.env.DB_FILE : 'data/x'), 'uploads'));
 
 // Teller die bij elke wijziging omhoog gaat; telefoons van huisgenoten verversen als hij verandert.
@@ -80,7 +83,7 @@ export function createApp() {
     if (req.method !== 'GET') res.on('finish', () => { if (res.statusCode < 400) changeCounter++; });
     next();
   });
-  api.get('/changes', (req, res) => res.json({ version: changeCounter }));
+  api.get('/changes', (req, res) => res.json({ version: changeCounter, app_version: APP_VERSION }));
 
   // ---- Meta ----
   api.get('/meta', wrap(() => ({
@@ -94,6 +97,8 @@ export function createApp() {
     household: getSetting('household', ''),
     weekly_budget_cents: getSetting('weekly_budget_cents', null),
     claude: ai.claudeStatus(),
+    app_version: APP_VERSION,
+    builtin_sync: lastBuiltinSync(),
   })));
 
   api.put('/settings', wrap((req) => {
@@ -310,7 +315,9 @@ export function createApp() {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  openDatabase();
+  openDatabase(undefined, { appVersion: APP_VERSION });
+  const added = lastBuiltinSync();
+  if (!added?.fresh && (added?.recipes || added?.ingredients)) console.log(`Nieuw in deze versie: ${added.recipes} recepten, ${added.ingredients} ingrediënten`);
   const port = Number(process.env.PORT) || 3000;
   const host = process.env.HOST || '0.0.0.0';
   initialOffSync();

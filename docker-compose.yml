@@ -1,6 +1,12 @@
+# Maaltijden – installatie met automatische updates.
+# Eenmalig: docker compose up -d
+# Daarna hoef je niets meer te veranderen: de updater haalt elke nacht de nieuwste versie op
+# en herstart de app. Je gegevens staan in ./data en blijven bewaard (met een back-up vóór elke update).
+name: maaltijden
+
 services:
   maaltijden:
-    build: .
+    image: ghcr.io/dgerding-2307/maaltijden-app:latest
     container_name: maaltijden
     restart: unless-stopped
     ports:
@@ -9,3 +15,20 @@ services:
       - .env
     volumes:
       - ./data:/app/data
+    labels:
+      # Alleen deze container wordt automatisch bijgewerkt
+      - com.centurylinklabs.watchtower.enable=true
+
+  updater:
+    # Onderhouden vervolg op Watchtower (het origineel is sinds december 2025 gearchiveerd)
+    image: ghcr.io/nicholas-fedor/watchtower:1.22.3
+    container_name: maaltijden-updater
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      WATCHTOWER_LABEL_ENABLE: "true"
+      WATCHTOWER_CLEANUP: "true"
+      # Elke nacht om 04:00 (seconden minuten uren dag maand weekdag)
+      WATCHTOWER_SCHEDULE: "0 0 4 * * *"
+      TZ: Europe/Amsterdam

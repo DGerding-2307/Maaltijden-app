@@ -48,6 +48,14 @@ export async function render(root) {
       <a class="btn" href="#/ingredienten">🥕 Naar ingrediënten</a>
     </section>
 
+    ${m.app_version ? `<section class="card">
+      <h2>Versie en updates</h2>
+      <p>Je gebruikt versie <strong>${esc(m.app_version)}</strong>.</p>
+      ${m.builtin_sync?.recipes && !m.builtin_sync.fresh ? `<p class="muted">Deze versie heeft ${m.builtin_sync.recipes} nieuwe recepten toegevoegd aan je receptenboek.</p>` : ''}
+      <p class="muted small">Met de standaard-installatie (Docker) worden nieuwe versies automatisch geïnstalleerd. Vóór elke update wordt een back-up
+        van je gegevens gemaakt in <code>data/backups</code>. Je recepten, planning en instellingen blijven bewaard.</p>
+    </section>` : ''}
+
     <section class="card">
       <h2>Over</h2>
       <p class="muted small">Voedingswaarden zijn benaderingen op basis van NEVO-gemiddelden (RIVM) en schattingen van Claude.
