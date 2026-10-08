@@ -1,6 +1,7 @@
 // Venster om een niet-herkend ingrediënt te koppelen aan een bestaand ingrediënt, of een nieuw aan te maken.
 import { api, meta } from './api.js';
 import { $, $$, esc, num, modal, toast, debounce } from './util.js';
+import { mediaFields, bindMediaFields, applyShopSource, ingThumb } from './ingredient-form.js';
 
 // Bijvoeglijke naamwoorden overslaan bij zoeken op losse woorden ("verse rode peper" → "peper")
 const ADJECTIVES = new Set(['verse', 'vers', 'rode', 'groene', 'gele', 'witte', 'zwarte', 'grote', 'kleine', 'gedroogde', 'gemalen',
@@ -44,6 +45,7 @@ export async function linkIngredientDialog(name, current = null) {
           <label>Naam <input class="input" name="name" value="${esc(String(name).toLowerCase())}" required></label>
           <label>Afdeling <select class="input" name="category">${m.categories.map((c) => `<option ${c === 'Overig' ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
         </div>
+        ${mediaFields({}, { claude: !!m.claude?.configured })}
         <fieldset class="nutri-fields">
           <legend>Voedingswaarden per 100 g <span class="muted small">(leeg laten = automatisch opzoeken in Open Food Facts)</span></legend>
           <div class="grid-4">
@@ -87,8 +89,8 @@ export async function linkIngredientDialog(name, current = null) {
       const rank = (i) => (i.name === ql ? 0 : i.name.startsWith(ql) ? 1 : 2);
       shown = list.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name, 'nl')).slice(0, 30);
       $('[data-results]', el).innerHTML = shown.map((i) => `
-        <button type="button" class="pick-item ${i.id === current ? 'active' : ''}" data-pick="${i.id}">
-          <span>${esc(i.name)}${i.id === current ? ' <span class="badge">huidig</span>' : ''}</span>
+        <button type="button" class="pick-item with-thumb ${i.id === current ? 'active' : ''}" data-pick="${i.id}">
+          ${ingThumb(i)}<span>${esc(i.name)}${i.id === current ? ' <span class="badge">huidig</span>' : ''}</span>
           <span class="muted small">${esc(i.category)} · ${i.kcal != null ? `${num(i.kcal, 0)} kcal/100 g` : 'geen voedingswaarden'}${i.unit_weight_g >= 1 ? ` · 1 stuk ≈ ${num(i.unit_weight_g, 0)} g` : ''}</span>
         </button>`).join('') || `<p class="muted">Geen ingrediënt gevonden. Pas de zoekterm aan of <a href="#" data-goto-new>maak een nieuw ingrediënt aan</a>.</p>`;
     }
@@ -111,6 +113,7 @@ export async function linkIngredientDialog(name, current = null) {
 
     // ---- Nieuw ingrediënt ----
     const form = $('form[data-pane="nieuw"]', el);
+    bindMediaFields(form);
     $('[data-estimate]', el)?.addEventListener('click', async (e) => {
       const btn = e.target;
       btn.disabled = true;
@@ -143,10 +146,12 @@ export async function linkIngredientDialog(name, current = null) {
         price_source: form.price.value ? (estimated ? 'schatting' : 'handmatig') : 'schatting',
         pantry: form.pantry.checked ? 1 : 0,
         aliases: aliasFor(name, form.name.value),
+        image_url: form.image_url.value.trim() || null,
+        shop_url: form.shop_url.value.trim() || null,
       };
       if (hasNutrition) body.nutrition_source = estimated ? 'Claude (schatting)' : 'handmatig';
       try {
-        const ing = await api.post('/ingredients', body);
+        const ing = await api.post('/ingredients', applyShopSource(form, body));
         toast(`‘${ing.name}’ aangemaakt${hasNutrition ? '' : ' – voedingswaarden worden opgezocht'}`, 'success');
         finish(ing);
       } catch (err) { toast(err.message, 'error'); }

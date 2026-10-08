@@ -202,6 +202,7 @@ export function ingredientNutritionFields({ nutrition, product, count, query }) 
     off_code: product?.code || null,
     nutriscore: product?.nutriscore || null,
     nutrition_updated_at: new Date().toISOString().slice(0, 10),
+    fallback_image_url: product?.image || undefined,
   };
 }
 

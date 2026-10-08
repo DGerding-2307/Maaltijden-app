@@ -1,5 +1,6 @@
 import { api, liveSync } from '../api.js';
 import { $, esc, euro, num, qty, addDays, mondayOf, todayISO, fmtDate, weekNumber, toast } from '../util.js';
+import { ingThumb } from '../ingredient-form.js';
 
 const COUNT_UNITS = ['stuk', 'teen', 'blik', 'pak', 'zakje', 'bos', 'plak'];
 
@@ -73,7 +74,7 @@ export async function render(root, params) {
               <li class="${i.checked ? 'done' : ''} ${i.pantry ? 'pantry' : ''}">
                 <label>
                   <input type="checkbox" data-key="${esc(i.key)}" ${i.checked ? 'checked' : ''}>
-                  <span class="shop-name"><strong>${esc(i.name)}</strong> <span class="muted">${amount(i)}</span>
+                  <span class="shop-name">${ingThumb(i, 'sm')}<strong>${esc(i.name)}</strong> <span class="muted">${amount(i)}</span>
                     <small class="muted shop-for" title="${esc(i.recipes.join(', '))}">voor ${esc(i.recipes.slice(0, 2).join(', '))}${i.recipes.length > 2 ? ` +${i.recipes.length - 2}` : ''}</small></span>
                   <span class="shop-pack">${i.packages ? `${i.packages}× ${esc(i.package_label || '')}` : ''}</span>
                   <span class="shop-cost">${i.cost_cents != null ? euro(i.cost_cents) : ''}</span>

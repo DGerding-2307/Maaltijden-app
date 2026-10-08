@@ -322,6 +322,106 @@ export async function estimateIngredient(name) {
   return result;
 }
 
+// ---------- Ingrediënt uit een webwinkel ----------
+
+const SHOP_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['found', 'name', 'product_name', 'brand', 'category', 'kcal', 'protein', 'carbs', 'sugar', 'fat', 'sat_fat', 'fiber', 'salt',
+    'package_grams', 'package_label', 'price_cents', 'unit_weight_g', 'pantry', 'ean', 'image_url'],
+  properties: {
+    found: { type: 'boolean' },
+    name: { type: 'string' },
+    product_name: { type: 'string' },
+    brand: { type: 'string' },
+    category: { type: 'string', enum: CATEGORIES },
+    kcal: nullableNumber, protein: nullableNumber, carbs: nullableNumber, sugar: nullableNumber,
+    fat: nullableNumber, sat_fat: nullableNumber, fiber: nullableNumber, salt: nullableNumber,
+    package_grams: nullableNumber,
+    package_label: { type: 'string' },
+    price_cents: { type: ['integer', 'null'] },
+    unit_weight_g: nullableNumber,
+    pantry: { type: 'boolean' },
+    ean: { type: ['string', 'null'] },
+    image_url: { type: ['string', 'null'] },
+  },
+};
+
+const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
+
+/** Productpagina van een webwinkel ophalen: JSON-LD Product, meta-tags en paginatekst. */
+export async function fetchShopPage(url) {
+  let parsed;
+  try { parsed = new URL(url); } catch { throw Object.assign(new Error('Dit is geen geldige link'), { status: 400 }); }
+  if (!['http:', 'https:'].includes(parsed.protocol)) throw Object.assign(new Error('Alleen http(s)-links'), { status: 400 });
+  let res;
+  try {
+    res = await fetch(parsed, {
+      headers: { 'User-Agent': BROWSER_UA, 'Accept-Language': 'nl-NL,nl;q=0.9', Accept: 'text/html,application/xhtml+xml' },
+      signal: AbortSignal.timeout(15000),
+    });
+  } catch {
+    throw Object.assign(new Error('De winkelpagina kon niet worden opgehaald (geen verbinding of time-out).'), { status: 502 });
+  }
+  if (!res.ok) {
+    throw Object.assign(new Error(`De winkel geeft de pagina niet vrij (status ${res.status}). Sommige webwinkels blokkeren automatisch ophalen; vul de gegevens dan zelf in of scan de barcode.`), { status: 502 });
+  }
+  const html = await res.text();
+  const products = [...html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)].flatMap(([, raw]) => {
+    try {
+      const json = JSON.parse(raw.trim());
+      const all = [json, ...(Array.isArray(json) ? json : []), ...(json['@graph'] || [])];
+      return all.filter((o) => o && [].concat(o['@type'] || []).includes('Product'));
+    } catch { return []; }
+  });
+  const meta = (prop) => html.match(new RegExp(`<meta[^>]+(?:property|name)=["']${prop}["'][^>]+content=["']([^"']+)`, 'i'))?.[1] || null;
+  const abs = (u) => { try { return u ? new URL(u, parsed).href : null; } catch { return null; } };
+  const ldImage = products.map((p) => [].concat(p.image || [])[0]).map((i) => (typeof i === 'string' ? i : i?.url)).find(Boolean);
+  return {
+    url: parsed.href,
+    host: parsed.hostname.replace(/^www\./, ''),
+    products,
+    title: meta('og:title') || html.match(/<title[^>]*>([^<]*)/i)?.[1]?.trim() || '',
+    image: abs(ldImage || meta('og:image')),
+    text: htmlToText(html).slice(0, 60000),
+  };
+}
+
+/** Productinformatie uit een webwinkel-link halen en omzetten naar ingrediëntvelden. */
+export async function ingredientFromShop(url) {
+  const page = await fetchShopPage(url);
+  const content = [{
+    type: 'text',
+    text: `Productpagina van ${page.host} (${page.url})
+Titel: ${page.title}
+Afbeelding: ${page.image || 'onbekend'}
+${page.products.length ? `schema.org Product (JSON-LD):\n${JSON.stringify(page.products).slice(0, 20000)}\n` : ''}
+Paginatekst:
+${page.text}
+
+Haal hieruit de gegevens voor een ingrediënt in de maaltijdplanner:
+- "name": korte, algemene Nederlandse ingrediëntnaam in kleine letters zonder merk of verpakking (bv. "griekse yoghurt", "kipfilet", "patak's butter chicken saus" als het een specifiek product is dat zo in recepten staat).
+- "product_name" en "brand": zoals op de pagina.
+- Voedingswaarden per 100 g (of 100 ml) precies zoals op de pagina; staan ze er niet, zet ze op null en "found" alleen op false als het geen productpagina is.
+- "package_grams": inhoud van de verpakking in gram (ml telt als gram); "package_label" zoals op de verpakking (bv. "500 g", "6 stuks").
+- "price_cents": de huidige prijs van de verpakking in centen (geen kiloprijs); null als onbekend.
+- "unit_weight_g": gewicht van 1 stuk als het product per stuk gebruikt wordt (bv. 1 ei, 1 paprika), anders null.
+- "pantry": true voor voorraadkast-artikelen (kruiden, olie, sauzen, bloem).
+- "ean": de barcode (EAN/GTIN) als die op de pagina staat, anders null.
+- "image_url": de productfoto (absolute URL), bij voorkeur ${page.image || 'de hoofdafbeelding'}; null als er geen is.`,
+  }];
+  const data = await structuredCall({ system: SYSTEM, content, schema: SHOP_SCHEMA, effort: 'low', maxTokens: 6000 });
+  if (!data.found) throw Object.assign(new Error('Op deze pagina is geen product gevonden.'), { status: 422 });
+  const hasNutrition = data.kcal != null;
+  return {
+    ...data,
+    image_url: data.image_url || page.image,
+    shop_url: page.url,
+    shop_host: page.host,
+    nutrition_source: hasNutrition ? `Webwinkel ${page.host}: ${data.product_name}`.slice(0, 200) : null,
+  };
+}
+
 // ---------- Weekmenu ----------
 
 const WEEK_SCHEMA = {

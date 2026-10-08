@@ -7,6 +7,7 @@ const ING_FIELDS = [
   'name', 'aliases', 'category', ...NUTRIENTS, 'unit_weight_g', 'density', 'pantry',
   'price_cents', 'package_grams', 'package_label', 'jumbo_id', 'jumbo_name', 'jumbo_url', 'jumbo_query', 'jumbo_image',
   'price_source', 'price_updated_at', 'nutrition_source', 'off_code', 'nutriscore', 'nutrition_updated_at', 'off_category', 'price_count', 'price_note',
+  'image_url', 'shop_url',
 ];
 
 // ---------- Ingrediënten ----------
@@ -61,6 +62,10 @@ export function matchIngredient(name) {
 
 export function saveIngredient(data, id = null) {
   const db = getDb();
+  // Productfoto (bv. uit Open Food Facts) alleen gebruiken als het ingrediënt nog geen foto heeft
+  if (data.fallback_image_url && data.image_url === undefined && !(id && getIngredient(id)?.image_url)) {
+    data = { ...data, image_url: data.fallback_image_url };
+  }
   const values = ING_FIELDS.map((f) => {
     const v = data[f];
     if (v === undefined || v === '') return null;

@@ -1,5 +1,6 @@
 import { api, meta } from '../api.js';
 import { scanBarcode } from '../scanner.js';
+import { mediaFields, bindMediaFields, applyShopSource, ingThumb } from '../ingredient-form.js';
 import { $, esc, euro, num, toast, modal, confirmDialog, debounce, NUTRIENT_LABELS } from '../util.js';
 
 const SOURCE_LABEL = { 'open prices': '🏷️ Open Prices', jumbo: '📦 eerder opgehaald', handmatig: '✍️ handmatig', schatting: '≈ schatting' };
@@ -52,7 +53,7 @@ export async function render(root) {
     const list = all.filter((i) => (!cat || i.category === cat) && (!q || `${i.name} ${i.aliases}`.toLowerCase().includes(q)));
     $('[data-body]', view).innerHTML = list.map((i) => `
       <tr data-id="${i.id}">
-        <td><strong>${esc(i.name)}</strong>${i.pantry ? ' <span class="badge">voorraad</span>' : ''}</td>
+        <td><span class="ing-cell">${ingThumb(i)}<span><strong>${esc(i.name)}</strong>${i.pantry ? ' <span class="badge">voorraad</span>' : ''}</span></span></td>
         <td class="small">${esc(i.category)}</td>
         <td class="num">${num(i.kcal, 0)}</td>
         <td class="num">${num(i.protein)}</td>
@@ -87,6 +88,7 @@ export async function render(root) {
           <label>Afdeling <select class="input" name="category">${m.categories.map((c) => `<option ${c === ing.category ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
           <label class="span-2">Andere namen (komma's) <input class="input" name="aliases" value="${esc(ing.aliases || '')}" placeholder="worden gebruikt bij het koppelen van recepten"></label>
         </div>
+        ${mediaFields(ing, { claude: m.claude.configured })}
         <h3>Voedingswaarden per 100 g</h3>
         <div class="grid-4">${fields}</div>
         <p class="muted small">Bron: ${esc(ing.nutrition_source || '–')}</p>
@@ -108,6 +110,7 @@ export async function render(root) {
         <div class="row end"><button class="btn btn-primary">Opslaan</button></div>
       </form>`, { wide: true });
     const form = $('[data-form]', md.el);
+    bindMediaFields(form);
     $('[data-off-dialog]', md.el)?.addEventListener('click', () => { md.close(); offDialog(ing); });
     $('[data-estimate]', md.el)?.addEventListener('click', async (e) => {
       e.target.disabled = true;
@@ -136,9 +139,10 @@ export async function render(root) {
         data.price_note = 'Zelf ingevuld';
         data.price_count = null;
       }
+      const body = applyShopSource(form, data);
       try {
-        if (ing.id) await api.put(`/ingredients/${ing.id}`, data);
-        else await api.post('/ingredients', data);
+        if (ing.id) await api.put(`/ingredients/${ing.id}`, body);
+        else await api.post('/ingredients', body);
         md.close();
         reload();
       } catch (err) { toast(err.message, 'error'); }

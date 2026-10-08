@@ -157,6 +157,7 @@ export function buildShoppingList(entries) {
       packages,
       density: Number(ing?.density) || 1,
       package_label: ing?.package_label || (ing?.package_grams ? `${ing.package_grams} g` : null),
+      image_url: ing?.image_url || null,
       cost_cents: cost,
       recipes: [...recipes],
     };

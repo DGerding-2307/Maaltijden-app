@@ -136,7 +136,7 @@ const ROUTES = [
     if (q.length < 2) return { recipes: [], ingredients: [] };
     return {
       recipes: repo.listRecipes({ q }).slice(0, 8).map((r) => ({ id: r.id, title: r.title, kcal_per_serving: r.kcal_per_serving })),
-      ingredients: repo.listIngredients(q).slice(0, 12).map((i) => ({ id: i.id, name: i.name, kcal: i.kcal, unit_weight_g: i.unit_weight_g })),
+      ingredients: repo.listIngredients(q).slice(0, 12).map((i) => ({ id: i.id, name: i.name, kcal: i.kcal, unit_weight_g: i.unit_weight_g, image_url: i.image_url })),
     };
   }],
   ['GET', '/weight', (req) => tracker.weightHistory(Number(req.query.persoon), Number(req.query.dagen) || 90)],

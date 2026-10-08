@@ -5,6 +5,7 @@ import {
 } from '../util.js';
 import { recipeThumb } from './recipes.js';
 import { linkIngredientDialog } from '../link-ingredient.js';
+import { ingThumb } from '../ingredient-form.js';
 
 /** Bronvermelding bij een meegeleverde foto (vrije licentie). */
 function photoCredit(r) {
@@ -93,7 +94,7 @@ export async function render(root, params) {
                 <label>
                   <input type="checkbox">
                   <span class="amount">${scaledLine(row, factor)}</span>
-                  <span class="name">${esc(row.name)}${row.note ? ` <span class="muted">– ${esc(row.note)}</span>` : ''}${row.optional ? ' <span class="badge">optioneel</span>' : ''}
+                  <span class="name">${ingThumb(row.ingredient, 'sm')}${esc(row.name)}${row.note ? ` <span class="muted">– ${esc(row.note)}</span>` : ''}${row.optional ? ' <span class="badge">optioneel</span>' : ''}
                   ${!row.ingredient_id ? ` <button type="button" class="link-btn strong" data-link-row="${row.id}" title="Niet gekoppeld aan de ingrediëntendatabase: geen voedingswaarden en prijs">🔗 koppelen</button>` : ''}</span>
                   <span class="line-cost muted">${row.cost_cents != null ? euro(row.cost_cents * factor) : ''}</span>
                 </label>

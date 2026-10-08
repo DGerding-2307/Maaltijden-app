@@ -224,6 +224,21 @@ export function createApp() {
     return repo.saveIngredient(update, ing.id);
   }));
   api.post('/ingredients/estimate', wrap((req) => ai.estimateIngredient(String(req.body.name || ''))));
+  // Gegevens van een product in een webwinkel ophalen (Claude leest de pagina)
+  api.post('/ingredients/from-url', wrap(async (req) => {
+    const data = await ai.ingredientFromShop(String(req.body.url || ''));
+    // Geen voedingswaarden op de pagina maar wel een barcode: aanvullen uit Open Food Facts
+    if (data.kcal == null && data.ean && process.env.OFF_DISABLED !== '1') {
+      try {
+        const p = await productByBarcode(data.ean);
+        if (p.nutrition?.kcal != null) {
+          Object.assign(data, p.nutrition, { nutrition_source: `Open Food Facts: ${p.name}`.slice(0, 200), off_code: p.code });
+          data.image_url ||= p.image;
+        }
+      } catch { /* niet gevonden: dan zonder voedingswaarden */ }
+    }
+    return data;
+  }));
 
   // ---- Open Food Facts ----
   api.get('/off/search', wrap((req) => searchOff(String(req.query.q || ''), { pageSize: 24 })));
@@ -286,7 +301,7 @@ export function createApp() {
     if (q.length < 2) return { recipes: [], ingredients: [] };
     return {
       recipes: repo.listRecipes({ q }).slice(0, 8).map((r) => ({ id: r.id, title: r.title, kcal_per_serving: r.kcal_per_serving })),
-      ingredients: repo.listIngredients(q).slice(0, 12).map((i) => ({ id: i.id, name: i.name, kcal: i.kcal, unit_weight_g: i.unit_weight_g })),
+      ingredients: repo.listIngredients(q).slice(0, 12).map((i) => ({ id: i.id, name: i.name, kcal: i.kcal, unit_weight_g: i.unit_weight_g, image_url: i.image_url })),
     };
   }));
   api.get('/weight', wrap((req) => tracker.weightHistory(Number(req.query.persoon), Number(req.query.dagen) || 90)));

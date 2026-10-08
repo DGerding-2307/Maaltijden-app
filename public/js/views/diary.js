@@ -4,6 +4,7 @@ import {
   $, $$, esc, num, addDays, mondayOf, todayISO, fmtDate, toast, modal, confirmDialog, debounce, savedPerson, rememberPerson,
 } from '../util.js';
 import { scanBarcode } from '../scanner.js';
+import { ingThumb } from '../ingredient-form.js';
 
 const MEAL_ICONS = { ontbijt: '🌅', lunch: '🥪', diner: '🍽️', tussendoor: '🍎' };
 const MACROS = [
@@ -263,7 +264,7 @@ export async function render(root, params) {
           $('[data-results]', body).innerHTML = [
             ...r.recipes.map((x) => `<button class="pick-item" data-recipe="${x.id}"><span>📖 ${esc(x.title)}</span>
               <span class="muted small">recept · ${num(x.kcal_per_serving, 0)} kcal per portie</span></button>`),
-            ...r.ingredients.map((x) => `<button class="pick-item" data-ing="${x.id}"><span>🥕 ${esc(x.name)}</span>
+            ...r.ingredients.map((x) => `<button class="pick-item" data-ing="${x.id}"><span>${ingThumb(x, 'sm') || '🥕 '}${esc(x.name)}</span>
               <span class="muted small">${num(x.kcal, 0)} kcal per 100 g${x.unit_weight_g ? ` · 1 stuk ≈ ${num(x.unit_weight_g, 0)} g` : ''}</span></button>`),
           ].join('') || '<p class="muted">Niets gevonden. Probeer ‘Snel’ om zelf kcal in te vullen.</p>';
           $$('[data-recipe]', body).forEach((b) => b.addEventListener('click', () => amount(r.recipes.find((x) => x.id === Number(b.dataset.recipe)), 'recipe')));

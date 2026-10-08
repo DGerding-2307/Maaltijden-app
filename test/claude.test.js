@@ -5,7 +5,14 @@ import http from 'node:http';
 // Nagebootste Claude API: de echte is vanuit de tests niet bereikbaar.
 let mode = 'ok';
 const seen = [];
+const SHOP_HTML = `<html><head><title>Griekse yoghurt 0% | Testwinkel</title>
+<meta property="og:image" content="/img/yoghurt.jpg">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Griekse yoghurt 0%","brand":{"name":"Testmerk"},"gtin13":"8710000000001",
+"offers":{"price":"2.19","priceCurrency":"EUR"}}</script></head><body><h1>Griekse yoghurt 0%</h1><p>Per 100 g: energie 57 kcal, eiwit 10 g</p></body></html>`;
+
 const mock = http.createServer((req, res) => {
+  if (req.url === '/shop/yoghurt') { res.writeHead(200, { 'Content-Type': 'text/html' }); return res.end(SHOP_HTML); }
+  if (req.url === '/shop/geblokkeerd') { res.writeHead(403); return res.end('nee'); }
   let body = '';
   req.on('data', (c) => { body += c; });
   req.on('end', () => {
@@ -18,9 +25,15 @@ const mock = http.createServer((req, res) => {
     if (mode === 'auth') return error(401, 'authentication_error', 'invalid x-api-key');
     if (mode === 'credit') return error(400, 'invalid_request_error', 'Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.');
     if (mode === 'no-fallback' && json.fallbacks) return error(400, 'invalid_request_error', 'fallbacks: Extra inputs are not permitted');
-    const text = json.output_config?.format
-      ? JSON.stringify({ summary: 'Lekker menu', entries: [] })
-      : 'OK';
+    const schema = json.output_config?.format?.schema;
+    const prompt = JSON.stringify(json.messages);
+    const text = schema?.properties?.found
+      ? JSON.stringify({
+        found: true, name: 'griekse yoghurt', product_name: 'Griekse yoghurt 0%', brand: 'Testmerk', category: schema.properties.category.enum[0],
+        kcal: prompt.includes('57 kcal') ? 57 : null, protein: 10, carbs: 4, sugar: 4, fat: 0.2, sat_fat: 0.1, fiber: 0, salt: 0.1,
+        package_grams: 500, package_label: '500 g', price_cents: 219, unit_weight_g: null, pantry: false, ean: '8710000000001', image_url: null,
+      })
+      : schema ? JSON.stringify({ summary: 'Lekker menu', entries: [] }) : 'OK';
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       id: 'msg_test', type: 'message', role: 'assistant', model: json.model,
@@ -98,4 +111,25 @@ test('als de terugvalfunctie niet wordt geaccepteerd, gaat het verder zonder', a
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.equal(seen.at(-1).body.fallbacks, undefined);
   mode = 'ok';
+});
+
+test('ingrediëntgegevens uit een webwinkel-link', async () => {
+  mode = 'ok';
+  const shop = `${process.env.ANTHROPIC_BASE_URL}/shop/yoghurt`;
+  const d = await post('/ingredients/from-url', { url: shop });
+  assert.equal(d.name, 'griekse yoghurt', JSON.stringify(d));
+  assert.equal(d.kcal, 57);
+  assert.equal(d.price_cents, 219);
+  assert.equal(d.package_grams, 500);
+  // Foto uit og:image, absoluut gemaakt
+  assert.equal(d.image_url, `${process.env.ANTHROPIC_BASE_URL}/img/yoghurt.jpg`);
+  assert.equal(d.shop_host, 'localhost');
+  assert.match(d.nutrition_source, /Webwinkel localhost/);
+  // De pagina-inhoud (JSON-LD en tekst) gaat mee naar Claude
+  assert.match(JSON.stringify(seen.at(-1).body.messages), /8710000000001/);
+
+  const blocked = await post('/ingredients/from-url', { url: `${process.env.ANTHROPIC_BASE_URL}/shop/geblokkeerd` });
+  assert.equal(blocked.status, 502);
+  assert.match(blocked.error, /status 403/);
+  assert.equal((await post('/ingredients/from-url', { url: 'geen link' })).status, 400);
 });
