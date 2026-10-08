@@ -1,5 +1,5 @@
 import { api, meta, liveSync } from '../api.js';
-import { meatDialog, extrasDialog } from '../meat.js';
+import { meatDialog, extrasDialog, meatOptions, defaultPortion } from '../meat.js';
 import {
   $, $$, esc, euro, num, addDays, mondayOf, todayISO, fmtDate, weekNumber, DAY_NAMES, toast, modal, confirmDialog, debounce, minutes,
   savedPerson, rememberPerson,
@@ -27,7 +27,7 @@ export async function render(root, params) {
       ${e.leftover_of ? '<span class="muted small">restjes – geen boodschappen</span>' : ''}
       ${!e.recipe_id && e.extras?.length ? '<button class="plan-extras" data-ingredients title="Ingrediënten en hoeveelheden wijzigen">🥕 ingrediënten wijzigen</button>'
         : e.extras?.length ? `<button class="plan-extras" data-meat title="Vlees of vis wijzigen">🥩 + ${e.extras.map((x) => esc(x.name)).join(', ')}</button>`
-        : e.recipe_id && !e.has_meat && !e.leftover_of ? '<button class="plan-extras add" data-meat title="Vlees of vis bij dit gerecht kiezen">+ 🥩 vlees/vis</button>' : ''}
+        : e.recipe_id && !e.has_meat && !e.leftover_of ? '<button class="plan-extras add" data-meat title="Vlees of vis bij dit gerecht kiezen">🥩 + Vlees of vis</button>' : ''}
       ${e.note && !e.leftover_of ? `<span class="muted small">${esc(e.note)}</span>` : ''}
       <div class="plan-entry-meta">
         <span class="servings-ctl">
@@ -88,10 +88,14 @@ export async function render(root, params) {
         <div class="stat"><span class="stat-label">Ingepland</span><span class="stat-value">${planned}</span><span class="stat-sub">maaltijden</span></div>
       </div>
 
+      <nav class="day-jump" aria-label="Ga naar dag">
+        ${plan.days.map((d, i) => `<a href="#day-${d.date}" data-jump="${d.date}" class="${d.date === today ? 'today' : ''} ${d.entries.length ? '' : 'empty'}">
+          ${DAY_NAMES[i].slice(0, 2)}<strong>${Number(d.date.slice(8))}</strong><span class="dot"></span></a>`).join('')}
+      </nav>
       <div class="planner-layout">
         <div class="week-grid" style="--meals:${meals.length}">
           ${plan.days.map((d, i) => `
-            <section class="day ${d.date === today ? 'today' : ''} ${d.date < today ? 'past' : ''}">
+            <section class="day ${d.date === today ? 'today' : ''} ${d.date < today ? 'past' : ''}" id="day-${d.date}">
               <header class="day-head">
                 <strong>${DAY_NAMES[i]}</strong> <span class="muted">${fmtDate(d.date)}</span>
               </header>
@@ -166,6 +170,12 @@ export async function render(root, params) {
   }
 
   async function onClick(e) {
+    const jump = e.target.closest('[data-jump]');
+    if (jump) {
+      e.preventDefault(); // geen hash-navigatie: alleen naar de dag scrollen
+      document.getElementById(`day-${jump.dataset.jump}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
     const entryEl = e.target.closest('[data-entry]');
     const entry = entryEl && plan.days.flatMap((d) => d.entries).find((x) => String(x.id) === entryEl.dataset.entry);
     try {
@@ -227,6 +237,9 @@ export async function render(root, params) {
     const allMeals = [...new Set([...meals, entry.meal])];
     const md = modal(`
       <h2>${esc(title)}</h2>
+      <div class="row wrap">
+        <button type="button" class="btn" data-menu-meat>🥩 ${entry.extras?.length ? 'Vlees, vis of extra’s wijzigen' : 'Vlees of vis erbij'}</button>
+      </div>
       <form class="form" data-move>
         <h3>Verplaatsen of aanpassen</h3>
         <div class="grid-2">
@@ -250,6 +263,7 @@ export async function render(root, params) {
         </div>
         <div class="row end"><button class="btn">Restjes inplannen</button></div>
       </form>` : ''}`);
+    $('[data-menu-meat]', md.el).addEventListener('click', () => { md.close(); meatDialog(entry, load); });
     const lf = $('[data-leftovers]', md.el);
     if (lf) {
       const label = lf.extra.closest('label');
@@ -278,13 +292,20 @@ export async function render(root, params) {
     });
   }
 
-  function pickRecipe(date, meal) {
+  async function pickRecipe(date, meal) {
+    const meats = await meatOptions();
+    const sides = recipes.filter((r) => r.is_side);
     const md = modal(`
       <h2>Toevoegen: ${esc(meal)} op ${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })}</h2>
       <div class="row">
         <input type="search" class="input grow" placeholder="Zoek recept…" data-q>
         <label class="inline">👤 <input type="number" class="input narrow" min="1" value="${m.default_servings}" data-servings></label>
       </div>
+      <label class="meat-pick">🥩 Vlees of vis erbij <span class="muted small">(optioneel)</span>
+        <select class="input" data-meat-pick><option value="">– niets extra –</option>
+          ${sides.length ? `<optgroup label="Gerechten">${sides.map((x) => `<option value="r${x.id}">${esc(x.title)}</option>`).join('')}</optgroup>` : ''}
+          <optgroup label="Vlees, vis & vega">${meats.map((i) => `<option value="${i.id}">${esc(i.name)}</option>`).join('')}</optgroup>
+        </select></label>
       <div class="pick-list"></div>
       <hr>
       <form class="row" data-free>
@@ -315,7 +336,10 @@ export async function render(root, params) {
       }
       const pick = e.target.closest('[data-pick]');
       if (!pick) return;
-      await api.post('/plan', { date, meal, recipe_id: Number(pick.dataset.pick), servings: servings() });
+      const v = $('[data-meat-pick]', md.el).value;
+      const meat = meats.find((i) => i.id === Number(v));
+      const extras = v.startsWith('r') ? [{ recipe_id: Number(v.slice(1)), quantity: 1 }] : meat ? [{ ingredient_id: meat.id, ...defaultPortion(meat) }] : [];
+      await api.post('/plan', { date, meal, recipe_id: Number(pick.dataset.pick), servings: servings(), extras });
       md.close();
       load();
     });
@@ -422,6 +446,10 @@ export async function render(root, params) {
   root.addEventListener('change', onChange);
   root.addEventListener('dragstart', onDragStart);
   await load();
+  // Op de telefoon staat de week onder elkaar: spring meteen naar vandaag
+  if (window.matchMedia('(max-width: 720px)').matches && start === mondayOf(todayISO()) && !params.week) {
+    document.getElementById(`day-${todayISO()}`)?.scrollIntoView({ block: 'start' });
+  }
   const stopSync = liveSync(load);
   return () => {
     stopSync();

@@ -94,12 +94,21 @@ export function toast(message, type = 'info') {
 }
 
 // ---------- Modaal venster ----------
+const openModals = new Set();
+
+/** Alle open vensters sluiten (bij wisselen van pagina, zodat er niets blijft hangen). */
+export function closeAllModals() {
+  for (const close of [...openModals]) close();
+}
+
 export function modal(html, { wide = false, onClose } = {}) {
   const wrap = document.createElement('div');
   wrap.className = 'modal-backdrop';
   wrap.innerHTML = `<div class="modal ${wide ? 'modal-wide' : ''}" role="dialog" aria-modal="true">
     <button class="modal-close icon-btn" aria-label="Sluiten">✕</button>${html}</div>`;
   const close = () => {
+    if (!openModals.has(close)) return;
+    openModals.delete(close);
     wrap.remove();
     document.removeEventListener('keydown', onKey);
     onClose?.();
@@ -110,6 +119,7 @@ export function modal(html, { wide = false, onClose } = {}) {
     if (e.target === wrap || e.target.closest('.modal-close')) close();
   });
   document.addEventListener('keydown', onKey);
+  openModals.add(close);
   document.body.append(wrap);
   const first = wrap.querySelector('input, select, textarea');
   first?.focus();

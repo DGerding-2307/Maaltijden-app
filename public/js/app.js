@@ -1,5 +1,5 @@
 // Eenvoudige hash-router.
-import { $, $$, esc } from './util.js';
+import { $, $$, esc, closeAllModals } from './util.js';
 
 const routes = [
   [/^\/planner$/, () => import('./views/planner.js')],
@@ -25,6 +25,7 @@ async function router() {
   for (const [re, load] of routes) {
     const m = path.match(re);
     if (!m) continue;
+    closeAllModals();
     if (typeof cleanup === 'function') cleanup();
     cleanup = null;
     const section = path.split('/')[1];
