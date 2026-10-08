@@ -10,10 +10,19 @@ export function ingThumb(ing, size = '') {
   return url ? `<img class="ing-thumb ${size}" src="${esc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : '';
 }
 
+function creditLine(ing) {
+  let c;
+  try { c = ing.image_credit ? JSON.parse(ing.image_credit) : null; } catch { c = null; }
+  return c ? `<small class="photo-credit"><a href="${esc(c.page)}" target="_blank" rel="noopener">${esc(c.author)}</a>, ${esc(c.license)}</small>` : '';
+}
+
 export function mediaFields(ing = {}, { claude = false } = {}) {
   return `
     <div class="ing-media">
-      <div class="ing-photo" data-photo-box>${ing.image_url ? `<img src="${esc(ing.image_url)}" alt="" referrerpolicy="no-referrer">` : '<span>🥕</span>'}</div>
+      <div class="ing-photo-wrap">
+        <div class="ing-photo" data-photo-box>${ing.image_url ? `<img src="${esc(ing.image_url)}" alt="" referrerpolicy="no-referrer">` : '<span>🥕</span>'}</div>
+        ${creditLine(ing)}
+      </div>
       <div class="ing-media-fields">
         <label>Foto (link) <input class="input" name="image_url" value="${esc(ing.image_url || '')}" placeholder="https://… of upload een foto"></label>
         <div class="row wrap">

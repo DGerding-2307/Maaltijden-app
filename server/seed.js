@@ -2,6 +2,7 @@
 // Voedingswaarden per 100 g zijn afgerond en gebaseerd op NEVO-gemiddelden (RIVM).
 // Prijzen zijn schattingen van supermarktprijzen (Jumbo-niveau, 2026); pas ze aan via Ingrediënten → ✏️.
 import { PHOTOS } from './photos.js';
+import { INGREDIENT_PHOTOS } from './ingredient-photos.js';
 
 const AGF = 'Aardappelen, groente & fruit';
 const VV = 'Vlees, vis & vega';
@@ -1381,6 +1382,17 @@ export function builtinPhoto(key) {
   };
 }
 
+/** Standaardfoto van een ingrediënt (op naam), of null. */
+export function ingredientPhoto(name) {
+  const key = builtinKey(name);
+  const p = INGREDIENT_PHOTOS[key];
+  if (!p) return null;
+  return {
+    url: `img/ingredients/${key}.jpg`,
+    credit: JSON.stringify({ author: p.author, license: p.license, license_url: p.license_url, page: p.page, source: p.source }),
+  };
+}
+
 /** Vaste sleutel van een standaardrecept, zodat updates het kunnen herkennen (ook als je de titel aanpast). */
 export function builtinKey(title) {
   return String(title).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -1425,6 +1437,16 @@ export function syncBuiltins(db, { fresh = false, restore = false } = {}) {
       insIng.run(...row);
       addedIng++;
     }
+    // Ingrediënten zonder foto krijgen één keer de standaardfoto (een eigen foto blijft staan)
+    const offeredIngPhotos = new Set(getList(db, 'builtin_ingredient_photos_offered') ?? []);
+    const setIngPhoto = db.prepare("UPDATE ingredients SET image_url = ?, image_credit = ? WHERE lower(name) = ? AND (image_url IS NULL OR image_url = '')");
+    const photoNames = I.map((r) => r[0].toLowerCase()).filter((n) => ingredientPhoto(n));
+    for (const n of photoNames) {
+      if (offeredIngPhotos.has(n)) continue;
+      const p = ingredientPhoto(n);
+      setIngPhoto.run(p.url, p.credit, n);
+    }
+    setList(db, 'builtin_ingredient_photos_offered', photoNames);
     const setCat = db.prepare('UPDATE ingredients SET off_category = ? WHERE name = ? AND off_category IS NULL');
     for (const [name, tag] of Object.entries(OFF_CATEGORY_BY_NAME)) setCat.run(tag, name);
 

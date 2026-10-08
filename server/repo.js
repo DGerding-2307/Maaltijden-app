@@ -7,7 +7,7 @@ const ING_FIELDS = [
   'name', 'aliases', 'category', ...NUTRIENTS, 'unit_weight_g', 'density', 'pantry',
   'price_cents', 'package_grams', 'package_label', 'jumbo_id', 'jumbo_name', 'jumbo_url', 'jumbo_query', 'jumbo_image',
   'price_source', 'price_updated_at', 'nutrition_source', 'off_code', 'nutriscore', 'nutrition_updated_at', 'off_category', 'price_count', 'price_note',
-  'image_url', 'shop_url', 'amount_rule',
+  'image_url', 'shop_url', 'amount_rule', 'image_credit',
 ];
 
 // ---------- Ingrediënten ----------
@@ -76,6 +76,9 @@ export function saveIngredient(data, id = null) {
     const existing = getIngredient(id);
     if (!existing) return null;
     const merged = ING_FIELDS.map((f, i) => (data[f] === undefined ? existing[f] : values[i]));
+    // Bronvermelding van een standaardfoto vervalt als de foto wordt vervangen
+    const urlIdx = ING_FIELDS.indexOf('image_url');
+    if (merged[urlIdx] !== existing.image_url && data.image_credit === undefined) merged[ING_FIELDS.indexOf('image_credit')] = null;
     db.prepare(`UPDATE ingredients SET ${ING_FIELDS.map((f) => `${f} = ?`).join(', ')} WHERE id = ?`).run(...merged, id);
     return getIngredient(id);
   }
