@@ -234,6 +234,22 @@ export function logPlannedDay(personId, date, onlyId = null) {
   return added;
 }
 
+/** Recent gebruikt: de laatste verschillende regels, om met één tik opnieuw toe te voegen. */
+export function recentEntries(personId, limit = 12) {
+  const rows = getDb().prepare(`SELECT * FROM food_log WHERE person_id = ? ORDER BY date DESC, id DESC LIMIT 200`).all(personId);
+  const seen = new Set();
+  const out = [];
+  for (const r of rows) {
+    const key = r.type === 'recipe' ? `r${r.recipe_id}` : r.type === 'ingredient' ? `i${r.ingredient_id}` : `f${r.name.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ type: r.type, recipe_id: r.recipe_id, ingredient_id: r.ingredient_id, servings: r.servings, grams: r.grams, name: r.name, kcal: Math.round(r.kcal),
+      values: r.type === 'free' ? Object.fromEntries(NUTRIENTS.map((k) => [k, r[k]])) : undefined });
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
 export function copyDay(personId, from, to) {
   const rows = getDb().prepare('SELECT * FROM food_log WHERE person_id = ? AND date = ?').all(personId, from);
   tx((db) => {

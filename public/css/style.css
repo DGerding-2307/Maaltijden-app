@@ -667,26 +667,31 @@ label.check .input { width: auto; flex: 1; margin-top: 0; }
 
 /* ---------- Touchscreen ---------- */
 button, a, label, select, summary { touch-action: manipulation; -webkit-tap-highlight-color: rgba(47, 107, 79, .15); }
-@media (pointer: coarse) {
+@media (pointer: coarse), (max-width: 720px) {
   /* Tikdoelen van minimaal ± 44 px; niets meer dat alleen bij 'hover' verschijnt */
   .btn { min-height: 2.75rem; }
-  .btn.small { min-height: 2.4rem; }
+  .btn.small { min-height: 2.75rem; }
   .input, select.input, textarea.input { font-size: 16px; min-height: 2.75rem; } /* 16px: geen inzoomen op iPhone */
-  .mini { min-width: 2.4rem; min-height: 2.4rem; padding: .3rem .5rem; font-size: 1rem; }
+  .mini { min-width: 2.75rem; min-height: 2.75rem; padding: .3rem .5rem; font-size: 1rem; }
   .entry-actions .mini { padding: .3rem .45rem; line-height: 1; }
-  .slot-add { opacity: 1; min-height: 2.6rem; font-size: 1.3rem; }
+  .slot-add { opacity: 1; min-height: 2.75rem; font-size: 1.3rem; }
   .tag { padding: .45rem .85rem; }
-  .seg a, .seg button { min-height: 2.6rem; display: inline-flex; align-items: center; }
+  .seg a, .seg button { min-height: 2.75rem; display: inline-flex; align-items: center; }
   .log-item { padding: .7rem .3rem; }
   .link-btn { padding: .35rem .3rem; }
   .pick-item { padding: .75rem .8rem; }
   .meat-option { min-height: 3.2rem; }
-  .eat-toggle { padding: .35rem .7rem; font-size: .8rem; }
-  .servings-ctl .mini { min-width: 2.2rem; min-height: 2.2rem; }
+  .eat-toggle { min-height: 2.75rem; padding: .35rem .8rem; font-size: .85rem; }
+  .servings-ctl .mini { min-width: 2.75rem; min-height: 2.75rem; }
   input[type="checkbox"], input[type="radio"] { width: 1.3rem; height: 1.3rem; }
   .fav { width: 2.75rem; height: 2.75rem; }
   .modal-close { width: 2.75rem; height: 2.75rem; }
   .shop-list label { min-height: 3rem; }
+  .icon-btn { width: 2.75rem; height: 2.75rem; }
+  button.tag, a.tag { min-height: 2.75rem; min-width: 2.75rem; display: inline-flex; align-items: center; justify-content: center; }
+  .menu-items > * { min-height: 2.75rem; }
+  .fav-big { min-width: 2.75rem; min-height: 2.75rem; }
+  .rating button { min-width: 2.75rem; min-height: 2.75rem; }
 }
 
 /* Vlees of vis erbij: duidelijk zichtbaar als knop */
@@ -696,7 +701,7 @@ button, a, label, select, summary { touch-action: manipulation; -webkit-tap-high
 }
 .plan-extras.add:hover { background: var(--primary-soft); text-decoration: none; }
 .plan-extras:not(.add) { font-weight: 600; }
-@media (pointer: coarse) { .plan-extras { min-height: 2.4rem; } }
+@media (pointer: coarse), (max-width: 720px) { .plan-extras { min-height: 2.75rem; } }
 
 /* Planner op de telefoon: dagen snel kiezen */
 .day-jump { display: none; }
@@ -706,7 +711,7 @@ button, a, label, select, summary { touch-action: manipulation; -webkit-tap-high
     background: var(--bg); padding: .45rem 0; margin: 0 0 .6rem; scrollbar-width: none;
   }
   .day-jump::-webkit-scrollbar { display: none; }
-  .day-jump a { flex: none; text-decoration: none; text-align: center; min-width: 3.1rem; padding: .35rem .5rem; border-radius: 12px;
+  .day-jump a { flex: none; text-decoration: none; text-align: center; min-width: 3.1rem; min-height: 2.75rem; padding: .35rem .5rem; border-radius: 12px;
     border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: .8rem; line-height: 1.2; }
   .day-jump a strong { display: block; font-size: 1rem; }
   .day-jump a.today { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
@@ -716,3 +721,13 @@ button, a, label, select, summary { touch-action: manipulation; -webkit-tap-high
   .day { scroll-margin-top: calc(7.5rem + var(--sat)); }
 }
 .meat-pick { display: block; margin-top: .6rem; } .meat-pick select { margin-top: .25rem; }
+
+/* Telefoon: kerncijfers compact naast elkaar, zodat de planning zelf in beeld blijft */
+@media (max-width: 720px) {
+  .stats { grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: .45rem; margin-bottom: .7rem; }
+  .stat { padding: .5rem .6rem; }
+  .stat-label { font-size: .64rem; letter-spacing: .02em; }
+  .stat-value { font-size: 1.1rem; }
+  .stat-sub { font-size: .72rem; }
+  .stat-sub:not(.good):not(.bad) { display: none; }
+}

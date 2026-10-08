@@ -133,6 +133,7 @@ const ROUTES = [
   ['DELETE', '/diary/:id', (req) => tracker.deleteLogEntry(Number(req.params.id))],
   ['POST', '/diary/from-plan', (req) => ({ added: tracker.logPlannedDay(Number(req.body.person_id), req.body.date, req.body.plan_entry_id) })],
   ['POST', '/diary/copy', (req) => ({ copied: tracker.copyDay(Number(req.body.person_id), req.body.from, req.body.to) })],
+  ['GET', '/diary/recent', (req) => tracker.recentEntries(Number(req.query.persoon))],
   ['GET', '/diary/summary', (req) => tracker.summary(Number(req.query.persoon), req.query.van, req.query.tot)],
   ['GET', '/foods', (req) => {
     const q = String(req.query.q || '').trim();

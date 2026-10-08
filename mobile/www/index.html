@@ -14,11 +14,16 @@
     @media (prefers-color-scheme: dark) {
       :root { --bg: #141816; --surface: #1d2320; --text: #e9ece9; --muted: #9aa39d; --border: #323a35; --primary: #5fb88a; --primary-ink: #0d1a13; color-scheme: dark; }
     }
-    * { box-sizing: border-box; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    /* Systeembalken: env() of de waarden die de app zelf doorgeeft (edge-to-edge op Android) */
+    :root {
+      --sat: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+      --sab: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+    }
     body {
       margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--text);
       font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; line-height: 1.5;
-      padding: calc(1rem + env(safe-area-inset-top, 0px)) 1rem calc(1rem + env(safe-area-inset-bottom, 0px));
+      padding: calc(1rem + var(--sat)) 1rem calc(1rem + var(--sab));
     }
     main { width: min(420px, 100%); display: grid; gap: 1.2rem; }
     .logo { width: 72px; height: 72px; }
@@ -27,15 +32,19 @@
     .muted { color: var(--muted); font-size: .92rem; }
     form { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 1.2rem; display: grid; gap: .8rem; }
     label { font-weight: 600; }
-    input { font: inherit; width: 100%; padding: .75rem .8rem; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); }
+    input { font: inherit; font-size: 16px; min-height: 48px; width: 100%; padding: .75rem .8rem; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); }
     input:focus { outline: 2px solid var(--primary); outline-offset: -1px; }
-    button { font: inherit; font-weight: 600; padding: .8rem; border-radius: 10px; border: 0; background: var(--primary); color: var(--primary-ink); }
+    button { font: inherit; font-weight: 600; min-height: 48px; padding: .8rem; border-radius: 10px; border: 0; background: var(--primary); color: var(--primary-ink); }
     button.ghost { background: transparent; color: var(--primary); border: 1px solid var(--border); }
     button:disabled { opacity: .6; }
     .status { min-height: 1.5em; font-size: .92rem; }
     .status.error { color: var(--danger); }
     .tips { font-size: .88rem; color: var(--muted); padding-left: 1.1rem; margin: 0; }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+    button:active { transform: scale(.98); }
+    details summary { cursor: pointer; color: var(--primary); font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+    details > * + * { margin-top: .5rem; }
+    .version { text-align: center; font-size: .8rem; color: var(--muted); }
     [hidden] { display: none !important; }
   </style>
 </head>
@@ -62,6 +71,12 @@
       <label for="url">Adres van je server</label>
       <input id="url" type="text" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false"
              placeholder="bijv. 192.168.1.20:3000 of maaltijden.mijndomein.nl" required>
+      <details id="second-box">
+        <summary>Tweede adres (bijv. onderweg)</summary>
+        <input id="url2" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false"
+               placeholder="bijv. maaltijden.mijndomein.nl" aria-label="Tweede adres">
+        <p class="muted">De app probeert eerst het eerste adres en anders dit adres. Zo werkt hij thuis via wifi én onderweg.</p>
+      </details>
       <p class="status" id="status" role="status"></p>
       <button id="connect" type="submit">Verbinden</button>
       <ul class="tips">
@@ -77,16 +92,20 @@
         <button id="change" type="button" class="ghost">Ander adres</button>
       </div>
     </div>
+    <p class="version">App-versie 3.0</p>
   </main>
 
   <script>
     // De app slaat het serveradres op en opent daarna je eigen Maaltijden-server.
     // Omdat de app de pagina's van je server toont, is hij na een serverupdate automatisch bijgewerkt.
     const KEY = 'maaltijden-server';
+    const KEY2 = 'maaltijden-server-2';
     const $ = (id) => document.getElementById(id);
 
-    function load() { try { return localStorage.getItem(KEY); } catch { return null; } }
-    function save(url) { try { localStorage.setItem(KEY, url); } catch { /* geen opslag */ } }
+    function load(key = KEY) { try { return localStorage.getItem(key); } catch { return null; } }
+    function save(url, key = KEY) {
+      try { url ? localStorage.setItem(key, url) : localStorage.removeItem(key); } catch { /* geen opslag */ }
+    }
 
     function normalize(input) {
       let u = String(input || '').trim();
@@ -131,6 +150,8 @@
       $('form').hidden = false;
       $('intro').textContent = 'Vul het adres in van de server waarop Maaltijden draait.';
       $('url').value = load()?.replace(/^http:\/\//, '') || '';
+      $('url2').value = load(KEY2)?.replace(/^http:\/\//, '') || '';
+      $('second-box').open = !!$('url2').value;
       $('status').textContent = message;
       $('status').className = `status${isError ? ' error' : ''}`;
       $('url').focus();
@@ -147,12 +168,21 @@
       const saved = load();
       const change = new URLSearchParams(location.search).has('wijzig');
       if (!saved || change) return showForm();
+      const second = load(KEY2);
       $('intro').textContent = `Verbinden met ${saved}…`;
       try {
         await check(saved);
-        open(saved);
+        return open(saved);
       } catch (err) {
-        showOffline(saved, err.message);
+        if (!second) return showOffline(saved, err.message);
+      }
+      // Eerste adres niet bereikbaar (bijv. niet thuis): het tweede adres proberen
+      $('intro').textContent = `Verbinden met ${second}…`;
+      try {
+        await check(second);
+        open(second);
+      } catch (err) {
+        showOffline(`${saved} of ${second}`, err.message);
       }
     }
 
@@ -160,14 +190,24 @@
       e.preventDefault();
       const url = normalize($('url').value);
       if (!url) return showForm('Dit is geen geldig adres.', true);
+      const url2 = $('url2').value.trim() ? normalize($('url2').value) : null;
+      if ($('url2').value.trim() && !url2) return showForm('Het tweede adres is geen geldig adres.', true);
       $('connect').disabled = true;
       $('status').className = 'status';
       $('status').textContent = 'Verbinding testen…';
       try {
-        await check(url);
+        let target = url;
+        try {
+          await check(url);
+        } catch (err) {
+          if (!url2) throw err;
+          await check(url2);
+          target = url2;
+        }
         save(url);
+        save(url2, KEY2);
         $('status').textContent = 'Verbonden!';
-        open(url);
+        open(target);
       } catch (err) {
         $('status').className = 'status error';
         $('status').textContent = err.message;

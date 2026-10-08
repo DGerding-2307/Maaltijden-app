@@ -3,6 +3,36 @@
 Een webapplicatie voor op je eigen server: een overzichtelijke weekplanner en een receptenboek met
 Nederlandse recepten, voedingswaarden per persoon (uit Open Food Facts), prijzen per maaltijd (uit Open Prices) en een Claude AI-integratie.
 
+## Nieuw in v3
+
+Versie 3 is gebouwd na een tweede ronde recensies (dit keer ook van calorie-apps) en een nieuwe gebruikersacceptatietest:
+**33 van de 33 scenario's geslaagd**. Zie het [UAT-rapport](docs/UAT-rapport.md#8-v3-recensies-opnieuw-bekeken-en-9-nieuwe-scenarios).
+
+**Flexibeler plannen**
+- 🥩 **Vlees of vis bij een gerecht** zonder er een nieuw recept voor te maken: tik op **🥩 + Vlees of vis** op een maaltijd
+  (of kies het meteen bij het inplannen). Gehaktbal, slavink, schnitzel, kipfilet, zalm… Het telt mee voor de boodschappen, de kcal en de kosten.
+- 🍽️ **Een gerecht als vlees of bijgerecht** bij een ander gerecht, bijvoorbeeld hachee bij de stamppot.
+  Vink in de recepteditor ‘🥩 Kan als vlees bij een ander gerecht’ aan.
+- 🥕 **Maaltijd van losse ingrediënten**, zonder recept: een broodje met kaas, een croissant en een banaan.
+- ⚖️ **Minder restjes**: per ingrediënt in een recept *hele verpakking gebruiken*, *afronden op hele stuks* of een *minimum*
+  (bijv. altijd minstens 1 ui, ook als je voor 1 persoon kookt). Het kan ook als standaard per ingrediënt.
+
+**Makkelijker op de telefoon en in de app**
+- 📱 Niets valt meer weg achter de statusbalk of de navigatiebalk van je telefoon, ook niet in vensters en meldingen.
+- 👆 **Touchscreen-vriendelijk**: alle knoppen minstens 44 px (de richtlijn van Apple en Google), invoervelden zonder inzoomen,
+  kerncijfers compact naast elkaar, en een daglijst om in de planner direct naar een dag te springen (de planner opent bij vandaag).
+- ⚡ **Recent gebruikt** in het dagboek: met één tik opnieuw toevoegen wat je vaak eet.
+- 🔙 Vensters sluiten bij de terugknop of als je naar een andere pagina gaat.
+- 📲 **Vernieuwde Android-app (3.0)**: geef een tweede adres op (bijv. thuis via wifi en onderweg via internet); de app kiest zelf het adres dat werkt.
+
+**Meer ingrediënten en foto's**
+- 🥐 **88 Jumbo bake-offbroodjes en -snacks** als standaardingrediënten, met voedingswaarden en allergenen uit het
+  [Jumbo-productinformatieblad](https://www.jumbo.com/dam/service/allergenen/Consumenteninfoblad%20productinformatie%20bakeoff%20broodjes%2008-05-2023.pdf).
+  Gewicht per stuk en prijs zijn geschat.
+- 🖼️ **Standaardfoto's bij 165 ingrediënten** (vrije licenties via Wikimedia Commons, met bronvermelding). Een eigen foto blijft altijd staan.
+
+Bestaande installaties krijgen alles automatisch bij de update. Wat je zelf hebt verwijderd of aangepast, blijft zoals het is.
+
 ## Nieuw in v2.7
 
 - 📷 **Foto's bij alle 50 standaardrecepten** (vrije licenties via Wikimedia Commons en Openverse, met bronvermelding) en
@@ -76,6 +106,9 @@ en receptenapps verwachten. Zie het [UAT-rapport](docs/UAT-rapport.md).
 - Aantal personen per maaltijd aanpassen (− / +)
 - Per dag: kcal per persoon en kosten; per week: totale kosten (met budget) en gemiddelde kcal
 - Vrije invoer (‘Uit eten’, ‘Restjes’), week kopiëren, week leegmaken, afdrukken
+- 🥩 Vlees of vis, of een ander gerecht, bij een maaltijd kiezen; maaltijden van losse ingrediënten
+- ♻️ Restjes inplannen zonder dubbele boodschappen
+- Op de telefoon: ⋯-menu per maaltijd (verplaatsen, personen, vlees erbij), daglijst om naar een dag te springen
 - ✨ **Weekmenu met Claude**: kiest uit je receptenboek op basis van wensen, kooktijd, budget en huishouden
 
 **Receptenboek**
@@ -84,6 +117,9 @@ en receptenapps verwachten. Zie het [UAT-rapport](docs/UAT-rapport.md).
 - Zoeken op naam, tag of ingrediënt; filteren op categorie, bereidingstijd en favorieten; sorteren op prijs, kcal, tijd, waardering
 - Favorieten (★) en waardering (1–5 sterren)
 - **Porties schalen**: − / + of snelknoppen 1–10 personen; hoeveelheden en kosten schalen mee
+- **Regels tegen restjes** per ingrediënt: hele verpakking, afronden op hele stuks of een minimum
+- Foto's bij alle standaardrecepten; eigen foto uploaden; recepten (ook meerdere tegelijk) verwijderen en standaardrecepten terugzetten
+- Niet-herkende ingrediënten koppelen of aanmaken; de naam wordt onthouden
 - **Voedingswaarden per persoon** (en totaal): energie, eiwit, koolhydraten, suikers, vet, verzadigd vet, vezels, zout, met % referentie-inname en macroverdeling
 - **Prijs per persoon en totaal** op basis van geschatte supermarktprijzen (naar verhouding van de verpakking)
 - **Kookmodus**: grote letters, stap voor stap, scherm blijft aan, automatische timers uit de tekst
@@ -104,18 +140,23 @@ en receptenapps verwachten. Zie het [UAT-rapport](docs/UAT-rapport.md).
 - Afvinken, extra artikelen toevoegen, kopiëren (voor WhatsApp/notities) en afdrukken
 
 **Ingrediënten & prijzen**
-- ~100 veelgebruikte ingrediënten met stuksgewicht, verpakking en voedingswaarden per 100 g
+- 223 standaardingrediënten met stuksgewicht, verpakking en voedingswaarden per 100 g, waarvan 88 Jumbo bake-offbroodjes en -snacks (met allergenen)
+- Foto's bij de ingrediënten (165 standaardfoto's, of je eigen foto); ingrediënt aanmaken vanuit een webwinkel-link (Claude leest de productpagina)
 - Voedingswaarden uit **Open Food Facts**: per ingrediënt de mediaan van vergelijkbare Nederlandse producten, of één product dat je kiest of met de camera scant. Nutri-Score en de bron zijn per ingrediënt zichtbaar.
 - Handmatig prijzen en voedingswaarden aanpassen, of laten schatten door Claude
 
 **Dagboek en gewicht**
 - Meerdere personen per huishouden, elk met een eigen dagdoel (Mifflin-St Jeor × activiteit, ± doel; of een eigen kcal-doel)
-- Per maaltijdmoment (ontbijt, lunch, diner, tussendoor) toevoegen via zoeken, barcode of snelle invoer; porties en grammen achteraf aan te passen
+- Per maaltijdmoment (ontbijt, lunch, diner, tussendoor) toevoegen via zoeken, ‘recent gebruikt’ (één tik), barcode of snelle invoer; porties en grammen achteraf aan te passen
 - ‘Kopieer gisteren’, geplande maaltijden in één keer afvinken, weekgrafiek met je doel
 - Gewicht invoeren (ook met komma), grafiek met metingen en trendlijn, tabelweergave
 - Agenda-abonnement (ICS) met maaltijden, dagtotalen en gewicht; geheime link, opnieuw aan te maken
 
-Verder: werkt op telefoon (onderbalk-navigatie, installeerbaar als app), licht/donker thema, optioneel wachtwoord.
+**Claude** ✨ (optioneel, met je eigen API-sleutel)
+- Kies het model (Opus, Sonnet of Haiku) met de geschatte kosten per actie; verbinding testen bij Instellingen
+
+Verder: werkt op telefoon en tablet (onderbalk-navigatie, grote tikdoelen, Android-app of installeerbaar als web-app), licht/donker thema, optioneel wachtwoord,
+back-up, offline inzien, live bijwerken tussen huisgenoten, agenda-abonnement. Geen account, advertenties of abonnement.
 
 ## Mobiele app
 
@@ -128,6 +169,8 @@ Verder: werkt op telefoon (onderbalk-navigatie, installeerbaar als app), licht/d
 De app toont je eigen Maaltijden-server. Nieuwe functies komen dus automatisch mee met de server-update; je hoeft de app zelden bij te werken.
 Een nieuwe APK installeer je gewoon over de oude heen. Je kunt de camera gebruiken voor het scannen van barcodes en voor foto's.
 Een andere server kies je bij **Instellingen → App → Andere server kiezen**.
+Vanaf app-versie 3.0 kun je een **tweede adres** opgeven, bijvoorbeeld `192.168.1.20:3000` voor thuis en je eigen domein voor onderweg.
+De app probeert eerst het eerste adres en gebruikt anders het tweede.
 
 De APK wordt automatisch gebouwd door de GitHub-workflow *Android-app* (`mobile/`, gemaakt met [Capacitor](https://capacitorjs.com)).
 Hij is ondertekend met een vaste ontwikkelaarssleutel, zodat updates over elkaar heen passen. Voor publicatie in de Play Store is een eigen sleutel nodig.

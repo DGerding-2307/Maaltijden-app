@@ -294,6 +294,7 @@ export function createApp() {
   api.delete('/diary/:id', wrap((req) => tracker.deleteLogEntry(Number(req.params.id))));
   api.post('/diary/from-plan', wrap((req) => ({ added: tracker.logPlannedDay(Number(req.body.person_id), req.body.date, req.body.plan_entry_id) })));
   api.post('/diary/copy', wrap((req) => ({ copied: tracker.copyDay(Number(req.body.person_id), req.body.from, req.body.to) })));
+  api.get('/diary/recent', wrap((req) => tracker.recentEntries(Number(req.query.persoon))));
   api.get('/diary/summary', wrap((req) => tracker.summary(Number(req.query.persoon), req.query.van, req.query.tot)));
   api.get('/foods', wrap((req) => {
     // Zoeken in recepten en ingrediënten om toe te voegen aan het dagboek

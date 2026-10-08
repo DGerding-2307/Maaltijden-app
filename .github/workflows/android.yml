@@ -44,7 +44,7 @@ jobs:
       - name: Android-project maken
         env:
           VERSION_CODE: ${{ github.run_number }}
-          VERSION_NAME: 1.0.${{ github.run_number }}
+          VERSION_NAME: 3.0.${{ github.run_number }}
         run: |
           npm ci
           npx cap add android
@@ -71,7 +71,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          notes="Android-app voor Maaltijden, versie 1.0.${{ github.run_number }} (${GITHUB_SHA::7}).
+          notes="Android-app voor Maaltijden, versie 3.0.${{ github.run_number }} (${GITHUB_SHA::7}).
 
           Installeren: open deze pagina op je Android-telefoon, download Maaltijden.apk en open het bestand.
           Sta zo nodig 'Installeren van onbekende apps' toe voor je browser. Vul bij de eerste start het adres van je server in."

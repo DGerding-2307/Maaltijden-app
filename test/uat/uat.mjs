@@ -1,4 +1,4 @@
-// Gebruikersacceptatietest v2: elk scenario is een gebruikerstaak, afgeleid van recensies/verwachtingen.
+// Gebruikersacceptatietest v3: elk scenario is een gebruikerstaak, afgeleid van recensies/verwachtingen.
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.PW || 'playwright');
@@ -15,12 +15,18 @@ for (const p of [page, mob]) {
   p.on('pageerror', (e) => errors.push(e.message));
   p.on('console', (m) => m.type() === 'error' && !m.text().includes('503') && errors.push(m.text()));
 }
+const ONLY = process.env.UAT_ONLY ? process.env.UAT_ONLY.split(',') : null;
 async function scenario(id, title, fn) {
+  if (ONLY && !ONLY.includes(id)) return;
   const t0 = Date.now();
   try {
     const note = await fn();
     results.push({ id, title, result: 'PASS', note: note || '', ms: Date.now() - t0 });
   } catch (err) {
+    await page.screenshot({ path: `${OUT}/FAIL-${id}.png` }).catch(() => {});
+    await mob.screenshot({ path: `${OUT}/FAIL-${id}-mobiel.png` }).catch(() => {});
+    await page.evaluate(() => document.querySelectorAll('.modal-backdrop').forEach((m) => m.remove())).catch(() => {});
+    await mob.evaluate(() => document.querySelectorAll('.modal-backdrop').forEach((m) => m.remove())).catch(() => {});
     results.push({ id, title, result: 'FAIL', note: err.message.split('\n')[0], ms: Date.now() - t0 });
   }
 }
@@ -74,6 +80,8 @@ await scenario('UAT-04', 'Porties schalen van 4 naar 6 personen', async () => {
   await page.goto(B + '#/recept/1');
   const before = await page.locator('.ingredient-list .amount').first().textContent();
   await page.click('[data-setpersons="6"]');
+  // De hoeveelheden komen van de server (hele verpakkingen en hele stuks schalen niet lineair)
+  await page.waitForFunction((b) => document.querySelector('.ingredient-list .amount')?.textContent !== b, before);
   const after = await page.locator('.ingredient-list .amount').first().textContent();
   const total = await page.locator('.cost-box strong').nth(1).textContent();
   expect(before.trim() === '1.200 g' && after.trim() === '1.800 g', `${before} → ${after}`);
@@ -282,11 +290,17 @@ await scenario('UAT-21', 'Ingrediënt aan een recept toevoegen door de barcode t
 });
 
 await scenario('UAT-22', 'Prijzen uit Open Prices (officiële open API) gebruiken', async () => {
-  await page.goto(B + '#/ingredienten');
-  await page.fill('[data-q]', 'wortel');
-  await page.waitForTimeout(300);
+  // De prijzen worden op de achtergrond opgehaald; wacht tot dat klaar is (max. 90 s)
   const row = page.locator('tr[data-id]').filter({ has: page.locator('td:first-child strong', { hasText: /^wortel$/ }) });
-  const badge = await row.textContent();
+  let badge = '';
+  for (let i = 0; i < 30 && !/Open Prices/.test(badge); i++) {
+    if (i) await page.waitForTimeout(3000);
+    await page.goto(B + '#/ingredienten');
+    await page.reload();
+    await page.fill('[data-q]', 'wortel');
+    await page.waitForTimeout(300);
+    badge = await row.textContent();
+  }
   expect(/Open Prices/.test(badge), `geen Open Prices-prijs: ${badge.replace(/\s+/g, ' ')}`);
   await row.locator('[data-prices]').click();
   await page.waitForSelector('[data-use]', { timeout: 10000 });
@@ -335,6 +349,160 @@ await scenario('UAT-24', 'Gewicht loggen met trendgrafiek; dagboek en gewicht in
   const ics = await page.evaluate(async (u) => (await fetch(u)).text(), url.replace(/^https?:\/\/[^/]+/, ''));
   expect(/BEGIN:VCALENDAR/.test(ics) && /SUMMARY:🔥/.test(ics) && /SUMMARY:⚖️ 81\\,4 kg/.test(ics), 'agenda mist dagboek of gewicht');
   return `agenda-feed: ${(ics.match(/BEGIN:VEVENT/g) || []).length} afspraken (maaltijden, dagtotalen, gewicht)`;
+});
+
+
+// ---------- v3 ----------
+const iso = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const japi = (pg, m, path, body) => pg.evaluate(async ([m, path, body]) => (await fetch('/api' + path, { method: m, headers: { 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) })).json(), [m, path, body]);
+
+await scenario('UAT-25', 'Telefoon/app: niets verdwijnt achter de status- of navigatiebalk', async () => {
+  // Zoals de Android-app (edge-to-edge) de systeembalken doorgeeft: 32 px boven, 24 px onder
+  const bad = [];
+  for (const h of ['#/planner', '#/recepten', '#/boodschappen', '#/dagboek', '#/instellingen']) {
+    await mob.goto(B + h);
+    await mob.addStyleTag({ content: ':root{--safe-area-inset-top:32px;--safe-area-inset-bottom:24px}' });
+    await mob.waitForTimeout(500);
+    const r = await mob.evaluate(() => {
+      const brand = document.querySelector('.topbar .brand').getBoundingClientRect();
+      const nav = document.querySelector('.mainnav');
+      const navLink = nav.querySelector('a').getBoundingClientRect();
+      window.scrollTo(0, document.body.scrollHeight);
+      const last = [...document.querySelectorAll('#app > :not(.view), #app > .view > *')].at(-1).getBoundingClientRect();
+      return { brandTop: brand.top, navLinkBottom: navLink.bottom, vh: innerHeight, lastBottom: last.bottom, navTop: nav.getBoundingClientRect().top };
+    });
+    if (r.brandTop < 32) bad.push(`${h}: kop onder statusbalk (${r.brandTop})`);
+    if (r.navLinkBottom > r.vh - 24) bad.push(`${h}: onderbalk onder navigatiebalk`);
+    if (r.lastBottom > r.navTop + 1) bad.push(`${h}: laatste inhoud achter de onderbalk`);
+  }
+  await mob.goto(B + '#/planner'); await mob.addStyleTag({ content: ':root{--safe-area-inset-top:32px;--safe-area-inset-bottom:24px}' });
+  await mob.waitForTimeout(400); await mob.screenshot({ path: `${OUT}/25-systeembalken.png` });
+  // Een open venster blijft niet hangen bij wisselen van pagina
+  await mob.goto(B + '#/dagboek'); await mob.waitForSelector('[data-add]');
+  await mob.locator('[data-add="lunch"]').tap(); await mob.waitForSelector('.modal');
+  // Zoals de terugknop van Android of een link: de pagina wisselt terwijl het venster open is
+  await mob.evaluate(() => { location.hash = '#/planner'; }); await mob.waitForTimeout(600);
+  if (await mob.locator('.modal-backdrop').count()) bad.push('venster bleef open na navigeren');
+  expect(!bad.length, bad.join('; '));
+  return '5 pagina’s met nagebootste systeembalken; vensters sluiten bij navigeren';
+});
+
+await scenario('UAT-26', 'Touchscreen: knoppen groot genoeg om met een vinger te raken', async () => {
+  await mob.goto(B + '#/planner'); await mob.waitForSelector('.plan-entry');
+  // Richtlijn Apple: 44 pt, Google: 48 dp. Per soort knop de kleinste die zichtbaar is.
+  const sizes = await mob.evaluate(() => ['.slot-add', '.plan-entry [data-entry-menu]', '.plan-entry [data-remove]', '.eat-toggle', '.plan-extras.add', '.servings-ctl .mini', '.mainnav a', '.btn', '.day-jump a']
+    .map((sel) => {
+      const vis = [...document.querySelectorAll(sel)].map((el) => el.getBoundingClientRect()).filter((r) => r.width && r.height);
+      return [sel, vis.length ? Math.round(Math.min(...vis.map((r) => Math.min(r.width, r.height)))) : null];
+    }));
+  const small = sizes.filter(([, v]) => v != null && v < 44);
+  expect(!small.length, `te klein: ${small.map(([k, v]) => `${k} ${v}px`).join(', ')}`);
+  return sizes.filter(([, v]) => v).map(([k, v]) => `${k} ${v}px`).join(', ');
+});
+
+await scenario('UAT-27', 'Vlees of vis bij een gerecht zonder vlees, zonder nieuw recept', async () => {
+  await page.goto(B + '#/planner'); await page.waitForSelector('.day');
+  const today = iso();
+  const pk = (await japi(page, 'GET', '/recipes')).find((r) => r.title === 'Hollandse pannenkoeken');
+  await page.locator(`.slot[data-date="${today}"][data-meal="lunch"] [data-add]`).click();
+  await page.waitForSelector('[data-meat-pick]');
+  const slavink = (await japi(page, 'GET', '/ingredients?q=slavink'))[0];
+  await page.selectOption('.modal [data-meat-pick]', String(slavink.id));
+  await page.fill('.modal [data-q]', 'pannenkoek'); await page.waitForTimeout(200);
+  await page.click(`.modal [data-pick="${pk.id}"]`); await page.waitForTimeout(700);
+  const txt = await page.locator(`.slot[data-date="${today}"][data-meal="lunch"]`).textContent();
+  expect(/slavink/.test(txt), `kaartje: ${txt.replace(/\s+/g, ' ')}`);
+  const shop = await japi(page, 'GET', `/shopping?week=${today}`);
+  expect(shop.items.some((i) => i.name === 'slavink'), 'slavink niet op de boodschappenlijst');
+  await page.screenshot({ path: `${OUT}/27-vlees-erbij.png` });
+  return 'pannenkoeken + slavink: op kaartje en boodschappenlijst';
+});
+
+await scenario('UAT-28', 'Maaltijd van losse ingrediënten (zonder recept)', async () => {
+  await page.goto(B + '#/planner'); await page.waitForSelector('.day');
+  const today = iso();
+  await page.locator(`.slot[data-date="${today}"][data-meal="ontbijt"] [data-add]`).click();
+  await page.click('.modal [data-loose]'); await page.waitForSelector('[data-meat-list] [data-add]');
+  for (const q of ['croissant', 'banaan']) {
+    await page.fill('[data-meat-q]', q); await page.waitForTimeout(250);
+    await page.locator('[data-meat-list] [data-add]').first().click(); await page.waitForTimeout(400);
+  }
+  await page.keyboard.press('Escape'); await page.waitForTimeout(600);
+  const txt = (await page.locator(`.slot[data-date="${today}"][data-meal="ontbijt"]`).textContent()).replace(/\s+/g, ' ');
+  expect(/croissant/.test(txt) && /banaan/.test(txt), txt);
+  await page.locator(`.slot[data-date="${today}"][data-meal="ontbijt"]`).screenshot({ path: `${OUT}/28-losse-ingredienten.png` });
+  return txt.trim().slice(0, 80);
+});
+
+await scenario('UAT-29', 'Een gerecht als vlees bij een ander gerecht', async () => {
+  const recs = await japi(page, 'GET', '/recipes');
+  const hachee = recs.find((r) => r.title.startsWith('Hachee'));
+  const full = await japi(page, 'GET', `/recipes/${hachee.id}`);
+  await japi(page, 'PUT', `/recipes/${hachee.id}`, { ...full, is_side: true });
+  const and = recs.find((r) => r.title.startsWith('Andijvie'));
+  const date = iso(new Date(Date.now() + 86400000));
+  const { id } = await japi(page, 'POST', '/plan', { date, meal: 'diner', recipe_id: and.id, servings: 2, extras: [{ recipe_id: hachee.id, quantity: 1 }] });
+  const e = (await japi(page, 'GET', `/plan?week=${date}`)).days.flatMap((d) => d.entries).find((x) => x.id === id);
+  expect(e.extras[0].name.startsWith('Hachee') && e.kcal_per_serving > 0, JSON.stringify(e.extras));
+  return `${and.title} + ${e.extras[0].name}: ${Math.round(e.kcal_per_serving)} kcal p.p.`;
+});
+
+await scenario('UAT-30', 'Minder restjes: hele verpakking, hele stuks en een minimum', async () => {
+  const recs = await japi(page, 'GET', '/recipes');
+  const bc = recs.find((r) => r.title.startsWith('Butter'));
+  const full = await japi(page, 'GET', `/recipes/${bc.id}`);
+  const ingredients = full.ingredients.map((r) => ({ ...r, amount_rule: r.name === 'slagroom' ? 'package' : r.amount_rule, min_quantity: r.name === 'ui' ? 1 : r.min_quantity }));
+  await japi(page, 'PUT', `/recipes/${bc.id}`, { ...full, ingredients });
+  await page.goto(B + `#/recept/${bc.id}?personen=1`); await page.waitForSelector('.ingredient-list');
+  await page.waitForTimeout(400);
+  const txt = (await page.textContent('.ingredient-list')).replace(/\s+/g, ' ');
+  expect(/1 stuk ui/.test(txt) && /250 ml slagroom/.test(txt) && /hele verpakking/.test(txt), txt.slice(0, 200));
+  return 'voor 1 persoon: 1 ui (minimum), 250 ml slagroom (heel pak)';
+});
+
+await scenario('UAT-31', 'Recepten verwijderen (ook meerdere) en standaardrecepten terugzetten', async () => {
+  await page.goto(B + '#/recepten'); await page.waitForSelector('.recipe-card');
+  const n0 = await page.locator('.recipe-card').count();
+  await page.click('[data-select-mode]');
+  await page.locator('.recipe-card').nth(0).click(); await page.locator('.recipe-card').nth(1).click();
+  await page.click('[data-delete-selected]'); await page.click('[data-yes]'); await page.waitForTimeout(700);
+  const n1 = await page.locator('.recipe-card').count();
+  expect(n1 === n0 - 2, `${n0} → ${n1}`);
+  await page.goto(B + '#/instellingen'); await page.waitForSelector('[data-restore-builtins]');
+  await page.click('[data-restore-builtins]'); await page.waitForTimeout(600);
+  const n2 = (await japi(page, 'GET', '/recipes')).length;
+  expect(n2 === n0, `terugzetten: ${n2}`);
+  return `${n0} → ${n1} → ${n2}`;
+});
+
+await scenario('UAT-32', 'Niet-herkend ingrediënt koppelen of aanmaken vanuit het recept', async () => {
+  const r = await japi(page, 'POST', '/recipes', { title: 'UAT fruitbak', servings: 2, steps: ['Snijd.'], ingredients: [{ name: 'xyzvrucht', quantity: 2, unit: 'stuk' }] });
+  await page.goto(B + `#/recept/${r.id}`); await page.waitForSelector('[data-link-row]');
+  await page.click('[data-link-row]'); await page.click('[data-tab="nieuw"]');
+  await page.fill('[data-pane="nieuw"] [name=kcal]', '60'); await page.fill('[data-pane="nieuw"] [name=unit_weight_g]', '150');
+  await page.click('[data-pane="nieuw"] .btn-primary'); await page.waitForTimeout(700);
+  const after = await japi(page, 'GET', `/recipes/${r.id}`);
+  expect(after.ingredients[0].ingredient_id && after.missing_nutrition === 0, JSON.stringify(after.ingredients[0]).slice(0, 120));
+  return `‘xyzvrucht’ aangemaakt en gekoppeld: ${Math.round(after.nutrition_total.kcal)} kcal totaal`;
+});
+
+await scenario('UAT-33', 'Snel loggen: recent gebruikt met één tik, bake-off uit de Jumbo-lijst', async () => {
+  await mob.goto(B + '#/dagboek'); await mob.waitForSelector('[data-add]');
+  await mob.locator('[data-add="ontbijt"]').tap();
+  await mob.fill('[data-q]', 'croissant'); await mob.waitForSelector('[data-ing]');
+  const names = await mob.locator('[data-ing]').allTextContents();
+  expect(names.some((n) => /roomboter croissant/.test(n)), names.join(' | '));
+  await mob.locator('[data-ing]').filter({ hasText: 'roomboter croissant' }).first().tap();
+  await mob.locator('[data-amount] .btn-primary').tap(); await mob.waitForTimeout(600);
+  await mob.locator('[data-add="tussendoor"]').tap(); await mob.waitForSelector('[data-recent]');
+  await mob.screenshot({ path: `${OUT}/33-recent.png` });
+  const before = Number((await mob.textContent('.kcal-big')).replace(/\D/g, ''));
+  await mob.locator('[data-recent]').first().tap(); await mob.waitForTimeout(600);
+  const after = Number((await mob.textContent('.kcal-big')).replace(/\D/g, ''));
+  expect(after > before, `${before} → ${after}`);
+  const ing = (await japi(mob, 'GET', '/ingredients?q=roomboter croissant'))[0];
+  expect(/Gluten/.test(ing.allergens || ''), 'allergenen ontbreken');
+  return `croissant (Jumbo bake-off, ${ing.unit_weight_g} g, allergenen: ${ing.allergens}); recent: ${before} → ${after} kcal`;
 });
 
 await browser.close();

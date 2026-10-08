@@ -1,8 +1,8 @@
-# Gebruikersacceptatietest (UAT): Maaltijden-app v1 → v2.3
+# Gebruikersacceptatietest (UAT): Maaltijden-app v1 → v3
 
 **Datum:** 8 oktober 2026
-**Getest:** v1.0 (eerste versie), v2.0, v2.2 (barcode scannen; Jumbo-koppeling verwijderd) en v2.3 (prijzen uit Open Prices)
-**Uitslag v2.3:** 22 van de 22 scenario's geslaagd ✅
+**Getest:** v1.0 (eerste versie), v2.0, v2.2 (barcode scannen; Jumbo-koppeling verwijderd), v2.3 (prijzen uit Open Prices), v2.6 (dagboek) en **v3.0**
+**Uitslag v3.0:** 33 van de 33 scenario's geslaagd ✅ (zie [§8](#8-v3-recensies-opnieuw-bekeken-en-9-nieuwe-scenarios))
 
 ## 1. Aanpak
 
@@ -123,7 +123,85 @@ De functies zijn daarom verwijderd. Sinds v2.3 komen prijzen uit Open Prices, de
 
 Veel recensiebronnen zijn overzichtssites of door concurrenten geschreven. Zie de verwachtingen daarom als richting, niet als exacte cijfers.
 
-## Bijlage: schermafbeeldingen v2
+## 8. v3: recensies opnieuw bekeken en 9 nieuwe scenario's
+
+Voor v3 zijn alle functies op een rij gezet en opnieuw naast recensies gelegd. Dit keer ook van **calorie-apps**, omdat de app sinds v2.6 een dagboek heeft.
+Daarnaast is gekeken naar wat er bij het eigen gebruik in de Android-app misging.
+
+### 8.1 Wat recensies zeggen (tweede ronde)
+
+| # | Klacht of wens in recensies | Hoe Maaltijden het doet |
+|---|---|---|
+| V15 | **Betaalmuur en abonnementen.** De meest gegeven reden voor 1-ster-recensies bij calorie-apps; ook bij Samsung Food. Paprika wordt juist geprezen om de eenmalige prijs. | Geen account, abonnement of advertenties; alles draait op je eigen server (UAT-18) |
+| V16 | **Logging kost te veel tikken.** Het dagboek bijhouden moet snel; gebruikers haken af als elk item zoeken vereist. | Nieuw: **‘Recent gebruikt’**, met één tik opnieuw toevoegen. Daarnaast ‘kopieer gisteren’ en geplande maaltijden afvinken (UAT-23, UAT-33). |
+| V17 | **Fouten in de voedingsdatabase.** Door gebruikers ingevoerde producten met verkeerde waarden. | Bron per ingrediënt zichtbaar (NEVO, Open Food Facts, Jumbo-productinformatie). Sterk afwijkende waarden worden niet automatisch overgenomen (UAT-05, UAT-06). |
+| V18 | **Schuldgevoel en druk.** Rode cijfers en streaks worden als demotiverend ervaren. | Geen streaks of meldingen. Het dagdoel is een richtlijn en het gewicht toont een trend (gemiddelde van 7 dagen) in plaats van dagschommelingen (UAT-24). |
+| V19 | **Onoverzichtelijk en bugs op de telefoon.** Knoppen te klein, inhoud achter balken, vensters die blijven hangen. | Getest met nagebootste systeembalken en vingergrootte (UAT-25, UAT-26). |
+| V20 | **Niet flexibel genoeg.** Je moet een recept maken voor elke variatie of voor een snel ‘broodje’. | Vlees of vis los kiezen bij een gerecht, een gerecht als bijgerecht, en maaltijden van losse ingrediënten (UAT-27 t/m UAT-29). |
+| V21 | **Verspilling door verpakkingen.** Het recept vraagt 150 g, de winkel verkoopt 400 g. | Regels per ingrediënt: hele verpakking, afronden op hele stuks, of een minimum (UAT-30) |
+
+### 8.2 Bevindingen bij eigen gebruik (Android-app)
+
+| Bevinding | Oplossing in v3 |
+|---|---|
+| In de Android-app viel de kop onder de statusbalk en de onderste knoppen achter de navigatiebalk (edge-to-edge) | Ruimte voor de systeembalken op elke pagina, in elk venster en bij meldingen |
+| Het was niet duidelijk dat je vlees bij een maaltijd kunt kiezen | Een duidelijke knop **🥩 + Vlees of vis** op elk gerecht zonder vlees, en een keuzelijst bij het inplannen |
+| Kleine knoppen op het touchscreen | Minimaal 44 px per knop, invoervelden van 16 px (geen inzoomen), daglijst om snel naar een dag te springen |
+| Een geopend venster bleef staan bij de terugknop | Vensters sluiten bij het wisselen van pagina |
+
+### 8.3 Nieuwe scenario's en uitslag
+
+| ID | Scenario | Verw. | v2.6 | v3 |
+|---|---|---|---|---|
+| UAT-25 | Telefoon/app: niets verdwijnt achter de status- of navigatiebalk | V19 | ❌ kop onder statusbalk in de app | ✅ 5 pagina's met nagebootste balken (32/24 px); vensters sluiten bij navigeren |
+| UAT-26 | Touchscreen: knoppen groot genoeg om met een vinger te raken | V19 | – niet gemeten | ✅ alle gemeten knoppen ≥ 44 px (richtlijn Apple 44 pt, Google 48 dp) |
+| UAT-27 | Vlees of vis bij een gerecht zonder vlees, zonder nieuw recept | V20 | ❌ | ✅ op het kaartje en op de boodschappenlijst |
+| UAT-28 | Maaltijd van losse ingrediënten (zonder recept) | V20 | ⚠️ alleen vrije tekst, zonder boodschappen | ✅ croissant en banaan als ontbijt op de planner |
+| UAT-29 | Een gerecht als vlees bij een ander gerecht | V20 | ❌ | ✅ |
+| UAT-30 | Minder restjes: hele verpakking, hele stuks en een minimum | V21 | ❌ | ✅ |
+| UAT-31 | Recepten verwijderen (ook meerdere) en standaardrecepten terugzetten | V14 | ❌ | ✅ |
+| UAT-32 | Niet-herkend ingrediënt koppelen of aanmaken vanuit het recept | V8 | ❌ | ✅ en de naam wordt onthouden |
+| UAT-33 | Snel loggen: recent gebruikt met één tik, bake-off uit de Jumbo-lijst | V16 | ⚠️ alleen zoeken | ✅ |
+
+UAT-01 t/m UAT-24 zijn in dezelfde ronde opnieuw uitgevoerd en blijven geslaagd. **v3.0: 33 van 33 geslaagd.**
+
+### 8.4 Uitgevallen scenario's in de eerste v3-ronde
+
+| Scenario | Wat er misging | Oorzaak | Opgelost |
+|---|---|---|---|
+| UAT-22 Open Prices | Nog geen Open Prices-prijs bij ‘wortel’ | Met 223 ingrediënten duurt het ophalen langer dan de test wachtte | Het script wacht tot de prijzen binnen zijn |
+| UAT-25 systeembalken | Het menu onderaan was niet aan te tikken | Het testscript tikte op het menu terwijl een venster openstond. Dat is zo bedoeld, want de achtergrond van het venster dekt het menu af. | Het script gebruikt nu de terugknop, net als op de telefoon |
+| UAT-26 touchscreen | Geslaagd met een ondergrens van 32 px, maar knoppen waren 32–42 px | De eerste ondergrens was te ruim | Ondergrens naar 44 px (richtlijn Apple; Google adviseert 48 dp). Knoppen, tags, sterren, menu's en de daglijst vergroot. |
+| UAT-27, 28, 31 | Klik op een knop liep vast | Een venster van een eerder mislukt scenario stond nog open, en knoppen werden ook buiten het venster gezocht | Zoeken binnen het venster; na een fout worden vensters gesloten |
+
+### 8.5 Open punten
+
+- **Jumbo bake-off:** de voedingswaarden en allergenen komen uit het Jumbo-productinformatieblad (8 mei 2023).
+  Gewicht per stuk en prijs zijn geschat, omdat de Jumbo-website vanuit de testomgeving niet bereikbaar was. Pas ze zo nodig aan bij *Ingrediënten*.
+- **Standaardfoto's van ingrediënten:** 165 van de 223 ingrediënten hebben een foto met een vrije licentie. Voor de rest (vooral specifieke bake-offbroodjes)
+  is geen passende vrije foto gevonden. Je kunt zelf een foto uploaden of een webwinkel-link gebruiken.
+- **Calorie-apps** hebben grote, gecontroleerde productdatabases. Maaltijden gebruikt Open Food Facts (open, door gebruikers ingevoerd) en NEVO-schattingen.
+  Controleer daarom bij producten die je vaak eet de waarden op de verpakking.
+
+### 8.6 Bronnen v3
+
+- Calorie-apps: [1-ster-recensies van calorie-apps (2026) – Unstar](https://unstar.app/blog/calorie-tracking-apps-ranked-1-star-reviews-2026) ·
+  [Calorie- en voedingsapps in klantfeedback – Kimola](https://kimola.com/blog/understanding-calorie-tracking-and-nutrition-apps-through-customer-feedback-analysis) ·
+  [YAZIO-feedbackrapport – Kimola](https://kimola.com/reports/unveil-insights-with-yazio-calorie-counter-diet-feedback-report-app-store-us-147620) ·
+  [50.000 recensies van calorie-apps – Nutrola](https://nutrola.app/en/blog/we-analyzed-50000-calorie-tracker-reviews-what-users-actually-complain-about-2026) (door een concurrent geschreven; niet volledig te openen)
+- Maaltijdplanners: [Samsung Food – AppFollow](https://apps.appfollow.io/ios/samsung-food-meal-planning/1133637674?country=ee) ·
+  [Paprika 3 – AppFollow](https://apps.appfollow.io/ios/paprika-recipe-manager-3/1303222868?country=us) ·
+  [MealPrepPro – AppFollow](https://apps.appfollow.io/ios/mealpreppro-planner-recipes/1249805978?country=ca) ·
+  [Mealime – recensies](https://justuseapp.com/en/app/1079999103/mealime-meal-plans-recipes/reviews) ·
+  [Meal Planner & Grocery List – recensies](https://justuseapp.com/en/app/6443649573/meal-planner-grocery-list/reviews) ·
+  [Plan to Eat – productrecensies](https://plantoeat.com/blog/category/product-reviews) ·
+  [Meal planning apps in 2026 – FoodiePrep](https://www.foodieprep.ai/blog/meal-planning-apps-in-2026-which-tools-actually-simplify-your-kitchen) (door een concurrent geschreven) ·
+  [Crouton – RecLeague](https://recleague.com/entity/88720-crouton) ·
+  [Beste recepten-apps voor iPhone en iPad – iCulture](https://www.iculture.nl/gids/beste-recepten-apps-iphone-ipad/)
+
+Ook hier geldt: veel bronnen zijn overzichtssites of door concurrenten geschreven. Zie ze als richting.
+
+## Bijlage: schermafbeeldingen
 
 | | |
 |---|---|
@@ -132,5 +210,7 @@ Veel recensiebronnen zijn overzichtssites of door concurrenten geschreven. Zie d
 | ![Wat kan ik maken](uat/12-wat-kan-ik-maken.png) ‘Wat kan ik maken?’ | ![Offline](uat/16-offline.png) Offline met melding |
 | ![Barcode in recept](uat/21-barcode-recept.png) Ingrediënt scannen in de recepteditor | ![Open Prices](uat/22-open-prices.png) Winkelprijzen uit Open Prices |
 | ![Dagboek](uat/23-dagboek.png) Calorieëndagboek op de telefoon | ![Gewicht](uat/24-gewicht.png) Gewichtslog met trendlijn |
+| ![Vlees erbij](uat/27-vlees-erbij.png) *(v3)* Vlees kiezen bij een gerecht | ![Losse ingrediënten](uat/28-losse-ingredienten.png) *(v3)* Maaltijd van losse ingrediënten |
+| ![Systeembalken](uat/25-systeembalken.png) *(v3)* App met systeembalken | ![Recent gebruikt](uat/33-recent.png) *(v3)* Recent gebruikt, één tik |
 
 *De voedingswaarden en barcodes op de schermafbeeldingen komen van de nagebootste Open Food Facts-server, niet van echte producten.*

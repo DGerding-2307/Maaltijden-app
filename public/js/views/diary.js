@@ -258,6 +258,17 @@ export async function render(root, params) {
           <div class="pick-list" data-results><p class="muted small">Typ minstens 2 letters. Recepten tellen per portie, ingrediënten per gram.</p></div>`;
         const q = $('[data-q]', body);
         q.focus();
+        // Recent gebruikt: met één tik dezelfde hoeveelheid nog een keer
+        api.get(`/diary/recent?persoon=${person.id}`).then((recent) => {
+          if (!recent.length || q.value.trim()) return;
+          $('[data-results]', body).innerHTML = `<p class="small muted">Recent gebruikt – tik om toe te voegen</p>${recent.map((x, i) => `
+            <button class="pick-item" data-recent="${i}"><span>↺ ${esc(x.name)}</span>
+              <span class="muted small">${x.type === 'recipe' ? `${num(x.servings, 2)} portie` : x.type === 'ingredient' ? `${num(x.grams, 0)} g` : 'eigen invoer'} · ${num(x.kcal, 0)} kcal</span></button>`).join('')}`;
+          $$('[data-recent]', body).forEach((b) => b.addEventListener('click', () => {
+            const x = recent[Number(b.dataset.recent)];
+            done({ type: x.type, recipe_id: x.recipe_id, ingredient_id: x.ingredient_id, servings: x.servings, grams: x.grams, name: x.name, values: x.values });
+          }));
+        }).catch(() => {});
         const search = debounce(async () => {
           if (q.value.trim().length < 2) return;
           const r = await api.get(`/foods?q=${encodeURIComponent(q.value.trim())}`);
