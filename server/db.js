@@ -209,6 +209,8 @@ const MIGRATIONS = [
   ['ingredients', 'amount_rule', 'TEXT'],
   ['recipe_ingredients', 'amount_rule', 'TEXT'],
   ['recipe_ingredients', 'min_quantity', 'REAL'],
+  ['recipes', 'is_side', 'INTEGER NOT NULL DEFAULT 0'],
+  ['plan_extras', 'recipe_id', 'INTEGER REFERENCES recipes(id) ON DELETE CASCADE'],
 ];
 
 function migrate(db) {

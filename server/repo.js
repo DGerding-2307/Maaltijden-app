@@ -233,6 +233,8 @@ export function saveRecipe(data, id = null) {
       image_url: data.image_url || null,
       source_url: data.source_url || null,
       favorite: data.favorite ? 1 : 0,
+      // Kan als vlees (of bijgerecht) bij een ander gerecht gekozen worden
+      is_side: data.is_side ? 1 : 0,
       rating: data.rating ? Number(data.rating) : null,
       notes: data.notes || '',
     };
@@ -366,6 +368,21 @@ export function extrasFor(entryId) {
   const db = getDb();
   const ingStmt = db.prepare('SELECT * FROM ingredients WHERE id = ?');
   return db.prepare('SELECT * FROM plan_extras WHERE plan_entry_id = ? ORDER BY position, id').all(entryId).map((x) => {
+    if (x.recipe_id) {
+      // Een gerecht als vlees: hoeveelheid in porties per persoon
+      const r = getDb().prepare('SELECT * FROM recipes WHERE id = ?').get(x.recipe_id);
+      if (!r) return null;
+      const c = computeRecipe(parseRecipe(r), rowsFor(x.recipe_id));
+      const portions = Number(x.quantity) || 1;
+      return {
+        ...x,
+        name: r.title,
+        image_url: r.image_url || null,
+        grams_per_person: null,
+        nutrition: Object.fromEntries(NUTRIENTS.map((k) => [k, (c.nutrition_per_serving[k] || 0) * portions])),
+        cost_cents: c.cost_per_serving_cents * portions,
+      };
+    }
     const ing = x.ingredient_id ? ingStmt.get(x.ingredient_id) : null;
     const grams = effectiveAmount(x, ing).grams;
     const ppg = pricePerGram(ing);
@@ -376,18 +393,25 @@ export function extrasFor(entryId) {
       nutrition: Object.fromEntries(NUTRIENTS.map((k) => [k, ((Number(ing?.[k]) || 0) * grams) / 100])),
       cost_cents: ppg != null ? ppg * grams : null,
     };
-  });
+  }).filter(Boolean);
 }
 
 /** Standaardportie per persoon: 1 stuk als het ingrediënt een stuksgewicht heeft, anders 125 g. */
-export function addPlanExtra(entryId, { ingredient_id, quantity, unit }) {
+export function addPlanExtra(entryId, { ingredient_id, recipe_id, quantity, unit }) {
   const db = getDb();
   if (!getPlanEntry(entryId)) throw Object.assign(new Error('Maaltijd niet gevonden'), { status: 404 });
+  const pos = db.prepare('SELECT COUNT(*) c FROM plan_extras WHERE plan_entry_id = ?').get(entryId).c;
+  if (recipe_id) {
+    const r = db.prepare('SELECT id, title FROM recipes WHERE id = ?').get(Number(recipe_id));
+    if (!r) throw Object.assign(new Error('Recept niet gevonden'), { status: 404 });
+    db.prepare("INSERT INTO plan_extras (plan_entry_id, recipe_id, name, quantity, unit, position) VALUES (?, ?, ?, ?, 'portie', ?)")
+      .run(entryId, r.id, r.title, Number(quantity) > 0 ? Number(quantity) : 1, pos);
+    return extrasFor(entryId);
+  }
   const ing = getIngredient(Number(ingredient_id));
   if (!ing) throw Object.assign(new Error('Ingrediënt niet gevonden'), { status: 404 });
   const u = unit || (ing.unit_weight_g >= 30 ? 'stuk' : 'g');
   const q = Number(quantity) > 0 ? Number(quantity) : u === 'stuk' ? 1 : 125;
-  const pos = db.prepare('SELECT COUNT(*) c FROM plan_extras WHERE plan_entry_id = ?').get(entryId).c;
   db.prepare('INSERT INTO plan_extras (plan_entry_id, ingredient_id, name, quantity, unit, position) VALUES (?, ?, ?, ?, ?, ?)')
     .run(entryId, ing.id, ing.name, q, u, pos);
   return extrasFor(entryId);
@@ -405,8 +429,8 @@ export function deletePlanExtra(id) {
 }
 
 function copyExtras(db, fromEntryId, toEntryId) {
-  db.prepare(`INSERT INTO plan_extras (plan_entry_id, ingredient_id, name, quantity, unit, position)
-    SELECT ?, ingredient_id, name, quantity, unit, position FROM plan_extras WHERE plan_entry_id = ?`).run(toEntryId, fromEntryId);
+  db.prepare(`INSERT INTO plan_extras (plan_entry_id, ingredient_id, recipe_id, name, quantity, unit, position)
+    SELECT ?, ingredient_id, recipe_id, name, quantity, unit, position FROM plan_extras WHERE plan_entry_id = ?`).run(toEntryId, fromEntryId);
 }
 
 export function addPlanEntry({ date, meal = 'diner', recipe_id = null, title = null, servings = 2, note = '', leftover_of = null, extras = [] }) {
@@ -417,7 +441,7 @@ export function addPlanEntry({ date, meal = 'diner', recipe_id = null, title = n
   const id = Number(lastInsertRowid);
   // Restjes krijgen hetzelfde vlees als de oorspronkelijke maaltijd
   if (leftover_of) copyExtras(db, leftover_of, id);
-  for (const x of extras || []) if (x?.ingredient_id) addPlanExtra(id, x);
+  for (const x of extras || []) if (x?.ingredient_id || x?.recipe_id) addPlanExtra(id, x);
   return id;
 }
 
@@ -471,9 +495,14 @@ export function getShoppingList(start, days = 7) {
   const withExtras = db.prepare(`SELECT p.id, p.servings, COALESCE(r.title, p.title) AS title FROM meal_plan p LEFT JOIN recipes r ON r.id = p.recipe_id
     WHERE p.date BETWEEN ? AND ? AND p.leftover_of IS NULL AND EXISTS (SELECT 1 FROM plan_extras x WHERE x.plan_entry_id = p.id)`).all(start, end);
   for (const p of withExtras) {
-    const rows = db.prepare('SELECT * FROM plan_extras WHERE plan_entry_id = ?').all(p.id)
-      .map((x) => ({ ...x, ingredient: x.ingredient_id ? ingStmt.get(x.ingredient_id) || null : null }));
-    entries.push({ servings: p.servings, recipe: { servings: 1, title: p.title || 'maaltijd' }, rows });
+    const extras = db.prepare('SELECT * FROM plan_extras WHERE plan_entry_id = ?').all(p.id);
+    const rows = extras.filter((x) => !x.recipe_id).map((x) => ({ ...x, ingredient: x.ingredient_id ? ingStmt.get(x.ingredient_id) || null : null }));
+    if (rows.length) entries.push({ servings: p.servings, recipe: { servings: 1, title: p.title || 'maaltijd' }, rows });
+    // Gerecht als vlees: de ingrediënten van dat recept voor (personen × porties p.p.)
+    for (const x of extras.filter((e) => e.recipe_id)) {
+      const r = db.prepare('SELECT * FROM recipes WHERE id = ?').get(x.recipe_id);
+      if (r) entries.push({ servings: p.servings * (Number(x.quantity) || 1), recipe: parseRecipe(r), rows: rowsFor(x.recipe_id) });
+    }
   }
   const list = buildShoppingList(entries);
   const states = new Map(db.prepare('SELECT item_key, checked, have FROM shopping_state WHERE week = ?').all(start).map((r) => [r.item_key, r]));

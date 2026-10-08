@@ -221,6 +221,10 @@ export function logPlannedDay(personId, date, onlyId = null) {
       if (p.recipe_id) addLogEntry({ person_id: personId, date, meal: mealForPlan(p.meal), type: 'recipe', recipe_id: p.recipe_id, servings: 1, plan_entry_id: p.id });
       // Vlees, vis of losse ingrediënten die bij deze maaltijd gekozen is (1 portie)
       for (const x of repo.extrasFor(p.id)) {
+        if (x.recipe_id) {
+          addLogEntry({ person_id: personId, date, meal: mealForPlan(p.meal), type: 'recipe', recipe_id: x.recipe_id, servings: Number(x.quantity) || 1, plan_entry_id: p.id });
+          continue;
+        }
         if (!x.ingredient_id || !x.grams_per_person) continue;
         addLogEntry({ person_id: personId, date, meal: mealForPlan(p.meal), type: 'ingredient', ingredient_id: x.ingredient_id, grams: x.grams_per_person, plan_entry_id: p.id });
       }

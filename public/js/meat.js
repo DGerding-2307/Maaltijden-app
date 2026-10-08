@@ -22,7 +22,9 @@ export const meatDialog = (entry, onChange) => extrasDialog(entry, onChange, { m
  */
 export async function extrasDialog(entry, onChange, { mode = 'meat', onClose } = {}) {
   const m = await meta();
-  const all = await api.get('/ingredients');
+  const [all, recipes] = await Promise.all([api.get('/ingredients'), api.get('/recipes')]);
+  // Gerechten die als vlees kunnen dienen (vinkje in de recepteditor), niet het gerecht zelf
+  const sides = recipes.filter((r) => r.is_side && r.id !== entry.recipe_id);
   let cat = mode === 'meat' ? MEAT : '';
   const title = entry.recipe_id ? entry.recipe_title : entry.title;
   const md = modal(`
@@ -37,6 +39,7 @@ export async function extrasDialog(entry, onChange, { mode = 'meat', onClose } =
         <option value="">Alle afdelingen</option>${m.categories.map((c) => `<option ${c === cat ? 'selected' : ''}>${esc(c)}</option>`).join('')}
       </select>
     </div>
+    <div data-sides></div>
     <div class="meat-grid" data-meat-list></div>`, { wide: true, onClose: () => onClose?.(extras) });
   const el = md.el;
   let extras = entry.extras || [];
@@ -46,13 +49,18 @@ export async function extrasDialog(entry, onChange, { mode = 'meat', onClose } =
       <li data-x="${x.id}">
         ${ingThumb(x, 'sm')}<strong>${esc(x.name)}</strong>
         <input class="input narrow" type="number" min="0" step="any" value="${x.quantity}" data-x-qty aria-label="Hoeveelheid per persoon">
-        <select class="input" data-x-unit aria-label="Eenheid">${['stuk', 'g', 'ml'].map((u) => `<option value="${u}" ${u === x.unit ? 'selected' : ''}>${{ stuk: 'stuks', g: 'gram', ml: 'ml' }[u]}</option>`).join('')}</select>
-        <span class="muted small">p.p. · ${num(x.grams_per_person, 0)} g · ${x.cost_cents != null ? euro(x.cost_cents * entry.servings) : ''}</span>
+        ${x.recipe_id ? '<input type="hidden" data-x-unit value="portie"><span class="small">portie(s)</span>'
+          : `<select class="input" data-x-unit aria-label="Eenheid">${['stuk', 'g', 'ml'].map((u) => `<option value="${u}" ${u === x.unit ? 'selected' : ''}>${{ stuk: 'stuks', g: 'gram', ml: 'ml' }[u]}</option>`).join('')}</select>`}
+        <span class="muted small">p.p.${x.grams_per_person ? ` · ${num(x.grams_per_person, 0)} g` : ' · gerecht'} · ${x.cost_cents != null ? euro(x.cost_cents * entry.servings) : ''}</span>
         <button class="mini danger" data-x-del aria-label="Verwijderen">✕</button>
       </li>`).join('')}</ul>` : '<p class="muted">Nog niets gekozen.</p>';
   };
   const drawOptions = () => {
     const q = $('[data-meat-q]', el).value.trim().toLowerCase();
+    const sideList = sides.filter((r) => !q || r.title.toLowerCase().includes(q));
+    $('[data-sides]', el).innerHTML = sideList.length ? `<p class="small muted">Gerechten</p><div class="meat-grid">${sideList.map((r) => `
+      <button class="meat-option" data-add-recipe="${r.id}">${r.image_url ? `<img class="ing-thumb" src="${esc(r.image_url)}" alt="" referrerpolicy="no-referrer">` : '<span class="ing-thumb meat-emoji">🍲</span>'}<span>${esc(r.title)}</span></button>`).join('')}</div>
+      <p class="small muted">Ingrediënten</p>` : '';
     const list = all.filter((i) => (!cat || i.category === cat) && (!q || `${i.name} ${i.aliases || ''}`.toLowerCase().includes(q))).slice(0, 60);
     $('[data-meat-list]', el).innerHTML = list.map((i) => `
       <button class="meat-option" data-add="${i.id}">${ingThumb(i) || `<span class="ing-thumb meat-emoji">${i.category === MEAT ? '🥩' : '🥕'}</span>`}<span>${esc(i.name)}</span></button>`).join('')
@@ -71,6 +79,13 @@ export async function extrasDialog(entry, onChange, { mode = 'meat', onClose } =
     } catch (err) { toast(err.message, 'error'); }
   };
   el.addEventListener('click', async (e) => {
+    const addRecipe = e.target.closest('[data-add-recipe]');
+    if (addRecipe) {
+      const r = sides.find((x) => x.id === Number(addRecipe.dataset.addRecipe));
+      await changed(api.post(`/plan/${entry.id}/extras`, { recipe_id: r.id, quantity: 1 }));
+      toast(`${r.title} toegevoegd`, 'success');
+      return;
+    }
     const add = e.target.closest('[data-add]');
     if (add) {
       const ing = all.find((i) => i.id === Number(add.dataset.add));

@@ -66,6 +66,8 @@ export async function render(root, params) {
           <label class="btn">📷 Foto uploaden<input type="file" accept="image/*" data-photo hidden></label>
         </div>
         <label class="span-2">Bron (URL) <input class="input" name="source_url" value="${esc(recipe.source_url || '')}"></label>
+        <label class="span-2 check"><input type="checkbox" name="is_side" ${recipe.is_side ? 'checked' : ''}>
+          🥩 Kan als vlees bij een ander gerecht <span class="muted small">(bv. gehaktballen in jus of hachee: kies het in de planner bij ‘+ vlees/vis’)</span></label>
       </div>
 
       <h2>Ingrediënten</h2>
@@ -316,6 +318,7 @@ export async function render(root, params) {
       steps: String(fd.get('steps')).split('\n').map((s) => s.trim()).filter(Boolean),
       notes: fd.get('notes'),
       favorite: recipe.favorite,
+      is_side: fd.has('is_side'),
       rating: recipe.rating,
       ingredients: rows.filter((r) => r.name.trim()),
     };

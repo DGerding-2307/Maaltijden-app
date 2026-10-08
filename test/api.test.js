@@ -141,3 +141,28 @@ test('vlees of vis bij een geplande maaltijd: boodschappen, kosten, voeding, kop
   plan = await get(`/plan?week=${date}`);
   assert.equal(plan.days[0].entries.find((e) => e.id === id).extras.length, 0);
 });
+
+test('een gerecht als vlees bij een ander gerecht', async () => {
+  const recipes = await get('/recipes');
+  const hachee = recipes.find((r) => r.title === 'Hachee met rode kool');
+  const stamppot = recipes.find((r) => r.title === 'Andijviestamppot met spekjes');
+  const full = await get(`/recipes/${hachee.id}`);
+  await send('PUT', `/recipes/${hachee.id}`, { ...full, is_side: true });
+  assert.equal((await get(`/recipes/${hachee.id}`)).is_side, 1);
+
+  const date = '2031-05-05';
+  const { id } = await send('POST', '/plan', { date, meal: 'diner', recipe_id: stamppot.id, servings: 2, extras: [{ recipe_id: hachee.id, quantity: 1 }] });
+  const entry = (await get(`/plan?week=${date}`)).days[0].entries.find((e) => e.id === id);
+  assert.equal(entry.extras[0].name, 'Hachee met rode kool');
+  assert.equal(entry.extras[0].unit, 'portie');
+  const hacheeFull = await get(`/recipes/${hachee.id}`);
+  assert.ok(Math.abs(entry.extras[0].nutrition.kcal - hacheeFull.nutrition_per_serving.kcal) < 1);
+  // Boodschappen: hachee-ingrediënten voor 2 porties (recept is voor 4 → helft)
+  const shop = await get(`/shopping?week=${date}`);
+  const row = hacheeFull.ingredients.find((x) => x.ingredient && x.unit === 'g');
+  const item = shop.items.find((i) => i.ingredient_id === row.ingredient_id);
+  assert.ok(item && item.grams >= Math.round(row.computed_grams * 2 / hachee.servings) - 1, `${item?.grams} voor ${row.name}`);
+  // Het gerecht zelf verwijderen haalt het ook bij de maaltijd weg
+  await send('DELETE', `/recipes/${hachee.id}`);
+  assert.equal((await get(`/plan?week=${date}`)).days[0].entries.find((e) => e.id === id).extras.length, 0);
+});
