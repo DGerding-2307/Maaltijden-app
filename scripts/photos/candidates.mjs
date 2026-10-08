@@ -139,7 +139,8 @@ const slug = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,
 const list = forIngredients
   ? Object.entries(JSON.parse(fs.readFileSync(new URL('./ingredient-queries.json', import.meta.url)))).map(([name, q]) => [slug(name), [q], q])
   : QUERIES;
-const [MAX_COMMONS, MAX_OV] = forIngredients ? [4, 2] : [6, 4];
+// Openverse is traag bij veel zoekopdrachten: voor ingrediënten alleen Wikimedia Commons
+const [MAX_COMMONS, MAX_OV] = forIngredients ? [6, 0] : [6, 4];
 for (const [key, commonsQueries, ovQuery] of list.filter(([k]) => !only || only.includes(k))) {
   const found = [];
   const seenUrls = new Set();
@@ -156,8 +157,10 @@ for (const [key, commonsQueries, ovQuery] of list.filter(([k]) => !only || only.
     try { add(await commons(q), MAX_COMMONS); } catch (err) { console.log(`  commons ${q}: ${err.message}`); }
     await sleep(800);
   }
-  try { add(await openverse(ovQuery), MAX_OV); } catch (err) { console.log(`  openverse ${ovQuery}: ${err.message}`); }
-  await sleep(1500);
+  if (MAX_OV) {
+    try { add(await openverse(ovQuery), MAX_OV); } catch (err) { console.log(`  openverse ${ovQuery}: ${err.message}`); }
+    await sleep(1500);
+  }
 
   const dir = path.join(OUT, key);
   fs.mkdirSync(dir, { recursive: true });
