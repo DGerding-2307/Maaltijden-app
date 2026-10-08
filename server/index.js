@@ -191,6 +191,10 @@ export function createApp() {
     return repo.getRecipe(id);
   }));
   api.delete('/recipes/:id', wrap((req) => repo.deleteRecipe(Number(req.params.id))));
+  api.put('/recipes/:id/ingredients/:rowId/link', wrap((req) => {
+    if (!repo.linkRecipeIngredient(Number(req.params.id), Number(req.params.rowId), req.body.ingredient_id)) throw notFound();
+    return repo.getRecipe(Number(req.params.id));
+  }));
   api.post('/recipes/delete', wrap((req) => ({ deleted: repo.deleteRecipes(req.body.ids) })));
   api.post('/builtins/restore', wrap(() => ({ restored: restoreBuiltinRecipes(getDb()) })));
   api.post('/recipes/:id/duplicate', wrap((req) => {
@@ -209,6 +213,7 @@ export function createApp() {
   }));
   api.put('/ingredients/:id', wrap((req) => repo.saveIngredient(req.body, Number(req.params.id)) || Promise.reject(notFound())));
   api.delete('/ingredients/:id', wrap((req) => repo.deleteIngredient(Number(req.params.id))));
+  api.post('/ingredients/:id/alias', wrap((req) => repo.addIngredientAlias(Number(req.params.id), req.body.name) || Promise.reject(notFound())));
   api.post('/ingredients/:id/estimate', wrap(async (req) => {
     const ing = repo.getIngredient(Number(req.params.id));
     if (!ing) throw notFound();

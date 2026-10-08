@@ -4,6 +4,7 @@ import {
   NUTRIENT_LABELS, REFERENCE_INTAKE,
 } from '../util.js';
 import { recipeThumb } from './recipes.js';
+import { linkIngredientDialog } from '../link-ingredient.js';
 
 /** Bronvermelding bij een meegeleverde foto (vrije licentie). */
 function photoCredit(r) {
@@ -14,9 +15,14 @@ function photoCredit(r) {
   return `<figcaption class="photo-credit">Voorbeeldfoto: <a href="${esc(c.page)}" target="_blank" rel="noopener">${esc(c.author)}</a>, ${license}</figcaption>`;
 }
 
+// Meervoud van telbare eenheden: 1 stuk, 2 stuks; 1 teen, 3 tenen …
+const PLURAL = { stuk: 'stuks', teen: 'tenen', blik: 'blikken', pak: 'pakken', zakje: 'zakjes', bos: 'bossen', plak: 'plakken', snufje: 'snufjes', scheut: 'scheutjes' };
+
 export function scaledLine(row, factor) {
   if (row.unit === 'naar smaak' || row.quantity == null) return `${esc(row.unit === 'naar smaak' ? '' : row.unit)}`;
-  return `${qty(row.quantity * factor)} ${esc(row.unit)}`;
+  const amount = row.quantity * factor;
+  const unit = amount > 1 && PLURAL[row.unit] ? PLURAL[row.unit] : row.unit;
+  return `${qty(amount)} ${esc(unit)}`;
 }
 
 export async function render(root, params) {
@@ -88,7 +94,7 @@ export async function render(root, params) {
                   <input type="checkbox">
                   <span class="amount">${scaledLine(row, factor)}</span>
                   <span class="name">${esc(row.name)}${row.note ? ` <span class="muted">– ${esc(row.note)}</span>` : ''}${row.optional ? ' <span class="badge">optioneel</span>' : ''}
-                  ${!row.ingredient_id ? ' <span class="badge warn" title="Niet gekoppeld aan de ingrediëntendatabase: geen voedingswaarden/prijs">?</span>' : ''}</span>
+                  ${!row.ingredient_id ? ` <button type="button" class="link-btn strong" data-link-row="${row.id}" title="Niet gekoppeld aan de ingrediëntendatabase: geen voedingswaarden en prijs">🔗 koppelen</button>` : ''}</span>
                   <span class="line-cost muted">${row.cost_cents != null ? euro(row.cost_cents * factor) : ''}</span>
                 </label>
               </li>`).join('')}
@@ -236,6 +242,16 @@ export async function render(root, params) {
         const v = Number(t.closest('[data-rate]').dataset.rate);
         r.rating = r.rating === v ? null : v;
         await api.patch(`/recipes/${r.id}`, { rating: r.rating });
+        return draw();
+      }
+      const linkBtn = t.closest('[data-link-row]');
+      if (linkBtn) {
+        e.preventDefault(); // knop staat in een label: niet het vinkje omzetten
+        const row = r.ingredients.find((x) => x.id === Number(linkBtn.dataset.linkRow));
+        const ing = await linkIngredientDialog(row.name, row.ingredient_id);
+        if (!ing?.id) return;
+        Object.assign(r, await api.put(`/recipes/${r.id}/ingredients/${row.id}/link`, { ingredient_id: ing.id }));
+        toast(`‘${row.name}’ gekoppeld aan ${ing.name}`, 'success');
         return draw();
       }
       if (t.closest('[data-plan]')) return planDialog();

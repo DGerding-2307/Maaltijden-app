@@ -1,9 +1,13 @@
 // Recept toevoegen/bewerken. Wordt ook gebruikt om een door Claude gemaakt concept na te kijken.
 import { api, meta } from '../api.js';
 import { scanBarcode } from '../scanner.js';
+import { linkIngredientDialog } from '../link-ingredient.js';
 import { $, $$, esc, toast, readImageFile, modal, num } from '../util.js';
 
 export const DRAFT_KEY = 'recipeDraft';
+
+// Duidelijkere namen in de keuzelijst; de opgeslagen eenheid blijft kort (stuk, el, tl)
+const UNIT_LABELS = { '': '–', stuk: 'stuks', el: 'el (eetlepel)', tl: 'tl (theelepel)', teen: 'teen (knoflook)' };
 
 export async function render(root, params) {
   const m = await meta();
@@ -22,7 +26,7 @@ export async function render(root, params) {
     }
   }
   const rows = (recipe.ingredients || []).map((r) => ({
-    name: r.name, quantity: r.quantity, unit: r.unit, note: r.note || '', optional: !!r.optional,
+    name: r.name, quantity: r.quantity, unit: ({ stuks: 'stuk', st: 'stuk', 'stuk(s)': 'stuk' })[r.unit] ?? r.unit ?? '', note: r.note || '', optional: !!r.optional,
     grams: r.grams ?? null, ingredient_id: r.ingredient_id ?? null, estimate: r.estimate || null,
     ingredient_name: r.ingredient?.name || null,
   }));
@@ -91,17 +95,23 @@ export async function render(root, params) {
 
   function status(row) {
     const linked = row.ingredient_id ? ingById.get(Number(row.ingredient_id)) : null;
-    if (linked) return `<span class="link-ok" title="Gekoppeld aan ‘${esc(linked.name)}’">✔ ${esc(linked.name)}</span>`;
-    if (row.estimate) return '<span class="link-new" title="Wordt als nieuw ingrediënt toegevoegd met Claude-schatting">✨ nieuw</span>';
-    if (row.name) return '<span class="link-none" title="Niet gevonden in de database: geen voedingswaarden/prijs">⚠ onbekend</span>';
+    if (linked) return `<span class="link-ok" title="Gekoppeld aan ‘${esc(linked.name)}’">✔ ${esc(linked.name)}</span> <button type="button" class="link-btn" data-link title="Ander ingrediënt kiezen">wijzig</button>`;
+    if (row.estimate) return '<span class="link-new" title="Wordt als nieuw ingrediënt toegevoegd met Claude-schatting">✨ nieuw</span> <button type="button" class="link-btn" data-link>zelf koppelen</button>';
+    if (row.name) return '<span class="link-none" title="Niet gevonden in de database: geen voedingswaarden/prijs">⚠ onbekend</span> <button type="button" class="link-btn strong" data-link>🔗 Koppelen of aanmaken</button>';
     return '';
+  }
+
+  function unitSelect(current) {
+    const units = ['', ...m.units];
+    if (current && !units.includes(current)) units.push(current);
+    return `<select class="input" data-k="unit" aria-label="Eenheid">${units.map((u) => `<option value="${esc(u)}" ${u === (current || '') ? 'selected' : ''}>${esc(UNIT_LABELS[u] ?? u)}</option>`).join('')}</select>`;
   }
 
   function drawRows() {
     $('[data-rows]', view).innerHTML = rows.map((row, i) => `
       <div class="ing-row" data-i="${i}">
         <input class="input" type="number" step="any" min="0" data-k="quantity" value="${row.quantity ?? ''}" aria-label="Hoeveelheid">
-        <input class="input" list="units" data-k="unit" value="${esc(row.unit)}" aria-label="Eenheid">
+        ${unitSelect(row.unit)}
         <div class="ing-name"><input class="input" list="ing-names" data-k="name" value="${esc(row.name)}" aria-label="Ingrediënt"><small data-status>${status(row)}</small></div>
         <input class="input" data-k="note" value="${esc(row.note)}" placeholder="bv. fijngesneden" aria-label="Notitie">
         <input class="input" type="number" step="any" min="0" data-k="grams" value="${row.grams ?? ''}" placeholder="auto" aria-label="Gram">
@@ -129,6 +139,23 @@ export async function render(root, params) {
       $('[data-k="grams"]', el).value = row.grams ?? '';
     }
   }
+  async function linkRow(i) {
+    const row = rows[i];
+    const ing = await linkIngredientDialog(row.name, row.ingredient_id ? Number(row.ingredient_id) : null);
+    if (!ing) return;
+    if (ing.id) ingById.set(ing.id, ing);
+    row.ingredient_id = ing.id;
+    row.estimate = null;
+    // Bewust ontkoppeld: bij opslaan niet opnieuw automatisch koppelen
+    row.auto_match = !!ing.id;
+    if (ing.id && ing.unit_weight_g && !['g', 'kg', 'ml', 'l', 'el', 'tl'].includes(String(row.unit).toLowerCase())) row.grams = null;
+    const el = $(`[data-i="${i}"]`, view);
+    if (el) {
+      $('[data-status]', el).innerHTML = status(row);
+      $('[data-k="grams"]', el).value = row.grams ?? '';
+    }
+  }
+
   const timers = new Map();
   const rematch = (i) => {
     const row = rows[i];
@@ -158,6 +185,7 @@ export async function render(root, params) {
     const rowEl = e.target.closest('[data-i]');
     if (!rowEl) return;
     const i = Number(rowEl.dataset.i);
+    if (e.target.closest('[data-link]')) return linkRow(i);
     if (e.target.closest('[data-del]')) { rows.splice(i, 1); drawRows(); }
     if (e.target.closest('[data-up]') && i > 0) { [rows[i - 1], rows[i]] = [rows[i], rows[i - 1]]; drawRows(); }
   });

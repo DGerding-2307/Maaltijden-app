@@ -82,6 +82,24 @@ export function saveIngredient(data, id = null) {
   return getIngredient(Number(lastInsertRowid));
 }
 
+/** Extra naam onthouden, zodat die voortaan automatisch aan dit ingrediënt wordt gekoppeld. */
+export function addIngredientAlias(id, alias) {
+  const ing = getIngredient(id);
+  const name = String(alias || '').trim().toLowerCase();
+  if (!ing || !name || name === ing.name.toLowerCase()) return ing;
+  const list = String(ing.aliases || '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (!list.map((s) => s.toLowerCase()).includes(name)) list.push(name);
+  getDb().prepare('UPDATE ingredients SET aliases = ? WHERE id = ?').run(list.join(','), id);
+  return getIngredient(id);
+}
+
+/** Eén ingrediëntregel van een recept (opnieuw) koppelen. */
+export function linkRecipeIngredient(recipeId, rowId, ingredientId) {
+  const res = getDb().prepare('UPDATE recipe_ingredients SET ingredient_id = ? WHERE id = ? AND recipe_id = ?')
+    .run(ingredientId ? Number(ingredientId) : null, rowId, recipeId);
+  return res.changes > 0;
+}
+
 export function deleteIngredient(id) {
   getDb().prepare('DELETE FROM ingredients WHERE id = ?').run(id);
 }

@@ -68,6 +68,11 @@ const ROUTES = [
     return repo.getRecipe(id);
   }],
   ['DELETE', '/recipes/:id', (req) => repo.deleteRecipe(Number(req.params.id))],
+  ['PUT', '/recipes/:id/ingredients/:rowId/link', (req) => {
+    if (!repo.linkRecipeIngredient(Number(req.params.id), Number(req.params.rowId), req.body.ingredient_id)) throw notFound();
+    return repo.getRecipe(Number(req.params.id));
+  }],
+  ['POST', '/ingredients/:id/alias', (req) => repo.addIngredientAlias(Number(req.params.id), req.body.name) || Promise.reject(notFound())],
   ['POST', '/recipes/delete', (req) => ({ deleted: repo.deleteRecipes(req.body.ids) })],
   ['POST', '/builtins/restore', () => ({ restored: restoreBuiltinRecipes(getDb()) })],
   ['POST', '/recipes/:id/duplicate', (req) => {
