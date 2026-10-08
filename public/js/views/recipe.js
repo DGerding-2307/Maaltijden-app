@@ -19,17 +19,34 @@ function photoCredit(r) {
 // Meervoud van telbare eenheden: 1 stuk, 2 stuks; 1 teen, 3 tenen …
 const PLURAL = { stuk: 'stuks', teen: 'tenen', blik: 'blikken', pak: 'pakken', zakje: 'zakjes', bos: 'bossen', plak: 'plakken', snufje: 'snufjes', scheut: 'scheutjes' };
 
-export function scaledLine(row, factor) {
+/** Hoeveelheid zoals berekend door de server (al geschaald, met de regels tegen restjes). */
+export function scaledLine(row) {
   if (row.unit === 'naar smaak' || row.quantity == null) return `${esc(row.unit === 'naar smaak' ? '' : row.unit)}`;
-  const amount = row.quantity * factor;
+  // Hele verpakking bij een eenheid als el of stuk: toon de verpakking zelf
+  if (row.packages && !['g', 'kg', 'ml', 'l'].includes(row.unit)) return `${row.packages}× ${esc(row.package_label)}`;
+  const amount = row.scaled_quantity ?? row.quantity;
   const unit = amount > 1 && PLURAL[row.unit] ? PLURAL[row.unit] : row.unit;
   return `${qty(amount)} ${esc(unit)}`;
+}
+
+/** Labeltje als een regel tegen restjes de hoeveelheid heeft aangepast. */
+export function ruleBadge(row) {
+  if (row.packages) return '<span class="badge rule" title="Gebruikt de hele verpakking, zodat je niets overhoudt">📦 hele verpakking</span>';
+  if (row.amount_rule_applied === 'round') return '<span class="badge rule" title="Afgerond op hele stuks">🔢 hele stuks</span>';
+  if (row.min_quantity && row.scaled_quantity <= row.min_quantity) return `<span class="badge rule" title="Minimale hoeveelheid">⬇ min. ${qty(row.min_quantity)}</span>`;
+  return '';
 }
 
 export async function render(root, params) {
   const m = await meta();
   const r = await api.get(`/recipes/${params.id}`);
   let persons = Number(params.personen) || r.servings;
+  // s: het recept berekend voor het gekozen aantal personen (hele verpakkingen schalen niet lineair)
+  let s = r;
+  async function rescale() {
+    s = persons === r.servings ? r : await api.get(`/recipes/${r.id}?personen=${persons}`);
+    draw();
+  }
   let nutritionMode = 'pp';
   const history = [];
 
@@ -38,7 +55,7 @@ export async function render(root, params) {
 
   function draw() {
     const factor = persons / r.servings;
-    const n = nutritionMode === 'pp' ? r.nutrition_per_serving : Object.fromEntries(Object.entries(r.nutrition_per_serving).map(([k, v]) => [k, v * persons]));
+    const n = nutritionMode === 'pp' ? s.nutrition_per_serving : s.nutrition_total;
     view.innerHTML = `
       <div class="recipe-hero">
         <figure class="hero-fig">
@@ -89,20 +106,20 @@ export async function render(root, params) {
           <div class="quick-persons">${[1, 2, 3, 4, 6, 8, 10].map((p) => `<button class="tag ${p === persons ? 'active' : ''}" data-setpersons="${p}">${p}</button>`).join('')}</div>
           ${persons !== r.servings ? `<p class="muted small">Origineel recept voor ${r.servings} personen – hoeveelheden ×${num(factor, 2)}.</p>` : ''}
           <ul class="ingredient-list">
-            ${r.ingredients.map((row) => `
+            ${s.ingredients.map((row) => `
               <li class="${row.optional ? 'optional' : ''}">
                 <label>
                   <input type="checkbox">
-                  <span class="amount">${scaledLine(row, factor)}</span>
-                  <span class="name">${ingThumb(row.ingredient, 'sm')}${esc(row.name)}${row.note ? ` <span class="muted">– ${esc(row.note)}</span>` : ''}${row.optional ? ' <span class="badge">optioneel</span>' : ''}
+                  <span class="amount">${scaledLine(row)}</span>
+                  <span class="name">${ingThumb(row.ingredient, 'sm')}${esc(row.name)}${row.note ? ` <span class="muted">– ${esc(row.note)}</span>` : ''}${row.optional ? ' <span class="badge">optioneel</span>' : ''}${ruleBadge(row)}
                   ${!row.ingredient_id ? ` <button type="button" class="link-btn strong" data-link-row="${row.id}" title="Niet gekoppeld aan de ingrediëntendatabase: geen voedingswaarden en prijs">🔗 koppelen</button>` : ''}</span>
-                  <span class="line-cost muted">${row.cost_cents != null ? euro(row.cost_cents * factor) : ''}</span>
+                  <span class="line-cost muted">${row.cost_cents != null ? euro(row.cost_cents) : ''}</span>
                 </label>
               </li>`).join('')}
           </ul>
           <div class="cost-box">
-            <div><span class="muted">Prijs per persoon</span><strong>${euro(r.cost_per_serving_cents)}</strong></div>
-            <div><span class="muted">Totaal voor ${persons}</span><strong>${euro((r.cost_total_cents * persons) / r.servings)}</strong></div>
+            <div><span class="muted">Prijs per persoon</span><strong>${euro(s.cost_per_serving_cents)}</strong></div>
+            <div><span class="muted">Totaal voor ${persons}</span><strong>${euro(s.cost_total_cents)}</strong></div>
           </div>
           <p class="muted small">Naar verhouding van de verpakking. ${priceSummary()}${r.missing_price ? ` ${r.missing_price} ingrediënt(en) zonder prijs.` : ''}
             <a href="#/ingredienten">Prijzen beheren</a></p>
@@ -130,7 +147,7 @@ export async function render(root, params) {
           </table>
           <p class="muted small">*Referentie-inname van een gemiddelde volwassene (2000 kcal). ${sourceSummary()}
             ${r.missing_nutrition ? `<br>⚠️ ${r.missing_nutrition} ingrediënt(en) konden niet worden meegeteld.` : ''}</p>
-          ${macroBar(r.nutrition_per_serving)}
+          ${macroBar(s.nutrition_per_serving)}
         </section>
       </div>
 
@@ -235,8 +252,8 @@ export async function render(root, params) {
   view.addEventListener('click', async (e) => {
     const t = e.target;
     try {
-      if (t.closest('[data-persons]')) { persons = Math.max(1, persons + Number(t.closest('[data-persons]').dataset.persons)); return draw(); }
-      if (t.closest('[data-setpersons]')) { persons = Number(t.closest('[data-setpersons]').dataset.setpersons); return draw(); }
+      if (t.closest('[data-persons]')) { persons = Math.max(1, persons + Number(t.closest('[data-persons]').dataset.persons)); return rescale(); }
+      if (t.closest('[data-setpersons]')) { persons = Number(t.closest('[data-setpersons]').dataset.setpersons); return rescale(); }
       if (t.closest('[data-nmode]')) { nutritionMode = t.closest('[data-nmode]').dataset.nmode; return draw(); }
       if (t.closest('[data-fav]')) { r.favorite = !r.favorite; await api.patch(`/recipes/${r.id}`, { favorite: r.favorite }); return draw(); }
       if (t.closest('[data-rate]')) {
@@ -253,7 +270,7 @@ export async function render(root, params) {
         if (!ing?.id) return;
         Object.assign(r, await api.put(`/recipes/${r.id}/ingredients/${row.id}/link`, { ingredient_id: ing.id }));
         toast(`‘${row.name}’ gekoppeld aan ${ing.name}`, 'success');
-        return draw();
+        return rescale();
       }
       if (t.closest('[data-plan]')) return planDialog();
       if (t.closest('[data-q]')) return ask(t.closest('[data-q]').dataset.q);
@@ -292,5 +309,5 @@ export async function render(root, params) {
     if (e.target.matches('.ingredient-list input')) e.target.closest('li').classList.toggle('done', e.target.checked);
   });
 
-  draw();
+  await rescale();
 }

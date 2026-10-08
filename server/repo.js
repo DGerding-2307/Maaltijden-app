@@ -7,7 +7,7 @@ const ING_FIELDS = [
   'name', 'aliases', 'category', ...NUTRIENTS, 'unit_weight_g', 'density', 'pantry',
   'price_cents', 'package_grams', 'package_label', 'jumbo_id', 'jumbo_name', 'jumbo_url', 'jumbo_query', 'jumbo_image',
   'price_source', 'price_updated_at', 'nutrition_source', 'off_code', 'nutriscore', 'nutrition_updated_at', 'off_category', 'price_count', 'price_note',
-  'image_url', 'shop_url',
+  'image_url', 'shop_url', 'amount_rule',
 ];
 
 // ---------- Ingrediënten ----------
@@ -126,13 +126,15 @@ function rowsFor(recipeId) {
   }));
 }
 
-export function getRecipe(id) {
+/** @param persons optioneel: hoeveelheden, voeding en kosten voor dit aantal personen */
+export function getRecipe(id, persons = null) {
   const r = getDb().prepare('SELECT * FROM recipes WHERE id = ?').get(id);
   if (!r) return null;
   const recipe = parseRecipe(r);
   const rows = rowsFor(id);
-  const computed = computeRecipe(recipe, rows);
-  return { ...recipe, ...computed, ingredients: computed.lines, lines: undefined };
+  const factor = persons > 0 ? persons / (recipe.servings || 1) : 1;
+  const computed = computeRecipe(recipe, rows, factor);
+  return { ...recipe, ...computed, servings: recipe.servings, persons: computed.servings, ingredients: computed.lines, lines: undefined };
 }
 
 export function listRecipes({ q = '', tag = '', category = '', favorite = false, maxMinutes = 0, maxPrice = 0, have = [], sort = 'title' } = {}) {
@@ -251,8 +253,8 @@ export function saveRecipe(data, id = null) {
         .run(...Object.values(fields));
       recipeId = Number(lastInsertRowid);
     }
-    const ins = db.prepare(`INSERT INTO recipe_ingredients (recipe_id, ingredient_id, name, quantity, unit, grams, note, optional, section, position)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    const ins = db.prepare(`INSERT INTO recipe_ingredients (recipe_id, ingredient_id, name, quantity, unit, grams, note, optional, section, position, amount_rule, min_quantity)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     (data.ingredients || []).forEach((row, i) => {
       const name = String(row.name || '').trim();
       if (!name) return;
@@ -264,6 +266,8 @@ export function saveRecipe(data, id = null) {
         row.quantity === '' || row.quantity == null ? null : Number(row.quantity),
         row.unit || '', row.grams === '' || row.grams == null ? null : Number(row.grams),
         row.note || '', row.optional ? 1 : 0, row.section || '', i,
+        ['none', 'round', 'package'].includes(row.amount_rule) ? row.amount_rule : null,
+        Number(row.min_quantity) > 0 ? Number(row.min_quantity) : null,
       );
     });
     return recipeId;
@@ -303,17 +307,19 @@ export function getPlan(start, days = 7) {
   const entries = rows.map((row) => {
     let info = null;
     if (row.recipe_id) {
-      if (!cache.has(row.recipe_id)) {
-        const r = parseRecipe(getDb().prepare('SELECT * FROM recipes WHERE id = ?').get(row.recipe_id));
-        cache.set(row.recipe_id, computeRecipe(r, rowsFor(row.recipe_id)));
-      }
-      const c = cache.get(row.recipe_id);
+      // Per aantal personen berekenen: hele verpakkingen en afgeronde stuks schalen niet lineair
       const factor = row.servings / (row.recipe_servings || 1);
+      const key = `${row.recipe_id}:${factor}`;
+      if (!cache.has(key)) {
+        const r = parseRecipe(getDb().prepare('SELECT * FROM recipes WHERE id = ?').get(row.recipe_id));
+        cache.set(key, computeRecipe(r, rowsFor(row.recipe_id), factor));
+      }
+      const c = cache.get(key);
       info = {
         kcal_per_serving: c.nutrition_per_serving.kcal,
         nutrition_per_serving: c.nutrition_per_serving,
         // Restjes zijn al betaald bij de oorspronkelijke maaltijd
-        cost_cents: row.leftover_of ? 0 : Math.round(c.cost_total_cents * factor),
+        cost_cents: row.leftover_of ? 0 : c.cost_total_cents,
         cost_per_serving_cents: c.cost_per_serving_cents,
       };
     }

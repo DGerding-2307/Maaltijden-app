@@ -54,7 +54,7 @@ const ROUTES = [
     maxPrice: Number(req.query.maxPrice) || 0,
     have: String(req.query.have || '').split(',').map((s) => s.trim()).filter(Boolean),
   })],
-  ['GET', '/recipes/:id', (req) => repo.getRecipe(Number(req.params.id)) || Promise.reject(notFound('Recept niet gevonden'))],
+  ['GET', '/recipes/:id', (req) => repo.getRecipe(Number(req.params.id), Number(req.query.personen) || null) || Promise.reject(notFound('Recept niet gevonden'))],
   ['POST', '/recipes', (req) => repo.getRecipe(repo.saveRecipe({ ...req.body, ingredients: prepareRows(req.body.ingredients) }))],
   ['PUT', '/recipes/:id', (req) => {
     const id = repo.saveRecipe({ ...req.body, ingredients: prepareRows(req.body.ingredients) }, Number(req.params.id));

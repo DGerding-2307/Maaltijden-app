@@ -4,9 +4,9 @@ import { $, esc, toast } from '../util.js';
 import { scaledLine } from './recipe.js';
 
 export async function render(root, params) {
-  const r = await api.get(`/recipes/${params.id}`);
-  const persons = Number(params.personen) || r.servings;
-  const factor = persons / r.servings;
+  const base = await api.get(`/recipes/${params.id}`);
+  const persons = Number(params.personen) || base.servings;
+  const r = persons === base.servings ? base : await api.get(`/recipes/${params.id}?personen=${persons}`);
   let step = -1; // -1 = ingrediëntenoverzicht
   let wakeLock = null;
   const timers = [];
@@ -30,7 +30,7 @@ export async function render(root, params) {
     let body;
     if (step < 0) {
       body = `<h2>Klaarzetten voor ${persons} ${persons === 1 ? 'persoon' : 'personen'}</h2>
-        <ul class="cook-ingredients">${r.ingredients.map((row) => `<li><label><input type="checkbox"> <strong>${scaledLine(row, factor)}</strong> ${esc(row.name)} ${row.note ? `<span class="muted">${esc(row.note)}</span>` : ''}</label></li>`).join('')}</ul>`;
+        <ul class="cook-ingredients">${r.ingredients.map((row) => `<li><label><input type="checkbox"> <strong>${scaledLine(row)}</strong> ${esc(row.name)} ${row.note ? `<span class="muted">${esc(row.note)}</span>` : ''}</label></li>`).join('')}</ul>`;
     } else {
       const text = r.steps[step];
       const mins = findMinutes(text);

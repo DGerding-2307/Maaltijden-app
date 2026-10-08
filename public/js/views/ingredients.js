@@ -106,6 +106,12 @@ export async function render(root) {
           <label class="span-2">Open Food Facts-categorie (voor prijzen) <input class="input" name="off_category" value="${esc(ing.off_category || '')}" placeholder="bv. en:carrots"></label>
           ${ing.price_note ? `<p class="span-2 muted small">Prijs: ${esc(ing.price_note)}</p>` : ''}
           <label class="span-2 check"><input type="checkbox" name="pantry" ${ing.pantry ? 'checked' : ''}> Voorraadkast-artikel (niet standaard op de boodschappenlijst)</label>
+          <label class="span-2">Tegen restjes, in alle recepten
+            <select class="input" name="amount_rule">
+              ${[['', 'Gewoon meeschalen'], ['round', 'Afronden op hele stuks (minimaal 1)'], ['package', 'Altijd de hele verpakking gebruiken']]
+                .map(([v, l]) => `<option value="${v}" ${(ing.amount_rule || '') === v ? 'selected' : ''}>${l}</option>`).join('')}
+            </select>
+            <span class="muted small">Per recept kun je dit nog aanpassen in de recepteditor (⚖️).</span></label>
         </div>
         <div class="row end"><button class="btn btn-primary">Opslaan</button></div>
       </form>`, { wide: true });

@@ -8,6 +8,9 @@ export const DRAFT_KEY = 'recipeDraft';
 
 // Duidelijkere namen in de keuzelijst; de opgeslagen eenheid blijft kort (stuk, el, tl)
 const UNIT_LABELS = { '': '–', stuk: 'stuks', el: 'el (eetlepel)', tl: 'tl (theelepel)', teen: 'teen (knoflook)' };
+// Regels tegen restjes (zie effectiveAmount in server/calc.js)
+const RULES = [['', 'Standaard'], ['none', 'Gewoon meeschalen'], ['round', 'Afronden op hele stuks'], ['package', 'Hele verpakking gebruiken']];
+const RULE_LABEL = { none: 'meeschalen', round: 'hele stuks', package: 'hele verpakking' };
 
 export async function render(root, params) {
   const m = await meta();
@@ -29,6 +32,7 @@ export async function render(root, params) {
     name: r.name, quantity: r.quantity, unit: ({ stuks: 'stuk', st: 'stuk', 'stuk(s)': 'stuk' })[r.unit] ?? r.unit ?? '', note: r.note || '', optional: !!r.optional,
     grams: r.grams ?? null, ingredient_id: r.ingredient_id ?? null, estimate: r.estimate || null,
     ingredient_name: r.ingredient?.name || null,
+    amount_rule: r.amount_rule || '', min_quantity: r.min_quantity ?? '',
   }));
   if (!rows.length) rows.push(emptyRow());
 
@@ -117,10 +121,23 @@ export async function render(root, params) {
         <input class="input" type="number" step="any" min="0" data-k="grams" value="${row.grams ?? ''}" placeholder="auto" aria-label="Gram">
         <div class="row-actions">
           <label title="Optioneel"><input type="checkbox" data-k="optional" ${row.optional ? 'checked' : ''}> opt.</label>
+          <button type="button" class="mini ${row.amount_rule || row.min_quantity ? 'on' : ''}" data-opts title="Hoeveelheid: hele verpakking, hele stuks of minimum">⚖️</button>
           <button type="button" class="mini" data-up title="Omhoog">↑</button>
           <button type="button" class="mini danger" data-del title="Verwijderen">✕</button>
         </div>
+        <div class="row-opts" ${row.amount_rule || row.min_quantity || row.showOpts ? '' : 'hidden'}>
+          <label>Tegen restjes
+            <select class="input" data-k="amount_rule">${RULES.map(([v, l]) => `<option value="${v}" ${v === (row.amount_rule || '') ? 'selected' : ''}>${l}${v === '' ? defaultRuleHint(row) : ''}</option>`).join('')}</select></label>
+          <label>Minimaal <span class="row"><input class="input narrow" type="number" step="any" min="0" data-k="min_quantity" value="${row.min_quantity ?? ''}" placeholder="–">
+            <span class="muted small">${esc(UNIT_LABELS[row.unit] ?? row.unit ?? '')}</span></span></label>
+          <p class="muted small">Ook bij minder personen nooit minder dan het minimum. ‘Hele verpakking’ rondt af op hele pakken van het ingrediënt, zodat je niets overhoudt.</p>
+        </div>
       </div>`).join('');
+  }
+
+  function defaultRuleHint(row) {
+    const ing = row.ingredient_id ? ingById.get(Number(row.ingredient_id)) : null;
+    return ing?.amount_rule && ing.amount_rule !== 'none' ? ` (ingrediënt: ${RULE_LABEL[ing.amount_rule]})` : ' (meeschalen)';
   }
 
   async function matchRow(row) {
@@ -186,6 +203,12 @@ export async function render(root, params) {
     if (!rowEl) return;
     const i = Number(rowEl.dataset.i);
     if (e.target.closest('[data-link]')) return linkRow(i);
+    if (e.target.closest('[data-opts]')) {
+      rows[i].showOpts = true;
+      const opts = $('.row-opts', rowEl);
+      opts.hidden = !opts.hidden;
+      return;
+    }
     if (e.target.closest('[data-del]')) { rows.splice(i, 1); drawRows(); }
     if (e.target.closest('[data-up]') && i > 0) { [rows[i - 1], rows[i]] = [rows[i], rows[i - 1]]; drawRows(); }
   });

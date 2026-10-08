@@ -43,6 +43,46 @@ export function gramsFor(row, ingredient) {
   return 0;
 }
 
+// Eenheden die vrij meeschalen: afronden op hele stuks heeft daar geen zin
+const FREE_UNITS = new Set([...Object.keys(MASS_UNITS), 'ml', 'cl', 'dl', 'l', 'liter']);
+
+/**
+ * Hoeveelheid van een receptregel na schalen, met de regels tegen restjes:
+ * - min_quantity (per regel): nooit minder dan dit, ook niet bij minder personen
+ * - 'round': afronden op hele stuks (minimaal 1), bv. 1,5 paprika → 2
+ * - 'package': de hele verpakking gebruiken (of meerdere), zodat er niets overblijft
+ * De regel van de receptregel gaat voor; 'none' zet een standaard van het ingrediënt uit.
+ * @returns { quantity, grams, rule, packages, package_label }
+ */
+export function effectiveAmount(row, ing, factor = 1) {
+  const rule = row.amount_rule && row.amount_rule !== '' ? row.amount_rule : (ing?.amount_rule || 'none');
+  const unit = normalizeUnit(row.unit);
+  const baseQty = row.quantity == null || row.quantity === '' ? null : Number(row.quantity);
+  let quantity = baseQty == null ? null : baseQty * factor;
+  let grams = gramsFor(row, ing) * factor;
+  const scale = (to) => {
+    if (quantity > 0) grams *= to / quantity;
+    quantity = to;
+  };
+  const min = Number(row.min_quantity) || 0;
+  if (quantity != null && min > 0 && quantity < min) scale(min);
+  if (rule === 'round' && quantity > 0 && !FREE_UNITS.has(unit)) scale(Math.max(1, Math.round(quantity)));
+  let packages = null;
+  if (rule === 'package' && Number(ing?.package_grams) > 0 && grams > 0) {
+    packages = Math.max(1, Math.ceil(grams / Number(ing.package_grams) - 0.02));
+    const total = packages * Number(ing.package_grams);
+    if (quantity > 0) quantity *= total / grams;
+    grams = total;
+  }
+  return {
+    quantity: quantity == null ? null : round(quantity, 2),
+    grams,
+    rule,
+    packages,
+    package_label: packages ? (ing.package_label || `${ing.package_grams} g`) : null,
+  };
+}
+
 export function emptyNutrition() {
   return Object.fromEntries(NUTRIENTS.map((n) => [n, 0]));
 }
@@ -68,15 +108,20 @@ export function pricePerGram(ingredient) {
  * @param rows   receptregels met optioneel `ingredient` (object uit de ingrediëntentabel)
  * @returns totaal + per persoon, plus per regel de berekende grammen en kosten
  */
-export function computeRecipe(recipe, rows) {
-  const servings = Math.max(1, Number(recipe.servings) || 1);
+/**
+ * Voedingswaarden en kosten van een recept.
+ * @param factor schaal t.o.v. het originele aantal personen (bv. 0,5 = half zoveel personen)
+ */
+export function computeRecipe(recipe, rows, factor = 1) {
+  const servings = Math.max(1, Number(recipe.servings) || 1) * factor;
   const total = emptyNutrition();
   let costCents = 0;
   let missingNutrition = 0;
   let missingPrice = 0;
   const lines = rows.map((row) => {
     const ing = row.ingredient || null;
-    const grams = gramsFor(row, ing);
+    const amount = effectiveAmount(row, ing, factor);
+    const grams = amount.grams;
     let lineCost = null;
     if (ing && grams > 0) {
       for (const n of NUTRIENTS) total[n] += (Number(ing[n]) || 0) * grams / 100;
@@ -89,7 +134,15 @@ export function computeRecipe(recipe, rows) {
       missingNutrition++;
       if (!ing) missingPrice++;
     }
-    return { ...row, computed_grams: round(grams, 1), cost_cents: lineCost == null ? null : round(lineCost, 1) };
+    return {
+      ...row,
+      scaled_quantity: amount.quantity,
+      amount_rule_applied: amount.rule,
+      packages: amount.packages,
+      package_label: amount.package_label,
+      computed_grams: round(grams, 1),
+      cost_cents: lineCost == null ? null : round(lineCost, 1),
+    };
   });
   const perServing = Object.fromEntries(NUTRIENTS.map((n) => [n, round(total[n] / servings, n === 'kcal' ? 0 : 1)]));
   for (const n of NUTRIENTS) total[n] = round(total[n], n === 'kcal' ? 0 : 1);
@@ -115,7 +168,8 @@ export function buildShoppingList(entries) {
     const factor = (Number(entry.servings) || entry.recipe.servings) / (Number(entry.recipe.servings) || 1);
     for (const row of entry.rows) {
       const ing = row.ingredient || null;
-      const grams = gramsFor(row, ing) * factor;
+      const amount = effectiveAmount(row, ing, factor);
+      const grams = amount.grams;
       const key = ing ? `i${ing.id}` : `n:${row.name.toLowerCase()}|${normalizeUnit(row.unit)}`;
       let item = items.get(key);
       if (!item) {
@@ -135,7 +189,7 @@ export function buildShoppingList(entries) {
       }
       if (item.unit !== normalizeUnit(row.unit)) item.unit = 'g'; // gemengde eenheden → toon in gram
       item.grams += grams;
-      item.quantity += (Number(row.quantity) || 0) * factor;
+      item.quantity += amount.quantity || 0;
       item.recipes.add(entry.recipe.title);
     }
   }

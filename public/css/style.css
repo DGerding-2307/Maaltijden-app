@@ -630,3 +630,11 @@ label.check .input { width: auto; flex: 1; margin-top: 0; }
 .model-option { display: flex; gap: .6rem; align-items: flex-start; font-weight: 400; padding: .35rem .2rem; border-radius: 8px; cursor: pointer; }
 .model-option:hover { background: var(--surface-2); }
 .model-option input { margin-top: .3rem; }
+
+/* Regels tegen restjes */
+.row-opts { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .4rem 1rem; align-items: flex-end; background: var(--surface-2); border-radius: 10px; padding: .5rem .7rem; margin-bottom: .3rem; }
+.row-opts label { font-size: .85rem; }
+.row-opts select { width: auto; }
+.row-opts p { flex-basis: 100%; margin: 0; }
+.mini.on { background: var(--primary-soft); color: var(--primary); }
+.badge.rule { background: var(--primary-soft); color: var(--primary); }

@@ -153,7 +153,7 @@ export function createApp() {
     maxPrice: Number(req.query.maxPrice) || 0,
     have: String(req.query.have || '').split(',').map((s) => s.trim()).filter(Boolean),
   })));
-  api.get('/recipes/:id', wrap((req) => repo.getRecipe(Number(req.params.id)) || Promise.reject(notFound('Recept niet gevonden'))));
+  api.get('/recipes/:id', wrap((req) => repo.getRecipe(Number(req.params.id), Number(req.query.personen) || null) || Promise.reject(notFound('Recept niet gevonden'))));
 
   async function prepareRows(rows = []) {
     // Ingrediënten die Claude schatte en nog niet bestaan, aanmaken in de database
