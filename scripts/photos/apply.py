@@ -1,7 +1,8 @@
 # Zet de gekozen kandidaatfoto's om naar public/img/recipes/<sleutel>.jpg (4:3, 960×720)
 # en schrijft de bronvermeldingen naar server/photos.js.
 # Gebruik: python3 scripts/photos/apply.py <kandidatenmap> <keuzes.json>
-#   keuzes.json: { "<sleutel>": <kandidaatnummer>, ... }
+#   keuzes.json: { "<sleutel>": <kandidaatnummer>, ... } of { "<sleutel>": { "n": 1, "crop": [x0, y0, x1, y1] } }
+#   (crop in fracties van de breedte/hoogte, om een deel van de foto te gebruiken)
 import json, os, sys
 from PIL import Image, ImageOps
 
@@ -13,10 +14,14 @@ out_dir = os.path.join(root, 'public', 'img', 'recipes')
 os.makedirs(out_dir, exist_ok=True)
 
 photos = {}
-for key, n in sorted(choices.items()):
+for key, choice in sorted(choices.items()):
+    n = choice['n'] if isinstance(choice, dict) else choice
     cand = next(c for c in meta[key] if c['n'] == n)
     im = Image.open(os.path.join(src, key, cand['file']))
     im = ImageOps.exif_transpose(im).convert('RGB')
+    if isinstance(choice, dict) and choice.get('crop'):
+        x0, y0, x1, y1 = choice['crop']
+        im = im.crop((int(x0 * im.width), int(y0 * im.height), int(x1 * im.width), int(y1 * im.height)))
     im = ImageOps.fit(im, (960, 720), Image.LANCZOS, centering=(0.5, 0.5))
     im.save(os.path.join(out_dir, f'{key}.jpg'), 'JPEG', quality=78, optimize=True, progressive=True)
     photos[key] = {k: cand.get(k) for k in ('author', 'license', 'license_url', 'page', 'source', 'title')}

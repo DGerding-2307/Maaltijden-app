@@ -13,6 +13,8 @@ fs.mkdirSync(path.join(out, 'js', 'server'), { recursive: true });
 
 // Frontend (ongewijzigd)
 fs.cpSync(path.join(root, 'public', 'js'), path.join(out, 'js'), { recursive: true });
+// Foto's van de standaardrecepten
+fs.cpSync(path.join(root, 'public', 'img'), path.join(out, 'img'), { recursive: true });
 
 // Datalaag van de server, met node-imports vervangen door browser-shims
 for (const f of ['calc.js', 'repo.js', 'seed.js', 'db.js', 'tracker.js', 'photos.js']) {
@@ -60,7 +62,7 @@ const files = [];
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name);
     if (e.isDirectory()) walk(p);
-    else if (p.endsWith('.js')) files.push(path.relative(out, p));
+    else if (p.endsWith('.js') || p.endsWith('.jpg')) files.push(path.relative(out, p));
   }
 })(out);
 fs.writeFileSync(path.join(out, 'files.json'), JSON.stringify(files, null, 2));

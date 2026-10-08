@@ -297,6 +297,14 @@ export const PHOTOS = {
     "source": "Openverse (flickr)",
     "title": "Spaghetti Bolognese - Michaelangelo, Aspendale Gardens"
   },
+  "speklapjes-met-sperziebonen-en-krieltjes": {
+    "author": "Takeaway",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+    "page": "https://commons.wikimedia.org/wiki/File:2015_1021_Andijviestamppot_met_speklap.jpg",
+    "source": "Wikimedia Commons",
+    "title": "2015 1021 Andijviestamppot met speklap.jpg"
+  },
   "spinaziestamppot-met-gebakken-ei": {
     "author": "Ibu",
     "license": "CC BY-SA 4.0",
@@ -304,6 +312,14 @@ export const PHOTOS = {
     "page": "https://commons.wikimedia.org/wiki/File:Stamppot_spinazie.jpg",
     "source": "Wikimedia Commons",
     "title": "Stamppot spinazie.jpg"
+  },
+  "spruitjes-met-gehaktballen-en-aardappelen": {
+    "author": "Missvain",
+    "license": "CC BY 4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0",
+    "page": "https://commons.wikimedia.org/wiki/File:Roasted_Brussels_sprouts_-_December_2023_-_Sarah_Stierch_02.jpg",
+    "source": "Wikimedia Commons",
+    "title": "Roasted Brussels sprouts - December 2023 - Sarah Stierch 02.jpg"
   },
   "thaise-groene-curry-met-kip": {
     "author": "Acabashi",

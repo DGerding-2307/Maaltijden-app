@@ -3,6 +3,16 @@
 Een webapplicatie voor op je eigen server: een overzichtelijke weekplanner en een receptenboek met
 Nederlandse recepten, voedingswaarden per persoon (uit Open Food Facts), prijzen per maaltijd (uit Open Prices) en een Claude AI-integratie.
 
+## Nieuw in v2.7
+
+- 📷 **Foto's bij alle 50 standaardrecepten** (vrije licenties via Wikimedia Commons en Openverse, met bronvermelding) en
+  **foto's bij ingrediënten**: zichtbaar in de ingrediëntenlijst, bij recepten, op de boodschappenlijst en in het dagboek.
+- 🛒 **Ingrediënt uit een webwinkel**: plak de link naar een product en Claude vult naam, voedingswaarden, verpakking, prijs en foto in.
+- 🔗 **Niet-herkende ingrediënten koppelen of aanmaken** vanuit de recepteditor en de receptpagina; de naam wordt onthouden voor de volgende keer.
+- ☑️ **Meerdere recepten tegelijk verwijderen**, en verwijderde standaardrecepten terugzetten bij Instellingen.
+- Eenheid **stuks** in een keuzelijst; "2 stuks", "3 tenen" op de receptpagina.
+- 🔌 **Verbinding testen** voor Claude bij Instellingen, met duidelijke foutmeldingen (sleutel, tegoed, verbinding).
+
 ## Nieuw in v2.6
 
 - 🔥 **Calorieëndagboek** per persoon: zoek een recept (per portie) of ingrediënt (per gram), scan een barcode of vul zelf kcal in.
