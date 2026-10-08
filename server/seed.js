@@ -2,6 +2,7 @@
 // Voedingswaarden per 100 g zijn afgerond en gebaseerd op NEVO-gemiddelden (RIVM).
 // Prijzen zijn schattingen van supermarktprijzen (Jumbo-niveau, 2026); pas ze aan via Ingrediënten → ✏️.
 import { PHOTOS } from './photos.js';
+import { BAKEOFF, BAKEOFF_SOURCE } from './seed-bakeoff.js';
 import { INGREDIENT_PHOTOS } from './ingredient-photos.js';
 
 const AGF = 'Aardappelen, groente & fruit';
@@ -268,6 +269,12 @@ const I = [
   ['braadworst', VV, 290, 13, 2, 1, 26, 10, 0, 1.8, 100, 400, 399, 0, 'braadworsten,saucijs', 1, '4 stuks'],
   ['vegaburger', VV, 200, 15, 8, 1, 11, 1.5, 4, 1.2, 90, 360, 399, 0, 'vegetarische burger,vega burger,plantaardige burger', 1, '4 stuks'],
 ];
+
+// Jumbo bake-off broodjes en snacks (zie seed-bakeoff.js): per stuk verkocht
+for (const [name, jumboName, art, kcal, protein, carbs, sugar, fat, satFat, fiber, salt, weight, price] of BAKEOFF) {
+  const aliases = [jumboName.toLowerCase(), art ? `jumbo ${art}` : null].filter((a) => a && a !== name).join(',');
+  I.push([name, BR, kcal, protein, carbs, sugar, fat, satFat, fiber, salt, weight, weight, price, 0, aliases, 1, '1 stuk']);
+}
 
 // Recepten: [naam ingrediënt (of alias), hoeveelheid, eenheid, notitie, optioneel]
 const RECIPES = [
@@ -1447,6 +1454,12 @@ export function syncBuiltins(db, { fresh = false, restore = false } = {}) {
       setIngPhoto.run(p.url, p.credit, n);
     }
     setList(db, 'builtin_ingredient_photos_offered', photoNames);
+    // Bron, allergenen en een notitie bij de geschatte prijs voor de bake-offproducten
+    const setBake = db.prepare(`UPDATE ingredients SET nutrition_source = ?, allergens = ?, price_note = ?
+      WHERE name = ? AND allergens IS NULL`);
+    for (const [name, , art, , , , , , , , , , , allergens] of BAKEOFF) {
+      setBake.run(BAKEOFF_SOURCE, allergens || '', `Prijs per stuk geschat${art ? ` (Jumbo art. ${art})` : ''}`, name);
+    }
     const setCat = db.prepare('UPDATE ingredients SET off_category = ? WHERE name = ? AND off_category IS NULL');
     for (const [name, tag] of Object.entries(OFF_CATEGORY_BY_NAME)) setCat.run(tag, name);
 

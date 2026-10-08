@@ -9,6 +9,8 @@ export function nutritionBadge(i) {
   const src = String(i.nutrition_source || '');
   if (src.startsWith('Open Food Facts')) return `<span class="src src-off" title="${esc(src)}">🥫 OFF</span>`;
   if (src.startsWith('Claude')) return `<span class="src src-ai" title="${esc(src)}">✨ schatting</span>`;
+  if (src.startsWith('Jumbo')) return `<span class="src" title="${esc(src)}">🏷️ Jumbo</span>`;
+  if (src.startsWith('Webwinkel')) return `<span class="src" title="${esc(src)}">🛒 winkel</span>`;
   if (src.startsWith('NEVO')) return `<span class="src" title="${esc(src)}">NEVO</span>`;
   return `<span class="src" title="${esc(src)}">${esc(src || '–')}</span>`;
 }
@@ -87,6 +89,7 @@ export async function render(root) {
           <label>Naam <input class="input" name="name" required value="${esc(ing.name || '')}"></label>
           <label>Afdeling <select class="input" name="category">${m.categories.map((c) => `<option ${c === ing.category ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
           <label class="span-2">Andere namen (komma's) <input class="input" name="aliases" value="${esc(ing.aliases || '')}" placeholder="worden gebruikt bij het koppelen van recepten"></label>
+          <label class="span-2">Allergenen <input class="input" name="allergens" value="${esc(ing.allergens || '')}" placeholder="bv. Gluten, Melk"></label>
         </div>
         ${mediaFields(ing, { claude: m.claude.configured })}
         <h3>Voedingswaarden per 100 g</h3>

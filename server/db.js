@@ -212,6 +212,7 @@ const MIGRATIONS = [
   ['recipes', 'is_side', 'INTEGER NOT NULL DEFAULT 0'],
   ['plan_extras', 'recipe_id', 'INTEGER REFERENCES recipes(id) ON DELETE CASCADE'],
   ['ingredients', 'image_credit', 'TEXT'],
+  ['ingredients', 'allergens', 'TEXT'],
 ];
 
 function migrate(db) {
