@@ -10,6 +10,7 @@ const routes = [
   [/^\/recept\/(\d+)$/, () => import('./views/recipe.js')],
   [/^\/importeren$/, () => import('./views/import.js')],
   [/^\/boodschappen$/, () => import('./views/shopping.js')],
+  [/^\/dagboek$/, () => import('./views/diary.js')],
   [/^\/ingredienten$/, () => import('./views/ingredients.js')],
   [/^\/instellingen$/, () => import('./views/settings.js')],
 ];

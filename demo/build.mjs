@@ -15,7 +15,7 @@ fs.mkdirSync(path.join(out, 'js', 'server'), { recursive: true });
 fs.cpSync(path.join(root, 'public', 'js'), path.join(out, 'js'), { recursive: true });
 
 // Datalaag van de server, met node-imports vervangen door browser-shims
-for (const f of ['calc.js', 'repo.js', 'seed.js', 'db.js']) {
+for (const f of ['calc.js', 'repo.js', 'seed.js', 'db.js', 'tracker.js']) {
   let src = fs.readFileSync(path.join(root, 'server', f), 'utf8');
   src = src
     .replace("from 'node:sqlite'", "from './sqlite-shim.js'")

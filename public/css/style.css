@@ -20,6 +20,8 @@
   --leftover-bg: #fdf3df;
   --src-off-bg: #e6f4ea;
   --src-off-fg: #1e6b3a;
+  --chart-1: #16825a;
+  --chart-2: #c0761a;
   --radius: 14px;
   --shadow: 0 1px 2px rgba(0, 0, 0, .05), 0 4px 14px rgba(0, 0, 0, .05);
   --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
@@ -44,6 +46,8 @@
     --leftover-bg: #3a3220;
     --src-off-bg: #1e3a28;
     --src-off-fg: #8fd6a8;
+    --chart-1: #2f9e6b;
+    --chart-2: #c9822a;
   }
 }
 :root[data-theme="dark"] {
@@ -64,6 +68,8 @@
   --leftover-bg: #3a3220;
   --src-off-bg: #1e3a28;
   --src-off-fg: #8fd6a8;
+  --chart-1: #2f9e6b;
+  --chart-2: #c9822a;
 }
 
 * { box-sizing: border-box; }
@@ -416,7 +422,7 @@ body.cooking .topbar { display: none; }
   }
   .mainnav a { flex-direction: column; gap: 0; font-size: .68rem; padding: .35rem .1rem; border-radius: 10px; }
   .mainnav a .nav-ico { font-size: 1.25rem; }
-  .mainnav a[data-nav="ingredienten"] { display: none; }
+  .mainnav a[data-nav="ingredienten"], .mainnav a[data-nav="importeren"] { display: none; }
   .grid-2, .grid-4 { grid-template-columns: 1fr 1fr; }
   .span-2 { grid-column: span 2; }
   .page-head h1 { font-size: 1.35rem; }
@@ -485,3 +491,97 @@ label.check.sub { margin-left: 1.6rem; font-weight: 400; }
 label.check .input { width: auto; flex: 1; margin-top: 0; }
 .update-bar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); z-index: 250; display: flex; gap: .8rem; align-items: center; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--primary); border-radius: 12px; padding: .6rem .9rem; box-shadow: var(--shadow); max-width: calc(100vw - 2rem); }
 @media (max-width: 720px) { .update-bar { bottom: calc(5rem + env(safe-area-inset-bottom, 0px)); } }
+
+/* ---------- Dagboek ---------- */
+.seg { display: inline-flex; gap: .25rem; background: var(--surface-2); padding: .25rem; border-radius: 12px; margin-bottom: 1rem; }
+.seg a, .seg button { padding: .45rem .9rem; border-radius: 9px; text-decoration: none; color: var(--muted); font: inherit; font-weight: 600; border: 0; background: transparent; cursor: pointer; }
+.seg a.active, .seg button.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+.seg.small { font-size: .9rem; }
+.person-pick select { width: auto; margin-top: 0; }
+.day-nav { margin-bottom: 1rem; }
+.day-nav h2 { margin: 0; text-transform: capitalize; }
+.kcal-hero { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; margin-bottom: .6rem; }
+.kcal-big { font-size: 2.4rem; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; margin-right: .4rem; }
+.kcal-left { font-size: 1.05rem; }
+.meter { height: 8px; background: var(--surface-2); border-radius: 99px; overflow: hidden; }
+.meter span { display: block; height: 100%; border-radius: 99px; background: var(--primary); transition: width .3s; }
+.meter.big { height: 14px; margin-bottom: 1rem; }
+.meter.big.over span { background: var(--bad); }
+.macro-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .8rem 1.2rem; }
+.macro-head { display: flex; justify-content: space-between; font-size: .88rem; margin-bottom: .25rem; font-variant-numeric: tabular-nums; }
+.limits { margin: .9rem 0 0; }
+.target-src { margin: .3rem 0 0; }
+.planned-item { display: flex; justify-content: space-between; align-items: center; gap: .6rem; padding: .45rem 0; border-top: 1px solid var(--border); }
+.planned-item > span:first-child { display: flex; flex-direction: column; }
+.btn.small { padding: .35rem .7rem; font-size: .88rem; }
+.meals { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 1rem; }
+.meal-block { padding: .9rem 1rem; }
+.meal-head { display: flex; justify-content: space-between; align-items: baseline; }
+.meal-head h3 { margin: 0 0 .4rem; }
+.log-item { width: 100%; display: grid; grid-template-columns: 1fr auto auto; gap: .6rem; align-items: baseline; text-align: left; padding: .45rem .2rem; border: 0; border-top: 1px solid var(--border); background: transparent; color: var(--text); font: inherit; cursor: pointer; }
+.log-item:hover { background: var(--surface-2); }
+.log-kcal { font-variant-numeric: tabular-nums; font-weight: 600; }
+.log-add { margin-top: .4rem; padding: .4rem; opacity: 1; font-size: .9rem; }
+.diary-tools { justify-content: space-between; margin-bottom: 1.2rem; }
+.weight-quick .input { margin-top: 0; }
+.weight-form { align-items: flex-end; }
+.weight-form label { display: flex; flex-direction: column; }
+.input.narrow-auto { width: auto; }
+.kcal-preview { font-size: 1.2rem; margin: 0; }
+.quick-amounts .chip-toggle { padding: .3rem .7rem; }
+
+/* Grafieken: dunne markeringen, rustige rasterlijnen, tekst in teksttinten */
+.chart { position: relative; width: 100%; }
+.chart-svg { display: block; max-width: 100%; overflow: visible; }
+.chart-svg .grid { stroke: var(--border); stroke-width: 1; }
+.chart-svg .axis { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.chart-svg .axis.strong { fill: var(--text); font-weight: 700; }
+.chart-svg .label { fill: var(--text); font-size: 12px; font-weight: 600; }
+.chart-svg .ref { stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.chart-svg .bar { fill: var(--chart-1); }
+.chart-svg .hit { fill: transparent; cursor: pointer; outline: none; }
+.chart-svg .hit:hover, .chart-svg .hit:focus-visible { fill: var(--text); fill-opacity: .05; }
+.chart-svg .trend { fill: none; stroke: var(--chart-1); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart-svg .dot { fill: var(--chart-2); stroke: var(--surface); stroke-width: 2; }
+.chart-svg .dot.focus { fill: var(--chart-2); stroke: var(--text); stroke-width: 2; }
+.chart-svg .cross { stroke: var(--muted); stroke-width: 1; }
+.chart-svg .overlay { fill: transparent; outline: none; }
+.chart-svg .overlay:focus-visible { stroke: var(--primary); stroke-width: 2; }
+.chart-tip { position: absolute; transform: translate(-50%, -100%); background: var(--surface); color: var(--text); border: 1px solid var(--border); box-shadow: var(--shadow);
+  border-radius: 8px; padding: .4rem .6rem; font-size: .8rem; line-height: 1.35; pointer-events: none; white-space: nowrap; z-index: 2; }
+.legend { display: flex; flex-wrap: wrap; gap: .4rem 1.1rem; font-size: .85rem; color: var(--muted); margin-bottom: .4rem; }
+.legend span { display: inline-flex; align-items: center; gap: .4rem; }
+.sw { display: inline-block; }
+.sw-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--chart-2); }
+.sw-line { width: 18px; height: 2px; background: var(--chart-1); }
+.sw-ref { width: 18px; border-top: 2px dashed var(--muted); }
+.chart-table { margin-top: .6rem; font-size: .9rem; }
+.chart-table summary { cursor: pointer; color: var(--muted); }
+.chart-table table { margin-top: .5rem; }
+.chart-table td:last-child { width: auto; }
+
+/* Planner: gegeten-vinkje en dagtotaal uit het dagboek */
+.eat-toggle { border: 1px solid var(--border); background: var(--surface); color: var(--muted); border-radius: 99px; font: inherit; font-size: .72rem; padding: 0 .45rem; cursor: pointer; }
+.eat-toggle.on { background: var(--chart-1); border-color: var(--chart-1); color: #fff; }
+.day-diary { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 .5rem; padding: .35rem .7rem; font-size: .76rem; border-top: 1px solid var(--border); color: var(--muted); text-decoration: none; }
+.day-diary span { white-space: nowrap; }
+.day-diary:hover { background: var(--surface-2); }
+.day-diary .bad { font-weight: 600; }
+.plan-person { display: flex; align-items: center; gap: .4rem; }
+.plan-person select { width: auto; margin-top: 0; padding: .35rem .5rem; }
+@media (max-width: 720px) {
+  .kcal-big { font-size: 2rem; }
+  .diary .stats { grid-template-columns: 1fr 1fr; gap: .6rem; }
+  .diary .stat-value { font-size: 1.25rem; }
+  .macro-grid { gap: .7rem .9rem; }
+  .macro-head { font-size: .8rem; gap: .3rem; }
+  .macro-head > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .macro-head > span:last-child { white-space: nowrap; }
+  .diary-tools { flex-direction: column; align-items: stretch; }
+  .weight-form label.grow { flex-basis: 100%; }
+}
+.danger-text { color: var(--danger); }
+.person-form .card-head { margin-bottom: .3rem; }
+.help-list { margin: .6rem 0; }
+.help-list ul { margin: .4rem 0; padding-left: 1.2rem; }
+.help-list li { margin-bottom: .3rem; }

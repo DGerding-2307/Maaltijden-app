@@ -89,6 +89,45 @@ CREATE TABLE IF NOT EXISTS off_cache (
   fetched_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS people (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  sex TEXT,                     -- 'm' | 'v'
+  birth_year INTEGER,
+  height_cm REAL,
+  activity REAL DEFAULT 1.375,
+  goal TEXT DEFAULT 'onderhoud', -- afvallen | onderhoud | aankomen
+  start_weight_kg REAL,
+  target_weight_kg REAL,
+  kcal_target_override INTEGER,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS food_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  person_id INTEGER NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+  date TEXT NOT NULL,
+  meal TEXT NOT NULL DEFAULT 'tussendoor',
+  type TEXT NOT NULL DEFAULT 'free',       -- recipe | ingredient | free
+  recipe_id INTEGER REFERENCES recipes(id) ON DELETE SET NULL,
+  ingredient_id INTEGER REFERENCES ingredients(id) ON DELETE SET NULL,
+  plan_entry_id INTEGER REFERENCES meal_plan(id) ON DELETE SET NULL,
+  servings REAL, grams REAL,
+  name TEXT NOT NULL,
+  kcal REAL, protein REAL, carbs REAL, sugar REAL, fat REAL, sat_fat REAL, fiber REAL, salt REAL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_food_log_day ON food_log(person_id, date);
+
+CREATE TABLE IF NOT EXISTS weight_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  person_id INTEGER NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+  date TEXT NOT NULL,
+  weight_kg REAL NOT NULL,
+  note TEXT NOT NULL DEFAULT '',
+  UNIQUE (person_id, date)
+);
+
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL

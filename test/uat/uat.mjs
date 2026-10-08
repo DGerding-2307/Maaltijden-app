@@ -249,7 +249,7 @@ await scenario('UAT-19', 'Claude-functies zonder sleutel geven duidelijke uitleg
 
 await scenario('UAT-20', 'Mobiel: alle hoofdpagina’s bruikbaar zonder horizontaal scrollen', async () => {
   const bad = [];
-  for (const h of ['#/planner', '#/recepten', '#/recept/1', '#/boodschappen', '#/importeren', '#/instellingen']) {
+  for (const h of ['#/planner', '#/recepten', '#/recept/1', '#/boodschappen', '#/importeren', '#/instellingen', '#/dagboek', '#/dagboek?tab=gewicht']) {
     await mob.goto(B + h);
     await mob.waitForTimeout(400);
     const w = await mob.evaluate(() => document.documentElement.scrollWidth);
@@ -297,6 +297,44 @@ await scenario('UAT-22', 'Prijzen uit Open Prices (officiële open API) gebruike
   const txt = await page.locator('.ingredients-card').textContent();
   expect(/uit Open Prices/.test(txt), 'geen bronvermelding op receptpagina');
   return `wortel: ${n} winkelprijzen; receptpagina: ${txt.match(/Prijzen: [^.]*/)?.[0]}`;
+});
+
+await scenario('UAT-23', 'Calorieën bijhouden: zoeken, porties, gepland eten afvinken', async () => {
+  await mob.goto(B + '#/dagboek');
+  await mob.waitForSelector('.kcal-big');
+  const kcal = async () => Number((await mob.textContent('.kcal-big')).replace(/\./g, ''));
+  const k0 = await kcal();
+  await mob.click('[data-add="ontbijt"]');
+  await mob.fill('[data-q]', 'banaan');
+  await mob.waitForSelector('[data-ing]');
+  await mob.click('[data-ing]');
+  await mob.fill('[data-amount] [name=n]', '120');
+  const expected = Number((await mob.textContent('[data-kcal]')).replace(/\./g, ''));
+  await mob.click('[data-amount] .btn-primary');
+  await mob.waitForFunction((k) => Number(document.querySelector('.kcal-big').textContent.replace(/\./g, '')) > k, k0);
+  expect(Math.abs((await kcal()) - k0 - expected) <= 1, 'banaan niet goed opgeteld');
+  let planned = '';
+  if (await mob.locator('[data-plan]').count()) {
+    await mob.click('[data-plan]');
+    await mob.waitForSelector('text=✓ in dagboek');
+    planned = ', geplande maaltijd afgevinkt';
+  }
+  await mob.screenshot({ path: `${OUT}/23-dagboek.png`, fullPage: true });
+  return `120 g banaan = ${expected} kcal; dagtotaal ${await kcal()} kcal${planned}`;
+});
+
+await scenario('UAT-24', 'Gewicht loggen met trendgrafiek; dagboek en gewicht in de agenda', async () => {
+  await page.goto(B + '#/dagboek?tab=gewicht');
+  await page.waitForSelector('[data-weight]');
+  await page.fill('[name=weight_kg]', '81,4');
+  await page.click('[data-weight] .btn-primary');
+  await page.waitForSelector('.chart-svg .dot');
+  expect((await page.textContent('.stat-value')).includes('81,4'), 'gewicht niet getoond');
+  await page.screenshot({ path: `${OUT}/24-gewicht.png` });
+  const { url } = await api('/calendar');
+  const ics = await page.evaluate(async (u) => (await fetch(u)).text(), url.replace(/^https?:\/\/[^/]+/, ''));
+  expect(/BEGIN:VCALENDAR/.test(ics) && /SUMMARY:🔥/.test(ics) && /SUMMARY:⚖️ 81\\,4 kg/.test(ics), 'agenda mist dagboek of gewicht');
+  return `agenda-feed: ${(ics.match(/BEGIN:VEVENT/g) || []).length} afspraken (maaltijden, dagtotalen, gewicht)`;
 });
 
 await browser.close();

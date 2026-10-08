@@ -3,6 +3,15 @@
 Een webapplicatie voor op je eigen server: een overzichtelijke weekplanner en een receptenboek met
 Nederlandse recepten, voedingswaarden per persoon (uit Open Food Facts), prijzen per maaltijd (uit Open Prices) en een Claude AI-integratie.
 
+## Nieuw in v2.6
+
+- 🔥 **Calorieëndagboek** per persoon: zoek een recept (per portie) of ingrediënt (per gram), scan een barcode of vul zelf kcal in.
+  Dagdoel op basis van lengte, leeftijd, gewicht, activiteit en doel (afvallen, behouden, aankomen), met eiwit, koolhydraten, vet en vezels.
+- ✓ **Gekoppeld aan de planner**: vink een geplande maaltijd af als ‘gegeten’ en hij staat in je dagboek. Per dag zie je in de planner je kcal en gewicht.
+- ⚖️ **Gewichtslog** met trendlijn (gemiddelde van 7 dagen), verandering per week, afstand tot je doelgewicht en BMI.
+- 📆 **Agenda-abonnement** (Google, Apple, Outlook): geplande maaltijden, per dag je calorieën en je gewichtsmetingen in je eigen agenda.
+  De link staat bij Instellingen → Agenda-koppeling.
+
 ## Nieuw in v2.5
 
 - 📱 **Mobiele app voor Android** (download de APK) en **iPhone** (via Safari → Zet op beginscherm), met eigen icoon.
@@ -87,6 +96,13 @@ en receptenapps verwachten. Zie het [UAT-rapport](docs/UAT-rapport.md).
 - ~100 veelgebruikte ingrediënten met stuksgewicht, verpakking en voedingswaarden per 100 g
 - Voedingswaarden uit **Open Food Facts**: per ingrediënt de mediaan van vergelijkbare Nederlandse producten, of één product dat je kiest of met de camera scant. Nutri-Score en de bron zijn per ingrediënt zichtbaar.
 - Handmatig prijzen en voedingswaarden aanpassen, of laten schatten door Claude
+
+**Dagboek en gewicht**
+- Meerdere personen per huishouden, elk met een eigen dagdoel (Mifflin-St Jeor × activiteit, ± doel; of een eigen kcal-doel)
+- Per maaltijdmoment (ontbijt, lunch, diner, tussendoor) toevoegen via zoeken, barcode of snelle invoer; porties en grammen achteraf aan te passen
+- ‘Kopieer gisteren’, geplande maaltijden in één keer afvinken, weekgrafiek met je doel
+- Gewicht invoeren (ook met komma), grafiek met metingen en trendlijn, tabelweergave
+- Agenda-abonnement (ICS) met maaltijden, dagtotalen en gewicht; geheime link, opnieuw aan te maken
 
 Verder: werkt op telefoon (onderbalk-navigatie, installeerbaar als app), licht/donker thema, optioneel wachtwoord.
 

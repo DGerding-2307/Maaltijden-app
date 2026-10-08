@@ -373,8 +373,8 @@ export function setShoppingHave(week, key, have) {
 // ---------- Back-up ----------
 
 // Geheimen gaan nooit mee in een back-up en blijven bij terugzetten behouden.
-const SECRET_SETTINGS = ['anthropic_api_key'];
-const BACKUP_TABLES = ['ingredients', 'recipes', 'recipe_ingredients', 'meal_plan', 'shopping_state', 'shopping_extras', 'settings'];
+const SECRET_SETTINGS = ['anthropic_api_key', 'calendar_token'];
+const BACKUP_TABLES = ['ingredients', 'recipes', 'recipe_ingredients', 'meal_plan', 'shopping_state', 'shopping_extras', 'settings', 'people', 'food_log', 'weight_log'];
 
 export function exportAll() {
   const db = getDb();

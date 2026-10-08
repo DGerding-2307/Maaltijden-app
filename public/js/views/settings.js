@@ -1,8 +1,35 @@
 import { api, meta } from '../api.js';
 import { $, esc, toast, confirmDialog } from '../util.js';
 
+const GOALS = [['afvallen', 'Afvallen (−500 kcal per dag)'], ['onderhoud', 'Gewicht behouden'], ['aankomen', 'Aankomen (+300 kcal per dag)']];
+
+function personForm(p, activity) {
+  const v = (x) => (x == null ? '' : esc(x));
+  return `<form class="person-form" data-person-form="${p.id}">
+    <div class="card-head"><h3>👤 ${esc(p.name)}</h3>
+      <span class="muted small">doel ${p.targets.kcal} kcal per dag (${esc(p.target_source)})${p.bmi ? ` · BMI ${String(p.bmi).replace('.', ',')}` : ''}</span></div>
+    <div class="grid-4">
+      <label>Naam <input class="input" name="name" value="${v(p.name)}" required></label>
+      <label>Geslacht <select class="input" name="sex"><option value="">–</option>
+        <option value="v" ${p.sex === 'v' ? 'selected' : ''}>vrouw</option><option value="m" ${p.sex === 'm' ? 'selected' : ''}>man</option></select></label>
+      <label>Geboortejaar <input class="input" type="number" min="1900" max="${new Date().getFullYear()}" name="birth_year" value="${v(p.birth_year)}"></label>
+      <label>Lengte (cm) <input class="input" type="number" min="100" max="250" name="height_cm" value="${v(p.height_cm)}"></label>
+      <label class="span-2">Activiteit <select class="input" name="activity">${activity.map(([f, l]) => `<option value="${f}" ${(p.activity || 1.375) === f ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
+      <label class="span-2">Doel <select class="input" name="goal">${GOALS.map(([g, l]) => `<option value="${g}" ${(p.goal || 'onderhoud') === g ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label>Startgewicht (kg) <input class="input" type="number" step="0.1" min="20" max="400" name="start_weight_kg" value="${v(p.start_weight_kg)}"></label>
+      <label>Doelgewicht (kg) <input class="input" type="number" step="0.1" min="20" max="400" name="target_weight_kg" value="${v(p.target_weight_kg)}"></label>
+      <label class="span-2">Eigen kcal-doel <input class="input" type="number" min="800" max="6000" name="kcal_target_override" value="${v(p.kcal_target_override)}" placeholder="leeg = automatisch berekenen"></label>
+    </div>
+    <div class="row end">
+      <button type="button" class="btn btn-ghost danger-text" data-del-person="${p.id}">Verwijderen</button>
+      <button class="btn btn-primary">Opslaan</button>
+    </div>
+  </form>`;
+}
+
 export async function render(root) {
   const m = await meta(true);
+  const [{ people, activity }, cal] = await Promise.all([api.get('/people'), api.get('/calendar').catch(() => null)]);
   root.innerHTML = `<div class="view settings">
     <div class="page-head"><h1>Instellingen</h1></div>
     <form class="card form" data-form>
@@ -32,6 +59,35 @@ export async function render(root) {
 
       <div class="row end"><button class="btn btn-primary">Opslaan</button></div>
     </form>
+
+    <section class="card" id="personen">
+      <h2>Calorieën en doelen</h2>
+      <p class="muted">Iedereen in huis kan een eigen dagboek en gewichtslog bijhouden. Het dagdoel wordt berekend met de formule van Mifflin-St Jeor
+        (rustverbranding × activiteit), plus of min voor je doel. Zonder gegevens geldt 2000 kcal. Dit is een richtlijn, geen medisch advies.</p>
+      ${people.map((p) => personForm(p, activity)).join('<hr>')}
+      <div class="row"><button class="btn" data-add-person>+ Persoon toevoegen</button></div>
+    </section>
+
+    ${cal ? `<section class="card">
+      <h2>Agenda-koppeling</h2>
+      <p class="muted">Abonneer je in Google Agenda, Apple Agenda of Outlook op deze link. Je ziet dan je geplande maaltijden, per dag je gegeten
+        calorieën en je gewichtsmetingen. De agenda werkt zichzelf ongeveer elk uur bij (Google kan er tot een dag over doen).</p>
+      <div class="row">
+        <input class="input grow" readonly value="${esc(cal.url)}" data-cal-url aria-label="Agenda-link">
+        <button class="btn" type="button" data-copy-cal>Kopiëren</button>
+      </div>
+      <details class="small help-list"><summary>Zo voeg je hem toe</summary>
+        <ul>
+          <li><strong>Google Agenda</strong> (computer): Andere agenda's → + → Abonneren op agenda → plak de link.</li>
+          <li><strong>iPhone/iPad</strong>: Instellingen → Agenda → Accounts → Voeg account toe → Andere → Voeg agenda-abonnement toe.</li>
+          <li><strong>Outlook</strong>: Agenda toevoegen → Abonneren vanaf internet → plak de link.</li>
+          <li>De server moet bereikbaar zijn voor de agenda-dienst. Google en Outlook halen de agenda op via internet,
+            dus een adres dat alleen thuis werkt (zoals 192.168.…) werkt daar niet; Apple Agenda op je eigen wifi wel.</li>
+        </ul>
+      </details>
+      <p class="muted small">Iedereen met deze link kan je agenda lezen. Gedeeld met iemand die hem niet meer mag hebben?
+        <button class="btn btn-ghost small" type="button" data-new-cal>Nieuwe link maken</button> (de oude stopt dan).</p>
+    </section>` : ''}
 
     <section class="card">
       <h2>Back-up</h2>
@@ -71,6 +127,40 @@ export async function render(root) {
     </section>
   </div>`;
   const form = $('[data-form]', root);
+  root.querySelectorAll('[data-person-form]').forEach((f) => f.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      const p = await api.put(`/people/${f.dataset.personForm}`, Object.fromEntries(new FormData(f)));
+      toast(`${p.name}: doel ${p.targets.kcal} kcal per dag`, 'success');
+      render(root);
+    } catch (err) { toast(err.message, 'error'); }
+  }));
+  // Op het (telkens nieuwe) view-element, zodat opnieuw tekenen geen dubbele handlers geeft
+  $('.view', root).addEventListener('click', async (e) => {
+    try {
+      if (e.target.closest('[data-add-person]')) {
+        await api.post('/people', { name: 'Nieuwe persoon' });
+        return render(root);
+      }
+      const del = e.target.closest('[data-del-person]');
+      if (del) {
+        if (!(await confirmDialog('Deze persoon met dagboek en gewichtslog verwijderen?'))) return;
+        await api.del(`/people/${del.dataset.delPerson}`);
+        return render(root);
+      }
+      if (e.target.closest('[data-copy-cal]')) {
+        const input = $('[data-cal-url]', root);
+        try { await navigator.clipboard.writeText(input.value); } catch { input.select(); document.execCommand('copy'); }
+        return toast('Link gekopieerd', 'success');
+      }
+      if (e.target.closest('[data-new-cal]')) {
+        if (!(await confirmDialog('Een nieuwe link maken? Agenda\'s met de oude link worden niet meer bijgewerkt.', 'Nieuwe link'))) return;
+        const { url } = await api.post('/calendar/new-link');
+        $('[data-cal-url]', root).value = url;
+        toast('Nieuwe link gemaakt', 'success');
+      }
+    } catch (err) { toast(err.message, 'error'); }
+  });
   $('[data-restore]', root).addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;

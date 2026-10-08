@@ -2,8 +2,9 @@
 // met dezelfde datalaag (repo.js, calc.js, seed.js) als de echte server.
 // Externe diensten (Claude, Open Food Facts, Open Prices) zijn vanuit de demo niet bereikbaar.
 import * as repo from './server/repo.js';
-import { getSetting, setSetting } from './server/db.js';
-import { CATEGORIES, mondayOf } from './server/seed.js';
+import { getSetting, setSetting, getDb } from './server/db.js';
+import { CATEGORIES, mondayOf, addDays } from './server/seed.js';
+import * as tracker from './server/tracker.js';
 import { UNITS } from './server/calc.js';
 
 const NOT_IN_DEMO = 'Dit werkt alleen als je de app op je eigen server draait (Claude, Open Food Facts en Open Prices zijn vanuit de demo niet bereikbaar).';
@@ -78,7 +79,20 @@ const ROUTES = [
   ['PUT', '/ingredients/:id', (req) => repo.saveIngredient(req.body, Number(req.params.id)) || Promise.reject(notFound())],
   ['DELETE', '/ingredients/:id', (req) => repo.deleteIngredient(Number(req.params.id))],
 
-  ['GET', '/plan', (req) => repo.getPlan(week(req.query.week), 7)],
+  ['GET', '/plan', (req) => {
+    const plan = repo.getPlan(week(req.query.week), 7);
+    const personId = Number(req.query.persoon);
+    if (personId && tracker.getPerson(personId)) {
+      const s = tracker.summary(personId, plan.start, plan.end);
+      const eaten = new Set(getDb().prepare('SELECT plan_entry_id FROM food_log WHERE person_id = ? AND date BETWEEN ? AND ? AND plan_entry_id IS NOT NULL')
+        .all(personId, plan.start, plan.end).map((r) => r.plan_entry_id));
+      for (const [i, d] of plan.days.entries()) {
+        d.diary = { ...s.days[i], target_kcal: s.target_kcal };
+        for (const e of d.entries) e.eaten = eaten.has(e.id);
+      }
+    }
+    return plan;
+  }],
   ['POST', '/plan', (req) => ({ id: repo.addPlanEntry(req.body) })],
   ['PUT', '/plan/:id', (req) => (repo.updatePlanEntry(Number(req.params.id), req.body) ? { ok: true } : Promise.reject(notFound()))],
   ['DELETE', '/plan/:id', (req) => repo.deletePlanEntry(Number(req.params.id))],
@@ -96,6 +110,30 @@ const ROUTES = [
   ['POST', '/shopping/extras', (req) => repo.addShoppingExtra(week(req.body.week), String(req.body.name || '').trim())],
   ['PUT', '/shopping/extras/:id', (req) => repo.updateShoppingExtra(Number(req.params.id), req.body.checked)],
   ['DELETE', '/shopping/extras/:id', (req) => repo.deleteShoppingExtra(Number(req.params.id))],
+
+  // Dagboek en gewicht (de agenda-koppeling werkt alleen op een eigen server)
+  ['GET', '/people', () => ({ people: tracker.listPeople(), activity: tracker.ACTIVITY, meals: tracker.MEALS })],
+  ['POST', '/people', (req) => tracker.savePerson(req.body)],
+  ['PUT', '/people/:id', (req) => tracker.savePerson(req.body, Number(req.params.id)) || Promise.reject(notFound())],
+  ['DELETE', '/people/:id', (req) => tracker.deletePerson(Number(req.params.id))],
+  ['GET', '/diary', (req) => tracker.getDay(Number(req.query.persoon), req.query.datum)],
+  ['POST', '/diary', (req) => ({ id: tracker.addLogEntry(req.body) })],
+  ['PUT', '/diary/:id', (req) => (tracker.updateLogEntry(Number(req.params.id), req.body) ? { ok: true } : Promise.reject(notFound()))],
+  ['DELETE', '/diary/:id', (req) => tracker.deleteLogEntry(Number(req.params.id))],
+  ['POST', '/diary/from-plan', (req) => ({ added: tracker.logPlannedDay(Number(req.body.person_id), req.body.date, req.body.plan_entry_id) })],
+  ['POST', '/diary/copy', (req) => ({ copied: tracker.copyDay(Number(req.body.person_id), req.body.from, req.body.to) })],
+  ['GET', '/diary/summary', (req) => tracker.summary(Number(req.query.persoon), req.query.van, req.query.tot)],
+  ['GET', '/foods', (req) => {
+    const q = String(req.query.q || '').trim();
+    if (q.length < 2) return { recipes: [], ingredients: [] };
+    return {
+      recipes: repo.listRecipes({ q }).slice(0, 8).map((r) => ({ id: r.id, title: r.title, kcal_per_serving: r.kcal_per_serving })),
+      ingredients: repo.listIngredients(q).slice(0, 12).map((i) => ({ id: i.id, name: i.name, kcal: i.kcal, unit_weight_g: i.unit_weight_g })),
+    };
+  }],
+  ['GET', '/weight', (req) => tracker.weightHistory(Number(req.query.persoon), Number(req.query.dagen) || 90)],
+  ['PUT', '/weight', (req) => tracker.logWeight(req.body)],
+  ['DELETE', '/weight/:id', (req) => tracker.deleteWeight(Number(req.params.id))],
 
   ['GET', '/backup', () => repo.exportAll()],
   ['POST', '/restore', (req) => ({ restored: repo.importAll(req.body) })],
@@ -142,5 +180,27 @@ export async function handle(method, url, bodyText, persist) {
   } catch (err) {
     console.error(err);
     return json(err.status || 500, { error: err.message || 'Onbekende fout' });
+  }
+}
+
+/** Voorbeeldgegevens voor een nieuwe demo: een profiel, zes weken gewicht en een paar dagen dagboek. */
+export function seedDemoTracker() {
+  const [me] = tracker.listPeople();
+  if (getDb().prepare('SELECT COUNT(*) c FROM weight_log').get().c) return;
+  tracker.savePerson({ name: 'Ik', sex: 'm', birth_year: 1985, height_cm: 180, activity: 1.375, goal: 'afvallen', start_weight_kg: 88, target_weight_kg: 80 }, me.id);
+  const today = new Date().toISOString().slice(0, 10);
+  let w = 88.4;
+  for (let n = 42; n >= 0; n--) {
+    w += -0.07 + Math.sin(n * 2.3) * 0.3;
+    if (n % 4 !== 2) tracker.logWeight({ person_id: me.id, date: addDays(today, -n), weight_kg: Math.round(w * 10) / 10 });
+  }
+  const find = (q) => repo.listIngredients(q)[0];
+  const [yoghurt, banaan] = [find('yoghurt'), find('banaan')];
+  for (let n = 3; n >= 1; n--) {
+    const date = addDays(today, -n);
+    if (yoghurt) tracker.addLogEntry({ person_id: me.id, date, meal: 'ontbijt', type: 'ingredient', ingredient_id: yoghurt.id, grams: 200 });
+    if (banaan) tracker.addLogEntry({ person_id: me.id, date, meal: 'ontbijt', type: 'ingredient', ingredient_id: banaan.id, grams: 120 });
+    tracker.addLogEntry({ person_id: me.id, date, meal: 'lunch', type: 'free', name: 'Twee broodjes kaas', values: { kcal: 430, protein: 22, carbs: 46, fat: 16 } });
+    tracker.logPlannedDay(me.id, date);
   }
 }

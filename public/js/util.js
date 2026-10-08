@@ -193,3 +193,13 @@ export const NUTRIENT_LABELS = {
 
 // Referentie-inname volwassene (EU) voor %RI
 export const REFERENCE_INTAKE = { kcal: 2000, protein: 50, carbs: 260, sugar: 90, fat: 70, sat_fat: 20, fiber: 30, salt: 6 };
+
+// ---------- Gekozen persoon (dagboek) ----------
+// Per apparaat onthouden wie het dagboek bijhoudt; werkt ook zonder opslag (privévenster).
+const PERSON_KEY = 'maaltijden-persoon';
+export function savedPerson() {
+  try { return Number(localStorage.getItem(PERSON_KEY)) || null; } catch { return null; }
+}
+export function rememberPerson(id) {
+  try { localStorage.setItem(PERSON_KEY, String(id)); } catch { /* geen opslag */ }
+}

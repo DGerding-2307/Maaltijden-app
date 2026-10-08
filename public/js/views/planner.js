@@ -1,6 +1,7 @@
 import { api, meta, liveSync } from '../api.js';
 import {
   $, $$, esc, euro, num, addDays, mondayOf, todayISO, fmtDate, weekNumber, DAY_NAMES, toast, modal, confirmDialog, debounce, minutes,
+  savedPerson, rememberPerson,
 } from '../util.js';
 
 export async function render(root, params) {
@@ -9,9 +10,12 @@ export async function render(root, params) {
   const meals = m.meals;
   let recipes = [];
   let plan;
+  // Dagboek: wie heeft wat gegeten (per apparaat onthouden)
+  const { people } = await api.get('/people');
+  let person = people.find((p) => p.id === savedPerson()) || people[0];
 
   async function load() {
-    [plan, recipes] = await Promise.all([api.get(`/plan?week=${start}`), recipes.length ? recipes : api.get('/recipes?sort=title')]);
+    [plan, recipes] = await Promise.all([api.get(`/plan?week=${start}&persoon=${person.id}`), recipes.length ? recipes : api.get('/recipes?sort=title')]);
     draw();
   }
 
@@ -28,6 +32,8 @@ export async function render(root, params) {
           <button class="mini" data-serv="1" aria-label="Meer personen">+</button>
         </span>
         ${e.recipe_id && !e.leftover_of ? `<span class="muted">${euro(e.cost_cents)}</span>` : ''}
+        ${e.recipe_id && e.date <= todayISO() ? `<button class="eat-toggle ${e.eaten ? 'on' : ''}" data-eat aria-pressed="${!!e.eaten}"
+          title="${e.eaten ? `Staat in het dagboek van ${esc(person.name)}` : `Als gegeten in het dagboek van ${esc(person.name)} zetten`}">${e.eaten ? '✓ gegeten' : 'gegeten?'}</button>` : ''}
       </div>
       <div class="entry-actions">
         <button class="mini" data-entry-menu aria-label="Verplaatsen, restjes, bewerken" title="Verplaatsen, restjes, bewerken">⋯</button>
@@ -54,6 +60,8 @@ export async function render(root, params) {
           ${start !== mondayOf(today) ? '<a class="btn btn-ghost" href="#/planner">Vandaag</a>' : ''}
         </div>
         <div class="actions">
+          ${people.length > 1 ? `<label class="plan-person" title="Dagboek van">👤 <select class="input" data-person aria-label="Dagboek van">
+            ${people.map((p) => `<option value="${p.id}" ${p.id === person.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>` : ''}
           <button class="btn btn-ai" data-action="ai">✨ Weekmenu met Claude</button>
           <a class="btn" href="#/boodschappen?week=${start}">🛒 Boodschappenlijst</a>
           <details class="menu">
@@ -93,6 +101,9 @@ export async function render(root, params) {
               <footer class="day-foot">
                 ${d.entries.length ? `<span title="per persoon">${num(d.nutrition_per_person.kcal, 0)} kcal p.p.</span><span>${euro(d.cost_cents)}</span>` : '<span class="muted">Nog niets gepland</span>'}
               </footer>
+              ${d.diary && (d.diary.entries || d.date <= today) ? `<a class="day-diary" href="#/dagboek?datum=${d.date}&persoon=${person.id}" title="Dagboek ${esc(person.name)}">
+                <span class="${d.diary.kcal > d.diary.target_kcal ? 'bad' : ''}">🔥 ${d.diary.entries ? `${num(d.diary.kcal, 0)}/${num(d.diary.target_kcal, 0)}` : '–'}</span>
+                ${d.diary.weight_kg ? `<span>⚖️ ${num(d.diary.weight_kg, 1)} kg</span>` : ''}</a>` : ''}
             </section>`).join('')}
         </div>
 
@@ -160,6 +171,16 @@ export async function render(root, params) {
         return load();
       }
       if (e.target.closest('[data-entry-menu]') && entry) return entryMenu(entry);
+      if (e.target.closest('[data-eat]') && entry) {
+        if (entry.eaten) {
+          const day = await api.get(`/diary?persoon=${person.id}&datum=${entry.date}`);
+          for (const x of day.meals.flatMap((m) => m.entries).filter((x) => x.plan_entry_id === entry.id)) await api.del(`/diary/${x.id}`);
+        } else {
+          await api.post('/diary/from-plan', { person_id: person.id, date: entry.date, plan_entry_id: entry.id });
+          toast(`In het dagboek van ${person.name} gezet (1 portie)`, 'success');
+        }
+        return load();
+      }
       if (e.target.closest('[data-remove]') && entry) {
         await api.del(`/plan/${entry.id}`);
         return load();
@@ -375,13 +396,22 @@ export async function render(root, params) {
     e.dataTransfer.effectAllowed = entry ? 'copyMove' : 'copy';
   }
 
+  function onChange(e) {
+    if (!e.target.matches('[data-person]')) return;
+    person = people.find((p) => p.id === Number(e.target.value)) || person;
+    rememberPerson(person.id);
+    load();
+  }
+
   root.addEventListener('click', onClick);
+  root.addEventListener('change', onChange);
   root.addEventListener('dragstart', onDragStart);
   await load();
   const stopSync = liveSync(load);
   return () => {
     stopSync();
     root.removeEventListener('click', onClick);
+    root.removeEventListener('change', onChange);
     root.removeEventListener('dragstart', onDragStart);
   };
 }

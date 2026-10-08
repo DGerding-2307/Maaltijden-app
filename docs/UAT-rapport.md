@@ -65,8 +65,10 @@
 | UAT-20 | Alle hoofdpagina's op telefoon zonder horizontaal scrollen | V13 | – niet gemeten | ✅ (na herstel, zie §5) |
 | UAT-21 | Ingrediënt aan een recept toevoegen door de barcode te scannen *(v2.2)* | V6, V8 | ❌ | ✅ gekoppeld aan bestaand ingrediënt, met voedingswaarden uit Open Food Facts |
 | UAT-22 | Prijzen uit een officiële, open bron *(v2.3)* | V10 | ❌ alleen schattingen | ✅ Open Prices: mediaan van Nederlandse winkelprijzen, bron zichtbaar per ingrediënt en recept |
+| UAT-23 | Calorieën bijhouden op de telefoon: zoeken, hoeveelheid, geplande maaltijd afvinken *(v2.6)* | — | ❌ | ✅ hoeveelheid × voedingswaarde klopt met het dagtotaal |
+| UAT-24 | Gewicht loggen met trendgrafiek; dagboek en gewicht in de agenda *(v2.6)* | — | ❌ | ✅ komma-invoer, grafiek, ICS-feed met dagtotaal en gewicht |
 
-**v1:** 6 geslaagd, 5 gedeeltelijk, 10 niet, 1 niet gemeten. **v2.3:** 22 van 22 geslaagd.
+**v1:** 6 geslaagd, 5 gedeeltelijk, 10 niet, 1 niet gemeten. **v2.3:** 22 van 22 geslaagd. **v2.6:** 24 van 24 geslaagd.
 
 UAT-21 en UAT-22 zijn getest tegen een nagebootste Open Food Facts- en Open Prices-server (zelfde antwoordformaat als de echte API, afgeleid uit de broncode van Open Prices). De camera is in de testbrowser vervangen door het intypen van de barcode.
 
@@ -129,5 +131,6 @@ Veel recensiebronnen zijn overzichtssites of door concurrenten geschreven. Zie d
 | ![Verplaatsen op telefoon](uat/02-verplaatsen-mobiel.png) Verplaatsen op de telefoon | ![Boodschappen mobiel](uat/10-boodschappen-mobiel.png) Boodschappenlijst met 🏠 ‘heb ik al’ |
 | ![Wat kan ik maken](uat/12-wat-kan-ik-maken.png) ‘Wat kan ik maken?’ | ![Offline](uat/16-offline.png) Offline met melding |
 | ![Barcode in recept](uat/21-barcode-recept.png) Ingrediënt scannen in de recepteditor | ![Open Prices](uat/22-open-prices.png) Winkelprijzen uit Open Prices |
+| ![Dagboek](uat/23-dagboek.png) Calorieëndagboek op de telefoon | ![Gewicht](uat/24-gewicht.png) Gewichtslog met trendlijn |
 
 *De voedingswaarden en barcodes op de schermafbeeldingen komen van de nagebootste Open Food Facts-server, niet van echte producten.*

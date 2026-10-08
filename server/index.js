@@ -1,7 +1,7 @@
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { openDatabase, getSetting, setSetting, lastBuiltinSync } from './db.js';
+import { openDatabase, getSetting, setSetting, lastBuiltinSync, getDb } from './db.js';
 import * as repo from './repo.js';
 import * as ai from './claude.js';
 import { CATEGORIES, mondayOf, addDays } from './seed.js';
@@ -10,6 +10,8 @@ import { enqueue, queueStatus, clearQueue } from './offqueue.js';
 import { priceForIngredient, ingredientPriceFields } from './openprices.js';
 import { enqueuePrices, priceQueueStatus, clearPriceQueue } from './pricequeue.js';
 import { lookupBarcode, applyBarcode } from './scan.js';
+import * as tracker from './tracker.js';
+import { buildIcs, calendarToken } from './calendar.js';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { UNITS } from './calc.js';
@@ -51,6 +53,14 @@ export function createApp() {
   app.get('/health', (req, res) => {
     res.set('Access-Control-Allow-Origin', '*');
     res.json({ ok: true, app: 'maaltijden', version: APP_VERSION, login: !!process.env.APP_PASSWORD });
+  });
+
+  // Agenda-abonnement: beveiligd met de geheime sleutel in de link (agenda-apps kunnen niet inloggen)
+  app.get('/agenda/:token.ics', (req, res) => {
+    if (req.params.token !== calendarToken()) return res.status(404).send('Onbekende agenda');
+    res.set('Content-Type', 'text/calendar; charset=utf-8');
+    res.set('Cache-Control', 'no-cache');
+    res.send(buildIcs({ baseUrl: `${req.protocol}://${req.get('host')}` }));
   });
 
   // Optionele beveiliging voor gebruik buiten je thuisnetwerk: inlogpagina met een cookie
@@ -250,6 +260,33 @@ export function createApp() {
   }));
   api.delete('/prices/queue', wrap(() => { clearPriceQueue(); return priceQueueStatus(); }));
 
+  // ---- Dagboek (calorieën) en gewicht ----
+  api.get('/people', wrap(() => ({ people: tracker.listPeople(), activity: tracker.ACTIVITY, meals: tracker.MEALS })));
+  api.post('/people', wrap((req) => tracker.savePerson(req.body)));
+  api.put('/people/:id', wrap((req) => tracker.savePerson(req.body, Number(req.params.id)) || Promise.reject(notFound())));
+  api.delete('/people/:id', wrap((req) => tracker.deletePerson(Number(req.params.id))));
+  api.get('/diary', wrap((req) => tracker.getDay(Number(req.query.persoon), req.query.datum || new Date().toISOString().slice(0, 10))));
+  api.post('/diary', wrap((req) => ({ id: tracker.addLogEntry(req.body) })));
+  api.put('/diary/:id', wrap((req) => (tracker.updateLogEntry(Number(req.params.id), req.body) ? { ok: true } : Promise.reject(notFound()))));
+  api.delete('/diary/:id', wrap((req) => tracker.deleteLogEntry(Number(req.params.id))));
+  api.post('/diary/from-plan', wrap((req) => ({ added: tracker.logPlannedDay(Number(req.body.person_id), req.body.date, req.body.plan_entry_id) })));
+  api.post('/diary/copy', wrap((req) => ({ copied: tracker.copyDay(Number(req.body.person_id), req.body.from, req.body.to) })));
+  api.get('/diary/summary', wrap((req) => tracker.summary(Number(req.query.persoon), req.query.van, req.query.tot)));
+  api.get('/foods', wrap((req) => {
+    // Zoeken in recepten en ingrediënten om toe te voegen aan het dagboek
+    const q = String(req.query.q || '').trim();
+    if (q.length < 2) return { recipes: [], ingredients: [] };
+    return {
+      recipes: repo.listRecipes({ q }).slice(0, 8).map((r) => ({ id: r.id, title: r.title, kcal_per_serving: r.kcal_per_serving })),
+      ingredients: repo.listIngredients(q).slice(0, 12).map((i) => ({ id: i.id, name: i.name, kcal: i.kcal, unit_weight_g: i.unit_weight_g })),
+    };
+  }));
+  api.get('/weight', wrap((req) => tracker.weightHistory(Number(req.query.persoon), Number(req.query.dagen) || 90)));
+  api.put('/weight', wrap((req) => tracker.logWeight(req.body)));
+  api.delete('/weight/:id', wrap((req) => tracker.deleteWeight(Number(req.params.id))));
+  api.get('/calendar', wrap((req) => ({ url: `${req.protocol}://${req.get('host')}/agenda/${calendarToken()}.ics` })));
+  api.post('/calendar/new-link', wrap((req) => ({ url: `${req.protocol}://${req.get('host')}/agenda/${calendarToken(true)}.ics` })));
+
   // ---- Barcode scannen ----
   api.get('/scan/:ean', wrap((req) => lookupBarcode(req.params.ean)));
   api.post('/scan/apply', wrap((req) => {
@@ -260,7 +297,21 @@ export function createApp() {
   }));
 
   // ---- Planning ----
-  api.get('/plan', wrap((req) => repo.getPlan(week(req.query.week), 7)));
+  api.get('/plan', wrap((req) => {
+    const plan = repo.getPlan(week(req.query.week), 7);
+    // Met ?persoon: per maaltijd of die persoon hem als gegeten heeft geregistreerd, en het dagtotaal uit het dagboek
+    const personId = Number(req.query.persoon);
+    if (personId && tracker.getPerson(personId)) {
+      const s = tracker.summary(personId, plan.start, plan.end);
+      const eaten = new Set(getDb().prepare('SELECT plan_entry_id FROM food_log WHERE person_id = ? AND date BETWEEN ? AND ? AND plan_entry_id IS NOT NULL')
+        .all(personId, plan.start, plan.end).map((r) => r.plan_entry_id));
+      for (const [i, d] of plan.days.entries()) {
+        d.diary = { ...s.days[i], target_kcal: s.target_kcal };
+        for (const e of d.entries) e.eaten = eaten.has(e.id);
+      }
+    }
+    return plan;
+  }));
   api.post('/plan', wrap((req) => ({ id: repo.addPlanEntry(req.body) })));
   api.put('/plan/:id', wrap((req) => (repo.updatePlanEntry(Number(req.params.id), req.body) ? { ok: true } : Promise.reject(notFound()))));
   api.delete('/plan/:id', wrap((req) => repo.deletePlanEntry(Number(req.params.id))));

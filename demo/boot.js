@@ -38,6 +38,7 @@ try {
   const { openDatabase } = await import('./server/db.js');
   openDatabase(':memory:');
   const demoApi = await import('./api.js');
+  if (!globalThis.__SAVED_DB) demoApi.seedDemoTracker();
 
   const realFetch = window.fetch.bind(window);
   window.fetch = async (input, init = {}) => {
