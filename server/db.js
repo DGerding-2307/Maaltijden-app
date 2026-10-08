@@ -191,6 +191,7 @@ const MIGRATIONS = [
   ['ingredients', 'price_count', 'INTEGER'],
   ['ingredients', 'price_note', 'TEXT'],
   ['recipes', 'builtin_key', 'TEXT'],
+  ['recipes', 'image_credit', 'TEXT'],
 ];
 
 function migrate(db) {

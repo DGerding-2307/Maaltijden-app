@@ -1,6 +1,7 @@
 // Startdata: veelgebruikte Nederlandse ingrediënten en klassieke recepten.
 // Voedingswaarden per 100 g zijn afgerond en gebaseerd op NEVO-gemiddelden (RIVM).
 // Prijzen zijn schattingen van supermarktprijzen (Jumbo-niveau, 2026); pas ze aan via Ingrediënten → ✏️.
+import { PHOTOS } from './photos.js';
 
 const AGF = 'Aardappelen, groente & fruit';
 const VV = 'Vlees, vis & vega';
@@ -1359,6 +1360,16 @@ const RECIPES = [
   },
 ];
 
+/** Foto en bronvermelding van een standaardrecept, of null. */
+export function builtinPhoto(key) {
+  const p = PHOTOS[key];
+  if (!p) return null;
+  return {
+    url: `img/recipes/${key}.jpg`,
+    credit: JSON.stringify({ author: p.author, license: p.license, license_url: p.license_url, page: p.page, source: p.source }),
+  };
+}
+
 /** Vaste sleutel van een standaardrecept, zodat updates het kunnen herkennen (ook als je de titel aanpast). */
 export function builtinKey(title) {
   return String(title).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -1383,7 +1394,7 @@ const LEGACY_INGREDIENTS = () => I.findIndex((r) => r[0] === "patak's butter chi
  * Wat je zelf hebt verwijderd of aangepast, blijft zoals het is.
  * @returns { ingredients, recipes } aantal toegevoegde onderdelen
  */
-export function syncBuiltins(db, { fresh = false } = {}) {
+export function syncBuiltins(db, { fresh = false, restore = false } = {}) {
   db.exec('BEGIN');
   try {
     // Elk standaardonderdeel wordt één keer aangeboden. Wat je daarna verwijdert of hernoemt, komt niet terug.
@@ -1418,18 +1429,20 @@ export function syncBuiltins(db, { fresh = false } = {}) {
         keyed.add(key);
       }
     }
-    const insRecipe = db.prepare(`INSERT INTO recipes (title, description, servings, prep_minutes, cook_minutes, category, cuisine, tags, steps, builtin_key)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    const insRecipe = db.prepare(`INSERT INTO recipes (title, description, servings, prep_minutes, cook_minutes, category, cuisine, tags, steps, builtin_key, image_url, image_credit)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     const insRow = db.prepare(`INSERT INTO recipe_ingredients (recipe_id, ingredient_id, name, quantity, unit, note, optional, position)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
     const recipeIds = [];
     let addedRec = 0;
     for (const r of RECIPES) {
       const key = builtinKey(r.title);
-      if (keyed.has(key) || offeredRec.has(key)) continue;
+      // Met restore komen ook verwijderde standaardrecepten terug
+      if (keyed.has(key) || (!restore && offeredRec.has(key))) continue;
       const { lastInsertRowid } = insRecipe.run(
         r.title, r.description, r.servings, r.prep_minutes, r.cook_minutes, r.category,
         r.cuisine || (r.tags.includes('indisch') ? 'Indisch' : 'Nederlands'), JSON.stringify(r.tags), JSON.stringify(r.steps), key,
+        builtinPhoto(key)?.url ?? null, builtinPhoto(key)?.credit ?? null,
       );
       recipeIds.push(Number(lastInsertRowid));
       addedRec++;
@@ -1438,6 +1451,16 @@ export function syncBuiltins(db, { fresh = false } = {}) {
         insRow.run(lastInsertRowid, byName.get(name.toLowerCase()) ?? null, name, qty, unit, note, optional, i);
       });
     }
+
+    // Bestaande standaardrecepten zonder foto krijgen één keer de meegeleverde foto (een eigen foto blijft staan)
+    const offeredPhotos = new Set(getList(db, 'builtin_photos_offered') ?? []);
+    const setPhoto = db.prepare("UPDATE recipes SET image_url = ?, image_credit = ? WHERE builtin_key = ? AND (image_url IS NULL OR image_url = '')");
+    for (const key of Object.keys(PHOTOS)) {
+      if (offeredPhotos.has(key)) continue;
+      const p = builtinPhoto(key);
+      setPhoto.run(p.url, p.credit, key);
+    }
+    setList(db, 'builtin_photos_offered', Object.keys(PHOTOS));
 
     setList(db, 'builtin_ingredients_offered', I.map((r) => r[0].toLowerCase()));
     setList(db, 'builtin_recipes_offered', RECIPES.map((r) => builtinKey(r.title)));
@@ -1459,6 +1482,17 @@ export function syncBuiltins(db, { fresh = false } = {}) {
     db.exec('ROLLBACK');
     throw err;
   }
+}
+
+/** Aantal standaardrecepten dat niet (meer) in de database staat. */
+export function missingBuiltinRecipes(db) {
+  const keys = new Set(db.prepare('SELECT builtin_key FROM recipes WHERE builtin_key IS NOT NULL').all().map((r) => r.builtin_key));
+  return RECIPES.filter((r) => !keys.has(builtinKey(r.title))).length;
+}
+
+/** Verwijderde standaardrecepten terugzetten. */
+export function restoreBuiltinRecipes(db) {
+  return syncBuiltins(db, { restore: true }).recipes;
 }
 
 /** Nieuwe database vullen (blijft bestaan voor compatibiliteit). */

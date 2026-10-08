@@ -211,6 +211,11 @@ export function saveRecipe(data, id = null) {
       rating: data.rating ? Number(data.rating) : null,
       notes: data.notes || '',
     };
+    if (id) {
+      // Bronvermelding van een meegeleverde foto blijft alleen staan zolang die foto niet is vervangen
+      const old = db.prepare('SELECT image_url, image_credit FROM recipes WHERE id = ?').get(id);
+      fields.image_credit = old && old.image_url === fields.image_url ? old.image_credit : null;
+    }
     const keys = Object.keys(fields);
     let recipeId = id;
     if (id) {
@@ -252,6 +257,16 @@ export function setRating(id, rating) {
 
 export function deleteRecipe(id) {
   getDb().prepare('DELETE FROM recipes WHERE id = ?').run(id);
+}
+
+/** Meerdere recepten tegelijk verwijderen (ook uit de planning). */
+export function deleteRecipes(ids) {
+  const list = [...new Set((ids || []).map(Number).filter(Boolean))];
+  tx((db) => {
+    const del = db.prepare('DELETE FROM recipes WHERE id = ?');
+    for (const id of list) del.run(id);
+  });
+  return list.length;
 }
 
 // ---------- Planning ----------

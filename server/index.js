@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { openDatabase, getSetting, setSetting, lastBuiltinSync, getDb } from './db.js';
 import * as repo from './repo.js';
 import * as ai from './claude.js';
-import { CATEGORIES, mondayOf, addDays } from './seed.js';
+import { CATEGORIES, mondayOf, addDays, missingBuiltinRecipes, restoreBuiltinRecipes } from './seed.js';
 import { searchOff, productByBarcode, ingredientNutritionFields } from './openfoodfacts.js';
 import { enqueue, queueStatus, clearQueue } from './offqueue.js';
 import { priceForIngredient, ingredientPriceFields } from './openprices.js';
@@ -137,6 +137,7 @@ export function createApp() {
     claude: ai.claudeStatus(),
     app_version: APP_VERSION,
     builtin_sync: lastBuiltinSync(),
+    builtin_missing: missingBuiltinRecipes(getDb()),
   })));
 
   api.put('/settings', wrap((req) => {
@@ -190,6 +191,8 @@ export function createApp() {
     return repo.getRecipe(id);
   }));
   api.delete('/recipes/:id', wrap((req) => repo.deleteRecipe(Number(req.params.id))));
+  api.post('/recipes/delete', wrap((req) => ({ deleted: repo.deleteRecipes(req.body.ids) })));
+  api.post('/builtins/restore', wrap(() => ({ restored: restoreBuiltinRecipes(getDb()) })));
   api.post('/recipes/:id/duplicate', wrap((req) => {
     const r = repo.getRecipe(Number(req.params.id));
     if (!r) throw notFound();

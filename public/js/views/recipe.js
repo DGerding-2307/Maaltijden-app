@@ -5,6 +5,15 @@ import {
 } from '../util.js';
 import { recipeThumb } from './recipes.js';
 
+/** Bronvermelding bij een meegeleverde foto (vrije licentie). */
+function photoCredit(r) {
+  let c;
+  try { c = r.image_credit ? JSON.parse(r.image_credit) : null; } catch { c = null; }
+  if (!c) return '';
+  const license = c.license_url ? `<a href="${esc(c.license_url)}" target="_blank" rel="noopener">${esc(c.license)}</a>` : esc(c.license);
+  return `<figcaption class="photo-credit">Voorbeeldfoto: <a href="${esc(c.page)}" target="_blank" rel="noopener">${esc(c.author)}</a>, ${license}</figcaption>`;
+}
+
 export function scaledLine(row, factor) {
   if (row.unit === 'naar smaak' || row.quantity == null) return `${esc(row.unit === 'naar smaak' ? '' : row.unit)}`;
   return `${qty(row.quantity * factor)} ${esc(row.unit)}`;
@@ -25,7 +34,10 @@ export async function render(root, params) {
     const n = nutritionMode === 'pp' ? r.nutrition_per_serving : Object.fromEntries(Object.entries(r.nutrition_per_serving).map(([k, v]) => [k, v * persons]));
     view.innerHTML = `
       <div class="recipe-hero">
-        <div class="hero-img">${recipeThumb(r)}</div>
+        <figure class="hero-fig">
+          <div class="hero-img">${recipeThumb(r)}</div>
+          ${photoCredit(r)}
+        </figure>
         <div class="hero-info">
           <div class="crumbs"><a href="#/recepten">← Receptenboek</a></div>
           <h1>${esc(r.title)} <button class="fav-big ${r.favorite ? 'on' : ''}" data-fav aria-label="Favoriet">${r.favorite ? '★' : '☆'}</button></h1>
@@ -44,13 +56,13 @@ export async function render(root, params) {
             <a class="btn btn-primary" href="#/recept/${r.id}/koken?personen=${persons}">👩‍🍳 Kookmodus</a>
             <button class="btn" data-plan>📅 Inplannen</button>
             <a class="btn" href="#/recept/${r.id}/bewerken">✏️ Bewerken</a>
+            <button class="btn btn-ghost danger-text" data-delete>🗑️ Verwijderen</button>
             <details class="menu">
               <summary class="btn btn-ghost" aria-label="Meer">⋯</summary>
               <div class="menu-items">
                 <button data-dup>Dupliceren</button>
                 <button data-print>Afdrukken</button>
                 ${r.source_url ? `<a href="${esc(r.source_url)}" target="_blank" rel="noopener">Originele bron ↗</a>` : ''}
-                <button data-delete class="danger">Verwijderen</button>
               </div>
             </details>
           </div>

@@ -3,7 +3,7 @@
 // Externe diensten (Claude, Open Food Facts, Open Prices) zijn vanuit de demo niet bereikbaar.
 import * as repo from './server/repo.js';
 import { getSetting, setSetting, getDb } from './server/db.js';
-import { CATEGORIES, mondayOf, addDays } from './server/seed.js';
+import { CATEGORIES, mondayOf, addDays, missingBuiltinRecipes, restoreBuiltinRecipes } from './server/seed.js';
 import * as tracker from './server/tracker.js';
 import { UNITS } from './server/calc.js';
 
@@ -37,6 +37,7 @@ const ROUTES = [
     prices_auto: getSetting('prices_auto', true),
     household: getSetting('household', ''),
     weekly_budget_cents: getSetting('weekly_budget_cents', null),
+    builtin_missing: missingBuiltinRecipes(getDb()),
     claude: { configured: false, from_env: false, model: 'niet beschikbaar in de demo', demo: true },
     demo: true,
   })],
@@ -67,6 +68,8 @@ const ROUTES = [
     return repo.getRecipe(id);
   }],
   ['DELETE', '/recipes/:id', (req) => repo.deleteRecipe(Number(req.params.id))],
+  ['POST', '/recipes/delete', (req) => ({ deleted: repo.deleteRecipes(req.body.ids) })],
+  ['POST', '/builtins/restore', () => ({ restored: restoreBuiltinRecipes(getDb()) })],
   ['POST', '/recipes/:id/duplicate', (req) => {
     const r = repo.getRecipe(Number(req.params.id));
     if (!r) throw notFound();

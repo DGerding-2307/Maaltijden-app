@@ -1,5 +1,5 @@
 import { api, meta } from '../api.js';
-import { $, esc, euro, num, minutes, debounce, toast } from '../util.js';
+import { $, $$, esc, euro, num, minutes, debounce, toast, confirmDialog } from '../util.js';
 
 const CATEGORY_EMOJI = {
   Ontbijt: '🥣', Lunch: '🥪', Hoofdgerecht: '🍽️', Soep: '🍲', Bijgerecht: '🥗', Salade: '🥗', Nagerecht: '🍮', Snack: '🥨', Bakken: '🥧',
@@ -24,7 +24,14 @@ export async function render(root, params) {
       <div class="actions">
         <a class="btn btn-ai" href="#/importeren">✨ Recept toevoegen</a>
         <a class="btn" href="#/recept/nieuw">+ Zelf invoeren</a>
+        <button class="btn btn-ghost" data-select-mode>☑️ Selecteren</button>
       </div>
+    </div>
+    <div class="select-bar" data-select-bar hidden>
+      <strong data-select-count>0 geselecteerd</strong>
+      <button class="btn btn-ghost" data-select-all>Alles selecteren</button>
+      <button class="btn btn-danger" data-delete-selected disabled>🗑️ Verwijderen</button>
+      <button class="btn" data-select-done>Klaar</button>
     </div>
     <div class="filters">
       <input type="search" class="input grow" placeholder="Zoek op naam, tag of ingrediënt (bv. ‘kip’, ‘stamppot’)…" value="${esc(state.q)}" data-f="q">
@@ -61,6 +68,27 @@ export async function render(root, params) {
     <div class="recipe-grid"></div>
   </div>`;
   const view = $('.view', root);
+  // Selecteermodus: meerdere recepten tegelijk verwijderen
+  let selecting = false;
+  const selected = new Set();
+  const updateSelectBar = () => {
+    $('[data-select-count]', view).textContent = `${selected.size} geselecteerd`;
+    $('[data-delete-selected]', view).disabled = !selected.size;
+    $$('.recipe-card', view).forEach((c) => {
+      const on = selected.has(Number(c.dataset.id));
+      c.classList.toggle('selected', on);
+      const box = $('[data-pick]', c);
+      if (box) box.checked = on;
+    });
+  };
+  const setSelecting = (on) => {
+    selecting = on;
+    selected.clear();
+    view.classList.toggle('selecting', on);
+    $('[data-select-bar]', view).hidden = !on;
+    $('[data-select-mode]', view).hidden = on;
+    updateSelectBar();
+  };
 
   async function load() {
     const qs = new URLSearchParams();
@@ -68,7 +96,8 @@ export async function render(root, params) {
     history.replaceState(null, '', `#/recepten${qs.toString() ? `?${qs}` : ''}`);
     const list = await api.get(`/recipes?${qs}`);
     $('.recipe-grid', view).innerHTML = list.map((r) => `
-      <article class="recipe-card">
+      <article class="recipe-card" data-id="${r.id}">
+        <label class="pick" aria-label="${esc(r.title)} selecteren"><input type="checkbox" data-pick></label>
         <a href="#/recept/${r.id}" class="recipe-thumb">${recipeThumb(r)}</a>
         <button class="fav ${r.favorite ? 'on' : ''}" data-fav="${r.id}" aria-label="Favoriet">${r.favorite ? '★' : '☆'}</button>
         <div class="recipe-body">
@@ -85,6 +114,7 @@ export async function render(root, params) {
           <div class="recipe-tags">${r.tags.slice(0, 3).map((t) => `<span class="tag small">${esc(t)}</span>`).join('')}</div>
         </div>
       </article>`).join('') || `<div class="empty"><p>Geen recepten gevonden.</p><a class="btn btn-ai" href="#/importeren">✨ Voeg een recept toe met Claude</a></div>`;
+    if (selecting) updateSelectBar();
   }
 
   view.addEventListener('input', debounce((e) => {
@@ -100,6 +130,33 @@ export async function render(root, params) {
     load();
   });
   view.addEventListener('click', async (e) => {
+    if (e.target.closest('[data-select-mode]')) return setSelecting(true);
+    if (e.target.closest('[data-select-done]')) return setSelecting(false);
+    if (e.target.closest('[data-select-all]')) {
+      const cards = $$('.recipe-card', view).map((c) => Number(c.dataset.id));
+      const all = cards.every((id) => selected.has(id));
+      cards.forEach((id) => (all ? selected.delete(id) : selected.add(id)));
+      return updateSelectBar();
+    }
+    if (e.target.closest('[data-delete-selected]')) {
+      const n = selected.size;
+      if (!n || !(await confirmDialog(`${n} recept${n === 1 ? '' : 'en'} verwijderen? ${n === 1 ? 'Het verdwijnt' : 'Ze verdwijnen'} ook uit de planning.`))) return;
+      try {
+        const { deleted } = await api.post('/recipes/delete', { ids: [...selected] });
+        toast(`${deleted} recept${deleted === 1 ? '' : 'en'} verwijderd`, 'success');
+        setSelecting(false);
+        await meta(true);
+        return load();
+      } catch (err) { return toast(err.message, 'error'); }
+    }
+    // In de selecteermodus selecteert een klik op een kaart in plaats van hem te openen
+    const card = selecting && e.target.closest('.recipe-card');
+    if (card) {
+      e.preventDefault();
+      const id = Number(card.dataset.id);
+      if (selected.has(id)) selected.delete(id); else selected.add(id);
+      return updateSelectBar();
+    }
     const quick = e.target.closest('[data-quick]');
     if (quick) {
       const k = quick.dataset.quick;

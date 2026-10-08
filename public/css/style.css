@@ -585,3 +585,19 @@ label.check .input { width: auto; flex: 1; margin-top: 0; }
 .help-list { margin: .6rem 0; }
 .help-list ul { margin: .4rem 0; padding-left: 1.2rem; }
 .help-list li { margin-bottom: .3rem; }
+
+/* Recepten selecteren en verwijderen */
+.select-bar { position: sticky; top: .5rem; z-index: 20; display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; padding: .6rem .8rem; margin-bottom: 1rem;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+.select-bar strong { margin-right: auto; }
+.recipe-card .pick { display: none; position: absolute; top: .5rem; left: .5rem; z-index: 2; width: 2.2rem; height: 2.2rem; border-radius: 50%;
+  background: rgba(255, 255, 255, .9); align-items: center; justify-content: center; }
+.recipe-card .pick input { width: 1.2rem; height: 1.2rem; pointer-events: none; }
+.selecting .recipe-card .pick { display: flex; }
+.selecting .recipe-card { cursor: pointer; }
+.selecting .recipe-card .fav { display: none; }
+.recipe-card.selected { outline: 3px solid var(--primary); outline-offset: -3px; }
+@media (max-width: 720px) { .select-bar { top: .3rem; } .select-bar strong { flex-basis: 100%; } }
+.hero-fig { margin: 0; }
+.photo-credit { font-size: .72rem; color: var(--muted); margin-top: .3rem; line-height: 1.3; overflow-wrap: anywhere; }
+.photo-credit a { color: inherit; }

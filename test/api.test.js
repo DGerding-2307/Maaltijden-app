@@ -58,3 +58,19 @@ test('Claude zonder sleutel geeft nette foutmelding', async () => {
   const res = await send('POST', '/ai/generate', { prompt: 'stamppot' });
   assert.match(res.error, /API-sleutel/);
 });
+
+test('meerdere recepten verwijderen en standaardrecepten terugzetten', async () => {
+  const list = await get('/recipes');
+  const builtin = list.filter((r) => r.builtin_key).slice(0, 3);
+  assert.equal(builtin.length, 3);
+  const before = (await get('/meta')).builtin_missing;
+  const { deleted } = await send('POST', '/recipes/delete', { ids: builtin.map((r) => r.id) });
+  assert.equal(deleted, 3);
+  assert.equal((await get('/recipes')).length, list.length - 3);
+  assert.equal((await get('/meta')).builtin_missing, before + 3);
+  const { restored } = await send('POST', '/builtins/restore');
+  assert.equal(restored, before + 3);
+  assert.equal((await get('/meta')).builtin_missing, 0);
+  const titles = (await get('/recipes')).map((r) => r.title);
+  for (const r of builtin) assert.ok(titles.includes(r.title), r.title);
+});

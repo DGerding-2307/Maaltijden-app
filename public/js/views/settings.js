@@ -100,6 +100,12 @@ export async function render(root) {
       </div>
     </section>
 
+    ${m.builtin_missing ? `<section class="card">
+      <h2>Standaardrecepten</h2>
+      <p class="muted">Je hebt ${m.builtin_missing} van de meegeleverde recepten verwijderd. Ze komen bij updates niet vanzelf terug.</p>
+      <button class="btn" data-restore-builtins>↩️ Verwijderde standaardrecepten terugzetten</button>
+    </section>` : ''}
+
     <section class="card">
       <h2>Ingrediënten & prijzen</h2>
       <p class="muted">Beheer voedingswaarden, verpakkingen en prijzen van alle ingrediënten.</p>
@@ -156,6 +162,11 @@ export async function render(root) {
   // Op het (telkens nieuwe) view-element, zodat opnieuw tekenen geen dubbele handlers geeft
   $('.view', root).addEventListener('click', async (e) => {
     try {
+      if (e.target.closest('[data-restore-builtins]')) {
+        const { restored } = await api.post('/builtins/restore');
+        toast(`${restored} recept${restored === 1 ? '' : 'en'} teruggezet`, 'success');
+        return render(root);
+      }
       if (e.target.closest('[data-add-person]')) {
         await api.post('/people', { name: 'Nieuwe persoon' });
         return render(root);
