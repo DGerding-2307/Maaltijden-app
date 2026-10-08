@@ -1,8 +1,8 @@
-# Gebruikersacceptatietest (UAT): Maaltijden-app v1 → v2
+# Gebruikersacceptatietest (UAT): Maaltijden-app v1 → v2.1
 
 **Datum:** 8 oktober 2026
-**Getest:** v1.0 (eerste versie) en v2.0 (deze versie)
-**Uitslag v2:** 20 van de 20 scenario's geslaagd ✅
+**Getest:** v1.0 (eerste versie), v2.0 en v2.1 (barcode scannen in recepten, lijst naar de Jumbo-app)
+**Uitslag v2.1:** 22 van de 22 scenario's geslaagd ✅
 
 ## 1. Aanpak
 
@@ -63,8 +63,13 @@
 | UAT-18 | Geen account, advertenties of betaalmuur | V1 | ✅ | ✅ |
 | UAT-19 | Duidelijke uitleg als Claude niet is ingesteld | V14 | ✅ | ✅ |
 | UAT-20 | Alle hoofdpagina's op telefoon zonder horizontaal scrollen | V13 | – niet gemeten | ✅ (na herstel, zie §5) |
+| UAT-21 | Ingrediënt aan een recept toevoegen door de barcode te scannen *(v2.1)* | V6, V8 | ❌ | ✅ gekoppeld aan bestaand ingrediënt, met OFF-voeding en Jumbo-product |
+| UAT-22 | Boodschappenlijst naar de Jumbo-app zetten *(v2.1)* | V3 | ❌ alleen links per artikel | ✅ inloggen, automatisch koppelen, samenvoegen met bestaande Jumbo-lijst |
 
-**v1:** 6 geslaagd, 5 gedeeltelijk, 8 niet, 1 niet gemeten. **v2:** 20 van 20 geslaagd.
+**v1:** 6 geslaagd, 5 gedeeltelijk, 10 niet, 1 niet gemeten. **v2.1:** 22 van 22 geslaagd.
+
+UAT-21 en UAT-22 zijn getest tegen een nagebootste Jumbo- en Open Food Facts-server. De camera is in de testbrowser vervangen door het intypen van de barcode.
+Bij het testen van UAT-22 vonden we een fout in jumbo-wrapper 2.1.0: de mandje-functies sturen de inlogtoken niet mee. De app omzeilt dit door de token zelf mee te geven.
 
 ## 4. Bevindingen in v1 en wat er in v2 is veranderd
 
@@ -97,6 +102,8 @@
   (op de achtergrond, ~6,5 s per ingrediënt, dus ±12 minuten).
   Als een waarde sterk afwijkt van de huidige (meer dan 2× zo hoog of laag), wordt hij **niet** automatisch overgenomen. Hij komt dan bij
   *Ingrediënten → Overgeslagen*, waar je hem met één klik toch kunt gebruiken. Dit voorkomt bijvoorbeeld dat ‘ui’ de waarden van gebakken uitjes krijgt.
+- **Jumbo-koppeling met een echt account testen.** De inlogmethode van de Jumbo-app is niet openbaar gedocumenteerd en was vanuit de testomgeving niet bereikbaar.
+  Probeer het één keer met je eigen account. Lukt inloggen niet, dan kun je een sessietoken gebruiken; de rest van de app werkt dan gewoon.
 - **Jumbo-aanbiedingen:** de Jumbo-API levert al een actieprijs. Een weekoverzicht van ‘in de aanbieding’ (zoals de Bonus-weekmenu's bij AH) is een logische volgende stap.
 - **Recepten importeren uit video's** (TikTok/Instagram/YouTube) werkt alleen als de beschrijving tekst bevat. Volledige video-ondersteuning is niet gebouwd.
 - **Inloggen per huisgenoot** is er niet. De app gaat uit van één huishouden met één gedeeld (optioneel) wachtwoord.
@@ -120,5 +127,6 @@ Veel recensiebronnen zijn overzichtssites of door concurrenten geschreven. Zie d
 | ![Planner](uat/01-planner.png) Planner met restjes (♻️) en vrije tekst | ![Open Food Facts](uat/06-off-zoeken.png) Voedingswaarden zoeken in Open Food Facts |
 | ![Verplaatsen op telefoon](uat/02-verplaatsen-mobiel.png) Verplaatsen op de telefoon | ![Boodschappen mobiel](uat/10-boodschappen-mobiel.png) Boodschappenlijst met 🏠 ‘heb ik al’ |
 | ![Wat kan ik maken](uat/12-wat-kan-ik-maken.png) ‘Wat kan ik maken?’ | ![Offline](uat/16-offline.png) Offline met melding |
+| ![Barcode in recept](uat/21-barcode-recept.png) Ingrediënt scannen in de recepteditor | ![Naar Jumbo](uat/22-naar-jumbo.png) Boodschappenlijst naar de Jumbo-app |
 
 *De voedingswaarden en barcodes op de schermafbeeldingen komen van de nagebootste Open Food Facts-server, niet van echte producten.*

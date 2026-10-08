@@ -8,6 +8,8 @@ import { searchJumbo, ingredientPriceFields, refreshIngredientPrice } from './ju
 import { CATEGORIES, mondayOf, addDays } from './seed.js';
 import { searchOff, productByBarcode, ingredientNutritionFields } from './openfoodfacts.js';
 import { enqueue, queueStatus, clearQueue } from './offqueue.js';
+import { lookupBarcode, applyBarcode } from './scan.js';
+import { jumboAccountStatus, loginJumbo, loginJumboWithToken, logoutJumbo, addToJumboList } from './jumboaccount.js';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { UNITS } from './calc.js';
@@ -49,6 +51,8 @@ export function createApp() {
 
   app.use(express.static(path.join(here, '..', 'public')));
   app.use('/uploads', express.static(uploadDir(), { maxAge: '30d', immutable: true }));
+  // Barcodescanner voor browsers zonder ingebouwde BarcodeDetector (iPhone, Firefox)
+  app.use('/vendor/zxing', express.static(path.join(here, '..', 'node_modules', '@zxing', 'library', 'umd'), { maxAge: '7d' }));
 
   const api = express.Router();
   const wrap = (fn) => async (req, res) => {
@@ -77,6 +81,7 @@ export function createApp() {
     meals: getSetting('meals', ['ontbijt', 'lunch', 'diner']),
     default_servings: getSetting('default_servings', 4),
     off_auto: getSetting('off_auto', true),
+    jumbo_account: jumboAccountStatus(),
     household: getSetting('household', ''),
     weekly_budget_cents: getSetting('weekly_budget_cents', null),
     claude: ai.claudeStatus(),
@@ -180,6 +185,43 @@ export function createApp() {
     return enqueue(list.map((i) => i.id), { force: !!req.body.force });
   }));
   api.delete('/off/queue', wrap(() => { clearQueue(); return queueStatus(); }));
+
+  // ---- Barcode scannen ----
+  api.get('/scan/:ean', wrap((req) => lookupBarcode(req.params.ean)));
+  api.post('/scan/apply', wrap((req) => applyBarcode(req.body)));
+
+  // ---- Jumbo-account: boodschappenlijst naar de Jumbo-app ----
+  api.get('/jumbo/account', wrap(() => jumboAccountStatus()));
+  api.post('/jumbo/account', wrap((req) => (req.body.token
+    ? loginJumboWithToken(req.body.token, req.body.email)
+    : loginJumbo(req.body.email, req.body.password))));
+  api.delete('/jumbo/account', wrap(() => logoutJumbo()));
+  api.post('/jumbo/cart/preview', wrap(async (req) => {
+    // Welke artikelen van de lijst kunnen naar Jumbo? Optioneel ontbrekende koppelingen automatisch zoeken.
+    const list = repo.getShoppingList(week(req.body.week), 7);
+    const wanted = list.items.filter((i) => !i.checked && !i.have && (req.body.include_pantry || !i.pantry));
+    const linked = [];
+    const unlinked = [];
+    for (const item of wanted) {
+      let ing = item.ingredient_id ? repo.getIngredient(item.ingredient_id) : null;
+      if (ing && !ing.jumbo_id && req.body.autolink) {
+        try {
+          const fields = await refreshIngredientPrice(ing);
+          if (fields) ing = repo.saveIngredient(fields, ing.id);
+        } catch { /* blijft ongekoppeld */ }
+      }
+      if (ing?.jumbo_id) {
+        linked.push({ key: item.key, name: item.name, sku: ing.jumbo_id, title: ing.jumbo_name, quantity: item.packages || 1, price_cents: ing.price_cents, image: ing.jumbo_image });
+      } else unlinked.push({ key: item.key, name: item.name, ingredient_id: item.ingredient_id, jumbo_url: item.jumbo_url });
+    }
+    for (const x of list.extras.filter((e) => !e.checked)) unlinked.push({ key: `x${x.id}`, name: x.name, jumbo_url: `https://www.jumbo.com/zoeken/?searchTerms=${encodeURIComponent(x.name)}` });
+    return { linked, unlinked, account: jumboAccountStatus() };
+  }));
+  api.post('/jumbo/cart', wrap(async (req) => {
+    const items = (req.body.items || []).filter((i) => i.sku).map((i) => ({ sku: String(i.sku), quantity: Number(i.quantity) || 1 }));
+    if (!items.length) throw Object.assign(new Error('Geen producten geselecteerd'), { status: 400 });
+    return addToJumboList(items);
+  }));
 
   // ---- Jumbo ----
   api.get('/jumbo/search', wrap((req) => searchJumbo(String(req.query.q || ''), 12)));

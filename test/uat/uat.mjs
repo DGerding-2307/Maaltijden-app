@@ -258,5 +258,49 @@ await scenario('UAT-20', 'Mobiel: alle hoofdpagina’s bruikbaar zonder horizont
   expect(!bad.length, bad.join(', '));
 });
 
+await scenario('UAT-21', 'Ingrediënt aan een recept toevoegen door de barcode te scannen', async () => {
+  await page.goto(B + '#/recept/7/bewerken');
+  await page.click('[data-scan-row]');
+  // In de headless browser is er geen camera: dan typt de gebruiker de cijfers in
+  await page.fill('[data-manual] [name=code]', '8710400000001');
+  await page.click('[data-manual] button');
+  await page.waitForSelector('[data-apply]', { timeout: 10000 });
+  await page.screenshot({ path: `${OUT}/21-barcode-recept.png` });
+  await page.fill('[data-apply] [name=quantity]', '250');
+  await page.selectOption('[data-apply] [name=unit]', 'ml');
+  await page.click('[data-apply] button');
+  await page.waitForTimeout(300);
+  const names = await page.locator('[data-k="name"]').evaluateAll((els) => els.map((e) => e.value));
+  const status = await page.locator('.ing-row').last().locator('[data-status]').textContent();
+  expect(names.includes('halfvolle melk') && /✔/.test(status), `rij niet toegevoegd: ${names.join(', ')} / ${status}`);
+  await page.click('button[type=submit]');
+  await page.waitForURL(/#\/recept\/7$/);
+  await page.waitForSelector('.ingredient-list');
+  const txt = await page.locator('.ingredient-list').textContent();
+  expect(/250 ml\s*halfvolle melk/.test(txt.replace(/\s+/g, ' ')), 'niet in opgeslagen recept');
+  return 'EAN 8710400000001 → gekoppeld aan ‘halfvolle melk’ (OFF-voeding + Jumbo-product)';
+});
+
+await scenario('UAT-22', 'Boodschappenlijst naar de Jumbo-app zetten', async () => {
+  await page.goto(B + '#/boodschappen');
+  await page.click('[data-to-jumbo]');
+  await page.waitForSelector('[data-login]');
+  await page.fill('[data-login] [name=email]', 'ik@example.nl');
+  await page.fill('[data-login] [name=password]', 'geheim');
+  await page.click('[data-login] button');
+  await page.waitForSelector('[data-send], [data-autolink]', { timeout: 10000 });
+  if (await page.locator('[data-autolink]').count()) {
+    await page.click('[data-autolink]');
+    await page.waitForSelector('[data-send]', { timeout: 60000 });
+  }
+  const n = await page.locator('.jumbo-cart li').count();
+  await page.screenshot({ path: `${OUT}/22-naar-jumbo.png` });
+  await page.click('[data-send] .btn-jumbo');
+  await page.waitForSelector('.jumbo-done', { timeout: 10000 });
+  const done = await page.locator('.jumbo-done').textContent();
+  expect(/staan in je Jumbo-lijst/.test(done), done);
+  return `${n} producten overgezet; ${done.match(/Daar staan nu \d+ producten/)?.[0]}`;
+});
+
 await browser.close();
 console.log(JSON.stringify({ results, errors }, null, 1));

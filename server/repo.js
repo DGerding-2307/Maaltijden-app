@@ -372,6 +372,8 @@ export function setShoppingHave(week, key, have) {
 
 // ---------- Back-up ----------
 
+// Geheimen gaan nooit mee in een back-up en blijven bij terugzetten behouden.
+const SECRET_SETTINGS = ['anthropic_api_key', 'jumbo_token', 'jumbo_email'];
 const BACKUP_TABLES = ['ingredients', 'recipes', 'recipe_ingredients', 'meal_plan', 'shopping_state', 'shopping_extras', 'settings'];
 
 export function exportAll() {
@@ -379,7 +381,7 @@ export function exportAll() {
   const data = { app: 'maaltijden', version: 2, exported_at: new Date().toISOString(), tables: {} };
   for (const t of BACKUP_TABLES) {
     let rows = db.prepare(`SELECT * FROM ${t}`).all();
-    if (t === 'settings') rows = rows.filter((r) => r.key !== 'anthropic_api_key');
+    if (t === 'settings') rows = rows.filter((r) => !SECRET_SETTINGS.includes(r.key));
     data.tables[t] = rows;
   }
   return data;
@@ -388,7 +390,7 @@ export function exportAll() {
 export function importAll(data) {
   if (data?.app !== 'maaltijden' || !data.tables) throw Object.assign(new Error('Dit is geen back-up van de Maaltijden-app'), { status: 400 });
   return tx((db) => {
-    const apiKey = db.prepare("SELECT value FROM settings WHERE key = 'anthropic_api_key'").get();
+    const secrets = db.prepare(`SELECT key, value FROM settings WHERE key IN (${SECRET_SETTINGS.map(() => '?').join(',')})`).all(...SECRET_SETTINGS);
     db.exec('PRAGMA defer_foreign_keys = ON');
     for (const t of [...BACKUP_TABLES].reverse()) db.prepare(`DELETE FROM ${t}`).run();
     const counts = {};
@@ -396,12 +398,13 @@ export function importAll(data) {
       const rows = data.tables[t] || [];
       const cols = db.prepare(`PRAGMA table_info(${t})`).all().map((c) => c.name);
       for (const row of rows) {
+        if (t === 'settings' && SECRET_SETTINGS.includes(row.key)) continue;
         const keys = Object.keys(row).filter((k) => cols.includes(k));
         db.prepare(`INSERT INTO ${t} (${keys.join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`).run(...keys.map((k) => row[k]));
       }
       counts[t] = rows.length;
     }
-    if (apiKey) db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('anthropic_api_key', ?)").run(apiKey.value);
+    for (const sec of secrets) db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(sec.key, sec.value);
     return counts;
   });
 }

@@ -12,7 +12,7 @@ const CACHE_DAYS = 30;
 
 export const OFF_FIELDS = [
   'code', 'product_name', 'product_name_nl', 'generic_name_nl', 'brands', 'quantity', 'product_quantity',
-  'nutriments', 'nutriscore_grade', 'nova_group', 'image_front_small_url', 'allergens_tags', 'countries_tags',
+  'nutriments', 'nutriscore_grade', 'nova_group', 'image_front_small_url', 'allergens_tags', 'countries_tags', 'categories_tags',
 ].join(',');
 
 // ---------- Throttling ----------
@@ -107,7 +107,30 @@ export function normalizeOffProduct(p) {
     dutch: (p.countries_tags || []).includes('en:netherlands') || (p.countries_tags || []).includes('en:belgium'),
     nutrition: nutritionFromOff(p.nutriments),
     url: p.code ? `https://nl.openfoodfacts.org/product/${p.code}` : null,
+    category: categoryFromOff(p.categories_tags),
   };
+}
+
+// OFF-categorieën → afdelingen in de app (eerste treffer wint; specifiek vóór algemeen)
+const CATEGORY_RULES = [
+  [/frozen/, 'Diepvries'],
+  [/coconut-milks/, 'Pasta, rijst & wereldkeuken'],
+  [/fresh-herbs|fresh-vegetables|fresh-fruits/, 'Aardappelen, groente & fruit'],
+  [/cheeses|dairies|milks|yogurts|eggs|butters|creams/, 'Zuivel, eieren & kaas'],
+  [/meats|poultries|sausages|fishes|seafood|meat-analogues|tofu/, 'Vlees, vis & vega'],
+  [/breads|breakfast|cereals|spreads|peanut-butters/, 'Brood, ontbijt & beleg'],
+  [/pastas|rices|noodles|asian|mexican|soy-sauces|coconut-milks/, 'Pasta, rijst & wereldkeuken'],
+  [/canned|soups|sauces|tomato-pastes|condiments|mayonnaises|mustards|legumes/, 'Conserven, soepen & sauzen'],
+  [/spices|herbs|flours|sugars|salts|baking/, 'Kruiden, specerijen & bakken'],
+  [/oils|vinegars/, 'Olie, azijn & smaakmakers'],
+  [/fruits|vegetables|potatoes|fresh-herbs/, 'Aardappelen, groente & fruit'],
+  [/beverages|snacks|nuts|sweets|chocolates/, 'Dranken & overig'],
+];
+
+export function categoryFromOff(tags = []) {
+  const joined = (tags || []).join(' ');
+  for (const [re, cat] of CATEGORY_RULES) if (re.test(joined)) return cat;
+  return null;
 }
 
 /** Mediaan van voedingswaarden over meerdere producten: robuust tegen uitschieters. */

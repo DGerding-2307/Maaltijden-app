@@ -1,6 +1,7 @@
 // Recept toevoegen/bewerken. Wordt ook gebruikt om een door Claude gemaakt concept na te kijken.
 import { api, meta } from '../api.js';
-import { $, $$, esc, toast, readImageFile } from '../util.js';
+import { scanBarcode } from '../scanner.js';
+import { $, $$, esc, toast, readImageFile, modal, euro, num } from '../util.js';
 
 export const DRAFT_KEY = 'recipeDraft';
 
@@ -68,7 +69,10 @@ export async function render(root, params) {
         <div class="ing-row ing-header"><span>Hoeveelheid</span><span>Eenheid</span><span>Ingrediënt</span><span>Notitie</span><span>Gram</span><span></span></div>
         <div data-rows></div>
       </div>
-      <button type="button" class="btn btn-ghost" data-add-row>+ Ingrediënt</button>
+      <div class="row wrap">
+        <button type="button" class="btn btn-ghost" data-add-row>+ Ingrediënt</button>
+        <button type="button" class="btn" data-scan-row>📷 Ingrediënt scannen</button>
+      </div>
 
       <h2>Bereiding</h2>
       <label>Eén stap per regel
@@ -144,6 +148,7 @@ export async function render(root, params) {
     }
   });
   view.addEventListener('click', (e) => {
+    if (e.target.closest('[data-scan-row]')) return scanIngredient();
     if (e.target.closest('[data-add-row]')) {
       rows.push(emptyRow());
       drawRows();
@@ -170,6 +175,80 @@ export async function render(root, params) {
       toast('Foto toegevoegd', 'success');
     } catch (err) { toast(err.message, 'error'); }
   });
+
+  // ---- Ingrediënt toevoegen door de barcode van een product te scannen ----
+  async function scanIngredient() {
+    const code = await scanBarcode({ title: 'Ingrediënt scannen' });
+    if (!code) return;
+    const md = modal(`<h2>Product ${esc(code)}</h2><div data-body><p class="muted">Opzoeken in Open Food Facts en bij Jumbo…</p></div>`, { wide: true });
+    const body = $('[data-body]', md.el);
+    let info;
+    try {
+      info = await api.get(`/scan/${code}`);
+    } catch (err) {
+      body.innerHTML = `<p class="error">${esc(err.message)}</p>`;
+      return;
+    }
+    const p = info.product;
+    const j = info.jumbo;
+    const existing = info.ingredient || info.match;
+    if (!p && !j && !info.ingredient) {
+      body.innerHTML = `<p>Dit product is niet gevonden in Open Food Facts of bij Jumbo.</p>
+        ${info.warnings.map((w) => `<p class="muted small">${esc(w)}</p>`).join('')}
+        <p class="muted small">Je kunt het product toevoegen aan <a href="https://nl.openfoodfacts.org/cgi/product.pl?code=${esc(code)}" target="_blank" rel="noopener">Open Food Facts</a>
+        of het ingrediënt hieronder met de hand invoeren.</p>`;
+      return;
+    }
+    const grams = p?.grams || j?.package_grams || 100;
+    body.innerHTML = `
+      <div class="scan-product">
+        ${p?.image || j?.image ? `<img src="${esc(p?.image || j?.image)}" alt="" referrerpolicy="no-referrer">` : '<span class="thumb-emoji">🛒</span>'}
+        <div>
+          <strong>${esc(p?.name || j?.title || info.ingredient?.name)}</strong>
+          ${p?.nutriscore ? `<span class="nutriscore ns-${esc(p.nutriscore)}">${esc(p.nutriscore.toUpperCase())}</span>` : ''}
+          <div class="muted small">${esc(p?.brands || '')} ${esc(p?.quantity || j?.package_label || '')}</div>
+          ${p?.nutrition ? `<div class="small">${num(p.nutrition.kcal, 0)} kcal · ${num(p.nutrition.protein)} g eiwit · ${num(p.nutrition.carbs)} g kh · ${num(p.nutrition.fat)} g vet per 100 g</div>` : '<div class="small muted">Geen voedingswaarden in Open Food Facts</div>'}
+          ${j ? `<div class="small">🟡 Jumbo: ${esc(j.title)} – <strong>${euro(j.price_cents)}</strong></div>` : '<div class="small muted">Niet gevonden bij Jumbo</div>'}
+        </div>
+      </div>
+      <form class="form" data-apply>
+        ${existing ? `<label class="check"><input type="radio" name="mode" value="link" checked> Koppel aan bestaand ingrediënt <strong>${esc(existing.name)}</strong></label>
+          <label class="check sub"><input type="checkbox" name="update" ${info.ingredient ? '' : 'checked'}> Voedingswaarden${j ? ' en Jumbo-product' : ''} van dit product overnemen</label>` : ''}
+        <label class="check"><input type="radio" name="mode" value="new" ${existing ? '' : 'checked'}> Nieuw ingrediënt:
+          <input class="input" name="name" value="${esc(info.suggested_name || '')}" aria-label="Naam nieuw ingrediënt"></label>
+        <div class="grid-2">
+          <label>Hoeveelheid <input class="input" type="number" step="any" min="0" name="quantity" value="${grams}"></label>
+          <label>Eenheid <select class="input" name="unit">${['g', 'ml', 'stuk', 'pak', 'blik', 'el', 'tl'].map((u) => `<option>${u}</option>`).join('')}</select></label>
+        </div>
+        <p class="muted small">Standaard de hele verpakking (${num(grams, 0)} g). Pas aan naar wat het recept gebruikt.</p>
+        ${info.warnings.map((w) => `<p class="muted small">⚠ ${esc(w)}</p>`).join('')}
+        <div class="row end"><button class="btn btn-primary">Toevoegen aan recept</button></div>
+      </form>`;
+    $('[data-apply]', body).addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const f = e.target;
+      const mode = f.querySelector('[name=mode]:checked').value;
+      try {
+        let ing;
+        if (mode === 'link' && f.update && !f.update.checked) ing = existing;
+        else {
+          ing = await api.post('/scan/apply', {
+            ean: code, product: p, jumbo: j, update_nutrition: true,
+            ...(mode === 'link' ? { ingredient_id: existing.id } : { name: f.name.value }),
+          });
+        }
+        ingById.set(ing.id, ing);
+        ingByName.set(ing.name.toLowerCase(), ing);
+        const empty = rows.findIndex((r) => !r.name);
+        const row = { ...emptyRow(), name: ing.name, ingredient_id: ing.id, quantity: Number(f.quantity.value) || '', unit: f.unit.value };
+        if (empty >= 0) rows[empty] = row;
+        else rows.push(row);
+        drawRows();
+        md.close();
+        toast(`${ing.name} toegevoegd`, 'success');
+      } catch (err) { toast(err.message, 'error'); }
+    });
+  }
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();

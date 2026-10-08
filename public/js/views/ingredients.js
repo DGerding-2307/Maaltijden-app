@@ -1,4 +1,5 @@
 import { api, meta } from '../api.js';
+import { scanBarcode } from '../scanner.js';
 import { $, esc, euro, num, toast, modal, confirmDialog, debounce, NUTRIENT_LABELS } from '../util.js';
 
 const SOURCE_LABEL = { jumbo: '🟡 Jumbo', handmatig: '✍️ handmatig', schatting: '≈ schatting' };
@@ -151,14 +152,11 @@ export async function render(root) {
       <form class="row wrap" data-barcode>
         <input class="input grow" name="code" inputmode="numeric" placeholder="of barcode (EAN), bv. 8710400…" aria-label="Barcode">
         <button class="btn" type="submit">Opzoeken</button>
-        ${'BarcodeDetector' in window ? '<button class="btn" type="button" data-scan>📷 Scan</button>' : ''}
+        <button class="btn" type="button" data-scan>📷 Scan</button>
       </form>
-      <video data-video playsinline hidden></video>
-      <div class="off-results"><p class="muted">Zoeken… (Open Food Facts staat max. 10 zoekopdrachten per minuut toe)</p></div>`, { wide: true, onClose: stopScan });
+      <div class="off-results"><p class="muted">Zoeken… (Open Food Facts staat max. 10 zoekopdrachten per minuut toe)</p></div>`, { wide: true });
     const results = $('.off-results', md.el);
     let data = null;
-    let stream = null;
-    function stopScan() { stream?.getTracks().forEach((t) => t.stop()); stream = null; }
     const row = (p, i) => `
       <button class="off-product" data-pick="${i}" ${p.nutrition ? '' : 'disabled'}>
         ${p.image ? `<img src="${esc(p.image)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : '<span class="thumb-emoji">🥫</span>'}
@@ -197,26 +195,11 @@ export async function render(root) {
     };
     $('[data-search]', md.el).addEventListener('submit', (e) => { e.preventDefault(); search(e.target.q.value); });
     $('[data-barcode]', md.el).addEventListener('submit', (e) => { e.preventDefault(); lookup(e.target.code.value); });
-    $('[data-scan]', md.el)?.addEventListener('click', async () => {
-      const video = $('[data-video]', md.el);
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-        video.srcObject = stream;
-        video.hidden = false;
-        await video.play();
-        const detector = new window.BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a'] });
-        const tick = async () => {
-          if (!stream) return;
-          const codes = await detector.detect(video).catch(() => []);
-          if (codes[0]) {
-            stopScan();
-            video.hidden = true;
-            $('[data-barcode]', md.el).code.value = codes[0].rawValue;
-            lookup(codes[0].rawValue);
-          } else requestAnimationFrame(tick);
-        };
-        tick();
-      } catch (err) { toast(`Camera niet beschikbaar: ${err.message}`, 'error'); }
+    $('[data-scan]', md.el).addEventListener('click', async () => {
+      const code = await scanBarcode({ title: `Product scannen voor ${ing.name}` });
+      if (!code) return;
+      $('[data-barcode]', md.el).code.value = code;
+      lookup(code);
     });
     results.addEventListener('click', (e) => {
       if (e.target.closest('[data-median]')) return save({ median: data.median, query: data.query });

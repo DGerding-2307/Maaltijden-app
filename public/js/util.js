@@ -104,7 +104,8 @@ export function modal(html, { wide = false, onClose } = {}) {
     document.removeEventListener('keydown', onKey);
     onClose?.();
   };
-  const onKey = (e) => e.key === 'Escape' && close();
+  // Escape sluit alleen het bovenste venster (er kan een scanner boven een ander venster openstaan)
+  const onKey = (e) => e.key === 'Escape' && [...document.querySelectorAll('.modal-backdrop')].at(-1) === wrap && close();
   wrap.addEventListener('click', (e) => {
     if (e.target === wrap || e.target.closest('.modal-close')) close();
   });

@@ -3,6 +3,14 @@
 Een webapplicatie voor op je eigen server: een overzichtelijke weekplanner en een receptenboek met
 Nederlandse recepten, voedingswaarden per persoon (uit Open Food Facts), prijzen per maaltijd bij de Jumbo en een Claude AI-integratie.
 
+## Nieuw in v2.1
+
+- 📷 **Ingrediënten scannen:** in de recepteditor voeg je een ingrediënt toe door de barcode van het product te scannen.
+  Voedingswaarden komen uit Open Food Facts, prijs en verpakking van Jumbo. Bekende producten worden aan het bestaande ingrediënt gekoppeld.
+  Werkt met de camera op Android (Chrome), iPhone (Safari) en desktop. Je kunt de cijfers ook intypen.
+- 🟡 **Boodschappenlijst naar de Jumbo-app:** met één knop zet je de producten van je lijst in de boodschappenlijst van je Jumbo-app.
+  Wat er al in je Jumbo-lijst stond, blijft staan. Hiervoor log je één keer in met je Jumbo-account. Zie [Koppeling met je Jumbo-account](#koppeling-met-je-jumbo-account).
+
 ## Nieuw in v2
 
 Versie 2 is gebaseerd op een gebruikersacceptatietest langs wat gebruikers in recensies van andere maaltijdplanners
@@ -89,9 +97,9 @@ Ontwikkelen met automatisch herstarten: `npm run dev`. Tests: `npm test`.
 De gebruikersacceptatietest opnieuw draaien (vereist Playwright: `npm i -D playwright`):
 
 ```bash
-node test/uat/off-mock.mjs &                                   # nagebootste Open Food Facts
-DB_FILE=/tmp/uat.db OFF_BASE=http://localhost:3999 OFF_MIN_GAP_MS=100 PORT=3123 npm start &
-node test/uat/uat.mjs docs/uat                                 # 20 scenario's, schermafbeeldingen in docs/uat
+node test/uat/off-mock.mjs &                                   # nagebootste Open Food Facts en Jumbo
+DB_FILE=/tmp/uat.db OFF_BASE=http://localhost:3999 JUMBO_API_BASE=http://localhost:3999/v17 OFF_MIN_GAP_MS=100 PORT=3123 npm start &
+node test/uat/uat.mjs docs/uat                                 # 22 scenario's, schermafbeeldingen in docs/uat
 ```
 
 Back-up: via **Instellingen → Back-up downloaden** (alle gegevens, zonder API-sleutel), of kopieer de map `data/`
@@ -124,6 +132,24 @@ Claude wordt alleen aangeroepen als je zelf op een ✨-knop drukt.
 - Resultaten worden 30 dagen bewaard, zodat dezelfde vraag niet opnieuw naar Open Food Facts gaat.
 - Waar nog geen gegevens uit Open Food Facts zijn, staan NEVO-gemiddelden (RIVM).
 
+## Koppeling met je Jumbo-account
+
+De knop **🟡 Naar Jumbo-app** op de boodschappenlijst gebruikt [jumbo-wrapper](https://github.com/RinseV/jumbo-wrapper)
+(onofficiële Node.js-wrapper rond de API van de Jumbo-app).
+
+- **Inloggen:** e-mailadres en wachtwoord van je Jumbo-account. Alleen de sessietoken wordt bewaard. Het wachtwoord wordt niet opgeslagen, en de token gaat niet mee in back-ups.
+- **Overzetten:** artikelen die aan een Jumbo-product gekoppeld zijn, gaan met het juiste aantal verpakkingen naar je Jumbo-lijst.
+  De lijst in de app wordt eerst opgehaald en samengevoegd, zodat je eigen artikelen blijven staan.
+  Artikelen zonder koppeling kun je automatisch laten koppelen (het best passende Jumbo-product), of zelf via Ingrediënten → 🟡.
+- **Afgevinkte artikelen, ‘heb ik al’ en de voorraadkast** worden niet overgezet.
+
+Wat je over jumbo-wrapper moet weten:
+- De laatste versie (2.1.0) is van 2022 en gebruikt een verouderde axios met bekende kwetsbaarheden.
+  De app dwingt via `overrides` in `package.json` een actuele axios (1.20) af; `npm audit` meldt 0 kwetsbaarheden.
+- In 2.1.0 sturen de mandje-functies de inlogtoken niet mee. De app geeft de token daarom zelf als header mee.
+- Jumbo heeft geen officiële API. Als Jumbo het inloggen wijzigt, krijg je een duidelijke melding.
+  Je kunt dan in het venster onder ‘Inloggen lukt niet?’ een `x-jumbo-token` plakken. Verder blijven de links per artikel naar jumbo.com en ‘Kopieer lijst’ altijd werken.
+
 ## Over de Jumbo-prijzen
 
 Jumbo heeft geen officiële openbare API. De app gebruikt de (onofficiële) API die de Jumbo-app gebruikt.
@@ -152,6 +178,8 @@ Belangrijkste bestanden:
 - `server/repo.js` – database-toegang en het automatisch koppelen van ingrediënten
 - `server/claude.js` – alle Claude-functies
 - `server/jumbo.js` – Jumbo-prijzen
+- `server/jumboaccount.js` – inloggen bij Jumbo en de boodschappenlijst naar de Jumbo-app zetten (via jumbo-wrapper)
+- `server/scan.js` + `public/js/scanner.js` – barcode scannen (BarcodeDetector of ZXing) en koppelen aan ingrediënten
 - `server/openfoodfacts.js` + `server/offqueue.js` – Open Food Facts (zoeken, barcode, mediaan, cache, achtergrondwachtrij)
 - `server/seed.js` – startingrediënten en -recepten
 

@@ -1,5 +1,5 @@
 import { api, liveSync } from '../api.js';
-import { $, esc, euro, num, qty, addDays, mondayOf, todayISO, fmtDate, weekNumber, toast } from '../util.js';
+import { $, esc, euro, num, qty, addDays, mondayOf, todayISO, fmtDate, weekNumber, toast, modal } from '../util.js';
 
 const COUNT_UNITS = ['stuk', 'teen', 'blik', 'pak', 'zakje', 'bos', 'plak'];
 
@@ -50,6 +50,7 @@ export async function render(root, params) {
           <a class="btn icon-btn" href="#/boodschappen?week=${addDays(start, 7)}" aria-label="Volgende week">›</a>
         </div>
         <div class="actions">
+          <button class="btn btn-jumbo" data-to-jumbo>🟡 Naar Jumbo-app</button>
           <button class="btn" data-copy>📋 Kopieer lijst</button>
           <button class="btn" data-print>🖨️ Afdrukken</button>
         </div>
@@ -148,6 +149,7 @@ export async function render(root, params) {
       load();
     }
     if (e.target.closest('[data-print]')) window.print();
+    if (e.target.closest('[data-to-jumbo]')) jumboDialog();
     if (e.target.closest('[data-copy]')) {
       const lines = [`Boodschappen week ${weekNumber(start)}`];
       const items = data.items.filter((i) => !i.checked && !i.have && (showPantry || !i.pantry));
@@ -166,6 +168,107 @@ export async function render(root, params) {
       }
     }
   });
+
+  // ---- Boodschappenlijst naar de Jumbo-app ----
+  function jumboDialog() {
+    const md = modal('<h2>🟡 Naar je Jumbo-app</h2><div data-body><p class="muted">Laden…</p></div>', { wide: true });
+    const body = $('[data-body]', md.el);
+    let preview = null;
+
+    function loginForm(account) {
+      body.innerHTML = `
+        <p>Log één keer in met je Jumbo-account. De producten van je lijst komen dan in de <strong>boodschappenlijst van je Jumbo-app</strong>
+          (wat er al in stond, blijft staan). Je wachtwoord wordt niet bewaard, alleen de sessie.</p>
+        <form class="form" data-login>
+          <label>E-mailadres Jumbo-account <input class="input" type="email" name="email" autocomplete="username" required value="${esc(account?.email && account.email !== 'via token' ? account.email : '')}"></label>
+          <label>Wachtwoord <input class="input" type="password" name="password" autocomplete="current-password" required></label>
+          <div class="row end"><button class="btn btn-primary">Inloggen bij Jumbo</button></div>
+        </form>
+        <details class="small"><summary>Inloggen lukt niet? Gebruik een sessietoken</summary>
+          <p class="muted">Jumbo heeft geen officiële koppeling; deze functie gebruikt de API van de Jumbo-app (via jumbo-wrapper).
+            Als Jumbo het inloggen heeft gewijzigd, kun je een <code>x-jumbo-token</code> uit de app of website plakken.</p>
+          <form class="row" data-token><input class="input grow" name="token" placeholder="x-jumbo-token" autocomplete="off"><button class="btn">Gebruiken</button></form>
+        </details>`;
+      $('[data-login]', body).addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = $('button', e.target);
+        btn.disabled = true;
+        btn.textContent = 'Inloggen…';
+        try {
+          await api.post('/jumbo/account', { email: e.target.email.value, password: e.target.password.value });
+          toast('Ingelogd bij Jumbo', 'success');
+          loadPreview();
+        } catch (err) {
+          toast(err.message, 'error');
+          btn.disabled = false;
+          btn.textContent = 'Inloggen bij Jumbo';
+        }
+      });
+      $('[data-token]', body).addEventListener('submit', async (e) => {
+        e.preventDefault();
+        try {
+          await api.post('/jumbo/account', { token: e.target.token.value });
+          loadPreview();
+        } catch (err) { toast(err.message, 'error'); }
+      });
+    }
+
+    function drawPreview() {
+      const { linked, unlinked, account } = preview;
+      body.innerHTML = `
+        <p class="muted small">Ingelogd als ${esc(account.email)} · <button class="mini" data-logout>uitloggen</button></p>
+        ${linked.length ? `<form data-send>
+          <ul class="jumbo-cart">${linked.map((it, i) => `
+            <li><label>
+              <input type="checkbox" name="pick" value="${i}" checked>
+              ${it.image ? `<img src="${esc(it.image)}" alt="" referrerpolicy="no-referrer">` : '<span class="thumb-emoji">🛒</span>'}
+              <span><strong>${esc(it.title || it.name)}</strong><br><span class="muted small">voor: ${esc(it.name)}</span></span>
+            </label>
+            <input class="input narrow" type="number" min="1" name="qty${i}" value="${it.quantity}" aria-label="Aantal">
+            <span class="num">${euro((it.price_cents || 0) * it.quantity)}</span></li>`).join('')}</ul>
+          <div class="row end"><button class="btn btn-jumbo">🟡 Zet in mijn Jumbo-lijst</button></div>
+        </form>` : '<p>Er staan nog geen artikelen op je lijst die aan een Jumbo-product gekoppeld zijn.</p>'}
+        ${unlinked.length ? `<h3>Nog niet gekoppeld aan een Jumbo-product (${unlinked.length})</h3>
+          <p class="muted small">${unlinked.map((u) => `<a href="${esc(u.jumbo_url)}" target="_blank" rel="noopener">${esc(u.name)}</a>`).join(' · ')}</p>
+          <button class="btn" data-autolink>🔎 Zoek automatisch het best passende Jumbo-product</button>
+          <p class="muted small">Of koppel zelf een product via Ingrediënten → 🟡.</p>` : ''}`;
+      $('[data-logout]', body).addEventListener('click', async () => { await api.del('/jumbo/account'); loginForm(null); });
+      $('[data-autolink]', body)?.addEventListener('click', (e) => { e.target.disabled = true; e.target.textContent = 'Zoeken bij Jumbo…'; loadPreview(true); });
+      $('[data-send]', body)?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const f = e.target;
+        const items = [...f.querySelectorAll('[name=pick]:checked')].map((c) => {
+          const it = linked[Number(c.value)];
+          return { sku: it.sku, quantity: Number(f[`qty${c.value}`].value) || 1 };
+        });
+        const btn = $('button.btn-jumbo', f);
+        btn.disabled = true;
+        btn.textContent = 'Bezig…';
+        try {
+          const res = await api.post('/jumbo/cart', { items });
+          body.innerHTML = `<div class="jumbo-done"><p class="big">✅ ${res.products} producten (${res.pieces} stuks) staan in je Jumbo-lijst.</p>
+            <p>Open de Jumbo-app → <strong>Boodschappenlijst</strong>. Daar staan nu ${res.total_products} producten.</p>
+            <a class="btn btn-jumbo" href="https://www.jumbo.com/" target="_blank" rel="noopener">Naar jumbo.com</a></div>`;
+        } catch (err) {
+          toast(err.message, 'error');
+          if (/opnieuw in|Log eerst/.test(err.message)) return loginForm(preview.account);
+          btn.disabled = false;
+          btn.textContent = '🟡 Zet in mijn Jumbo-lijst';
+        }
+      });
+    }
+
+    async function loadPreview(autolink = false) {
+      try {
+        preview = await api.post('/jumbo/cart/preview', { week: start, autolink, include_pantry: showPantry });
+        if (!preview.account.connected) return loginForm(preview.account);
+        drawPreview();
+      } catch (err) {
+        body.innerHTML = `<p class="error">${esc(err.message)}</p>`;
+      }
+    }
+    loadPreview();
+  }
 
   await load();
   return liveSync(load);
