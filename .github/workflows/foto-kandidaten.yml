@@ -1,0 +1,46 @@
+# Eenmalig/handmatig: zoekt kandidaatfoto's met een vrije licentie voor de standaardrecepten
+# en zet ze als zip bij de tijdelijke release "foto-kandidaten". Met "opruimen" wordt die release weer verwijderd.
+name: Foto-kandidaten
+
+on:
+  workflow_dispatch:
+    inputs:
+      opruimen:
+        description: 'Tijdelijke release verwijderen in plaats van zoeken'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  zoeken:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        if: ${{ !inputs.opruimen }}
+        with:
+          node-version: 22
+
+      - name: Kandidaten zoeken en downloaden
+        if: ${{ !inputs.opruimen }}
+        run: |
+          node scripts/photos/candidates.mjs out
+          cd out && zip -qr ../foto-kandidaten.zip .
+
+      - name: Publiceren bij release foto-kandidaten
+        if: ${{ !inputs.opruimen }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view foto-kandidaten >/dev/null 2>&1 || \
+            gh release create foto-kandidaten --title "Foto-kandidaten (tijdelijk)" --notes "Tijdelijk: kandidaatfoto's voor de standaardrecepten." --prerelease --target "$GITHUB_SHA"
+          gh release upload foto-kandidaten foto-kandidaten.zip --clobber
+
+      - name: Opruimen
+        if: ${{ inputs.opruimen }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release delete foto-kandidaten --yes --cleanup-tag || true
