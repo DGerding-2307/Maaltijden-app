@@ -476,14 +476,17 @@ await scenario('UAT-31', 'Recepten verwijderen (ook meerdere) en standaardrecept
 });
 
 await scenario('UAT-32', 'Niet-herkend ingrediënt koppelen of aanmaken vanuit het recept', async () => {
-  const r = await japi(page, 'POST', '/recipes', { title: 'UAT fruitbak', servings: 2, steps: ['Snijd.'], ingredients: [{ name: 'xyzvrucht', quantity: 2, unit: 'stuk' }] });
+  await page.goto(B + '#/recepten');
+  // Unieke naam: een eerder aangemaakte vrucht wordt (terecht) automatisch herkend
+  const fruit = 'qx' + [...Array(8)].map(() => String.fromCharCode(97 + Math.floor(Math.random() * 26))).join('');
+  const r = await japi(page, 'POST', '/recipes', { title: 'UAT fruitbak', servings: 2, steps: ['Snijd.'], ingredients: [{ name: fruit, quantity: 2, unit: 'stuk' }] });
   await page.goto(B + `#/recept/${r.id}`); await page.waitForSelector('[data-link-row]');
   await page.click('[data-link-row]'); await page.click('[data-tab="nieuw"]');
   await page.fill('[data-pane="nieuw"] [name=kcal]', '60'); await page.fill('[data-pane="nieuw"] [name=unit_weight_g]', '150');
   await page.click('[data-pane="nieuw"] .btn-primary'); await page.waitForTimeout(700);
   const after = await japi(page, 'GET', `/recipes/${r.id}`);
   expect(after.ingredients[0].ingredient_id && after.missing_nutrition === 0, JSON.stringify(after.ingredients[0]).slice(0, 120));
-  return `‘xyzvrucht’ aangemaakt en gekoppeld: ${Math.round(after.nutrition_total.kcal)} kcal totaal`;
+  return `‘${fruit}’ aangemaakt en gekoppeld: ${Math.round(after.nutrition_total.kcal)} kcal totaal`;
 });
 
 await scenario('UAT-33', 'Snel loggen: recent gebruikt met één tik, bake-off uit de Jumbo-lijst', async () => {

@@ -6,7 +6,16 @@ async function request(method, url, body) {
     headers: body !== undefined ? { 'Content-Type': 'application/json' } : {},
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
-  const data = await res.json().catch(() => ({}));
+  const text = await res.text();
+  let data = {};
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      // Bijv. een inlogpagina van een reverse proxy, of een afgebroken antwoord
+      throw new Error(res.ok ? 'Onverwacht antwoord van de server. Herlaad de pagina.' : `Fout ${res.status}`);
+    }
+  }
   if (!res.ok) throw new Error(data.error || `Fout ${res.status}`);
   return data;
 }
