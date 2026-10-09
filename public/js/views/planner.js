@@ -20,6 +20,10 @@ export async function render(root, params) {
     draw();
   }
 
+  // Bij deze momenten geen knop om vlees of vis toe te voegen (wel aan te passen als er al iets bij staat)
+  const NO_MEAT_MEALS = ['lunch'];
+  const meatOffered = (meal) => !NO_MEAT_MEALS.includes(String(meal).toLowerCase());
+
   function entryCard(e) {
     const title = e.recipe_id ? e.recipe_title : (e.title || (e.extras?.length ? e.extras.map((x) => x.name).join(', ') : 'Losse ingrediënten'));
     return `<div class="plan-entry ${e.recipe_id ? '' : 'free'} ${e.leftover_of ? 'leftover' : ''}" draggable="true" data-entry="${e.id}">
@@ -27,7 +31,7 @@ export async function render(root, params) {
       ${e.leftover_of ? '<span class="muted small">restjes – geen boodschappen</span>' : ''}
       ${!e.recipe_id && e.extras?.length ? '<button class="plan-extras" data-ingredients title="Ingrediënten en hoeveelheden wijzigen">🥕 ingrediënten wijzigen</button>'
         : e.extras?.length ? `<button class="plan-extras" data-meat title="Vlees of vis wijzigen">🥩 + ${e.extras.map((x) => esc(x.name)).join(', ')}</button>`
-        : e.recipe_id && !e.has_meat && !e.leftover_of ? '<button class="plan-extras add" data-meat title="Vlees of vis bij dit gerecht kiezen">🥩 + Vlees of vis</button>' : ''}
+        : e.recipe_id && !e.has_meat && !e.leftover_of && meatOffered(e.meal) ? '<button class="plan-extras add" data-meat title="Vlees of vis bij dit gerecht kiezen">🥩 + Vlees of vis</button>' : ''}
       ${e.note && !e.leftover_of ? `<span class="muted small">${esc(e.note)}</span>` : ''}
       <div class="plan-entry-meta">
         <span class="servings-ctl">
@@ -35,7 +39,7 @@ export async function render(root, params) {
           <span title="personen">👤 ${e.servings}</span>
           <button class="mini" data-serv="1" aria-label="Meer personen">+</button>
         </span>
-        ${e.recipe_id && !e.leftover_of ? `<span class="muted">${euro(e.cost_cents)}</span>` : ''}
+        ${(e.recipe_id || e.extras?.length) && !e.leftover_of ? `<span class="muted">${euro(e.cost_cents)}</span>` : ''}
         ${e.recipe_id && e.date <= todayISO() ? `<button class="eat-toggle ${e.eaten ? 'on' : ''}" data-eat aria-pressed="${!!e.eaten}"
           title="${e.eaten ? `Staat in het dagboek van ${esc(person.name)}` : `Als gegeten in het dagboek van ${esc(person.name)} zetten`}">${e.eaten ? '✓ gegeten' : 'gegeten?'}</button>` : ''}
       </div>
@@ -48,7 +52,7 @@ export async function render(root, params) {
 
   function draw() {
     const today = todayISO();
-    const daysWithFood = plan.days.filter((d) => d.entries.some((e) => e.recipe_id));
+    const daysWithFood = plan.days.filter((d) => d.entries.some((e) => e.recipe_id || e.extras?.length));
     const avgKcal = daysWithFood.length ? daysWithFood.reduce((s, d) => s + d.nutrition_per_person.kcal, 0) / daysWithFood.length : 0;
     const planned = plan.days.reduce((s, d) => s + d.entries.length, 0);
     const budget = m.weekly_budget_cents;
@@ -237,9 +241,9 @@ export async function render(root, params) {
     const allMeals = [...new Set([...meals, entry.meal])];
     const md = modal(`
       <h2>${esc(title)}</h2>
-      <div class="row wrap">
+      ${entry.extras?.length || meatOffered(entry.meal) ? `<div class="row wrap">
         <button type="button" class="btn" data-menu-meat>🥩 ${entry.extras?.length ? 'Vlees, vis of extra’s wijzigen' : 'Vlees of vis erbij'}</button>
-      </div>
+      </div>` : ''}
       <form class="form" data-move>
         <h3>Verplaatsen of aanpassen</h3>
         <div class="grid-2">
@@ -263,7 +267,7 @@ export async function render(root, params) {
         </div>
         <div class="row end"><button class="btn">Restjes inplannen</button></div>
       </form>` : ''}`);
-    $('[data-menu-meat]', md.el).addEventListener('click', () => { md.close(); meatDialog(entry, load); });
+    $('[data-menu-meat]', md.el)?.addEventListener('click', () => { md.close(); meatDialog(entry, load); });
     const lf = $('[data-leftovers]', md.el);
     if (lf) {
       const label = lf.extra.closest('label');
@@ -301,19 +305,21 @@ export async function render(root, params) {
         <input type="search" class="input grow" placeholder="Zoek recept…" data-q>
         <label class="inline">👤 <input type="number" class="input narrow" min="1" value="${m.default_servings}" data-servings></label>
       </div>
-      <label class="meat-pick">🥩 Vlees of vis erbij <span class="muted small">(optioneel)</span>
+      <div class="row wrap quick-plan">
+        <button class="btn" type="button" data-eat-out>🍴 Uit eten</button>
+        <button class="btn" type="button" data-loose>🥕 Losse ingrediënten</button>
+      </div>
+      ${meatOffered(meal) ? `<label class="meat-pick">🥩 Vlees of vis erbij <span class="muted small">(optioneel)</span>
         <select class="input" data-meat-pick><option value="">– niets extra –</option>
           ${sides.length ? `<optgroup label="Gerechten">${sides.map((x) => `<option value="r${x.id}">${esc(x.title)}</option>`).join('')}</optgroup>` : ''}
           <optgroup label="Vlees, vis & vega">${meats.map((i) => `<option value="${i.id}">${esc(i.name)}</option>`).join('')}</optgroup>
-        </select></label>
+        </select></label>` : ''}
       <div class="pick-list"></div>
       <hr>
       <form class="row" data-free>
-        <input class="input grow" placeholder="Of vrije tekst, bv. ‘Uit eten’ of ‘Restjes’" data-free-title>
+        <input class="input grow" placeholder="Of vrije tekst, bv. ‘Bij oma’ of ‘Restjes’" data-free-title>
         <button class="btn">Toevoegen</button>
-      </form>
-      <div class="row wrap"><button class="btn" type="button" data-loose>🥕 Losse ingrediënten (zonder recept)</button>
-        <span class="muted small">bv. kipschnitzel met friet en sla</span></div>`);
+      </form>`);
     const drawList = () => {
       const q = $('[data-q]', md.el).value.toLowerCase();
       const list = recipes.filter((r) => !q || r.title.toLowerCase().includes(q) || r.tags.join(' ').includes(q));
@@ -327,6 +333,12 @@ export async function render(root, params) {
     $('[data-q]', md.el).addEventListener('input', drawList);
     const servings = () => Number($('[data-servings]', md.el).value) || m.default_servings;
     md.el.addEventListener('click', async (e) => {
+      if (e.target.closest('[data-eat-out]')) {
+        await api.post('/plan', { date, meal, title: 'Uit eten', servings: servings() });
+        md.close();
+        toast('🍴 Uit eten gepland');
+        return load();
+      }
       if (e.target.closest('[data-loose]')) {
         const { id } = await api.post('/plan', { date, meal, title: '', servings: servings() });
         md.close();
@@ -336,7 +348,7 @@ export async function render(root, params) {
       }
       const pick = e.target.closest('[data-pick]');
       if (!pick) return;
-      const v = $('[data-meat-pick]', md.el).value;
+      const v = $('[data-meat-pick]', md.el)?.value || '';
       const meat = meats.find((i) => i.id === Number(v));
       const extras = v.startsWith('r') ? [{ recipe_id: Number(v.slice(1)), quantity: 1 }] : meat ? [{ ingredient_id: meat.id, ...defaultPortion(meat) }] : [];
       await api.post('/plan', { date, meal, recipe_id: Number(pick.dataset.pick), servings: servings(), extras });

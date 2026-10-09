@@ -404,13 +404,13 @@ await scenario('UAT-27', 'Vlees of vis bij een gerecht zonder vlees, zonder nieu
   await page.goto(B + '#/planner'); await page.waitForSelector('.day');
   const today = iso();
   const pk = (await japi(page, 'GET', '/recipes')).find((r) => r.title === 'Hollandse pannenkoeken');
-  await page.locator(`.slot[data-date="${today}"][data-meal="lunch"] [data-add]`).click();
+  await page.locator(`.slot[data-date="${today}"][data-meal="diner"] [data-add]`).click();
   await page.waitForSelector('[data-meat-pick]');
   const slavink = (await japi(page, 'GET', '/ingredients?q=slavink'))[0];
   await page.selectOption('.modal [data-meat-pick]', String(slavink.id));
   await page.fill('.modal [data-q]', 'pannenkoek'); await page.waitForTimeout(200);
   await page.click(`.modal [data-pick="${pk.id}"]`); await page.waitForTimeout(700);
-  const txt = await page.locator(`.slot[data-date="${today}"][data-meal="lunch"]`).textContent();
+  const txt = await page.locator(`.slot[data-date="${today}"][data-meal="diner"]`).textContent();
   expect(/slavink/.test(txt), `kaartje: ${txt.replace(/\s+/g, ' ')}`);
   const shop = await japi(page, 'GET', `/shopping?week=${today}`);
   expect(shop.items.some((i) => i.name === 'slavink'), 'slavink niet op de boodschappenlijst');
@@ -506,6 +506,31 @@ await scenario('UAT-33', 'Snel loggen: recent gebruikt met één tik, bake-off u
   const ing = (await japi(mob, 'GET', '/ingredients?q=roomboter croissant'))[0];
   expect(/Gluten/.test(ing.allergens || ''), 'allergenen ontbreken');
   return `croissant (Jumbo bake-off, ${ing.unit_weight_g} g, allergenen: ${ing.allergens}); recent: ${before} → ${after} kcal`;
+});
+
+await scenario('UAT-34', 'Uit eten met één tik; geen vlees bij de lunch; prijs bij losse ingrediënten', async () => {
+  await page.goto(B + '#/planner'); await page.waitForSelector('.day');
+  const day = iso(); // vandaag: staat altijd in de getoonde week
+  // Uit eten kiezen bij het plannen
+  await page.locator(`.slot[data-date="${day}"][data-meal="diner"] [data-add]`).click();
+  await page.click('.modal [data-eat-out]'); await page.waitForTimeout(600);
+  const diner = (await page.locator(`.slot[data-date="${day}"][data-meal="diner"]`).textContent()).replace(/\s+/g, ' ');
+  expect(/Uit eten/.test(diner), `uit eten niet gepland: ${diner}`);
+  // Lunch: geen vlees-keuze bij het plannen en geen vlees-knop op het kaartje
+  await page.locator(`.slot[data-date="${day}"][data-meal="lunch"] [data-add]`).click();
+  await page.waitForSelector('.modal [data-pick]');
+  expect(!(await page.locator('.modal [data-meat-pick]').count()), 'vlees-keuze staat bij de lunch');
+  const tosti = (await japi(page, 'GET', '/recipes')).find((r) => /tosti/i.test(r.title));
+  await page.fill('.modal [data-q]', 'tosti'); await page.waitForTimeout(200);
+  await page.click(`.modal [data-pick="${tosti.id}"]`); await page.waitForTimeout(600);
+  const lunch = page.locator(`.slot[data-date="${day}"][data-meal="lunch"]`);
+  expect(!(await lunch.locator('.plan-extras.add').count()), 'vlees-knop op de lunch');
+  expect(await page.locator(`.slot[data-date="${day}"][data-meal="diner"] .plan-entry`).count() >= 1, 'diner ontbreekt');
+  // Losse ingrediënten (uit UAT-28) tonen een prijs
+  const loose = page.locator(`.slot[data-date="${iso()}"][data-meal="ontbijt"] .plan-entry`).first();
+  const meta = (await loose.locator('.plan-entry-meta').textContent()).replace(/\s+/g, ' ');
+  expect(/€\s?\d/.test(meta), `geen prijs bij losse ingrediënten: ${meta}`);
+  return `uit eten gepland; lunch zonder vlees-optie; losse ingrediënten: ${meta.match(/€\s?[\d,]+/)[0]}`;
 });
 
 await browser.close();

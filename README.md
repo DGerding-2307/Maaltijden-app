@@ -3,6 +3,12 @@
 Een webapplicatie voor op je eigen server: een overzichtelijke weekplanner en een receptenboek met
 Nederlandse recepten, voedingswaarden per persoon (uit Open Food Facts), prijzen per maaltijd (uit Open Prices) en een Claude AI-integratie.
 
+## Nieuw in v3.1
+
+- 🍴 **Uit eten** met één tik bij het plannen van een maaltijd.
+- 💶 Maaltijden van **losse ingrediënten** tonen nu hun prijs in de planner (en tellen mee in de dag- en weekkosten en het kcal-gemiddelde).
+- 🥪 Bij de **lunch** staat geen knop meer om vlees of vis toe te voegen (bij ontbijt en diner wel).
+
 ## Nieuw in v3
 
 Versie 3 is gebouwd na een tweede ronde recensies (dit keer ook van calorie-apps) en een nieuwe gebruikersacceptatietest:
@@ -106,7 +112,8 @@ en receptenapps verwachten. Zie het [UAT-rapport](docs/UAT-rapport.md).
 - Aantal personen per maaltijd aanpassen (− / +)
 - Per dag: kcal per persoon en kosten; per week: totale kosten (met budget) en gemiddelde kcal
 - Vrije invoer (‘Uit eten’, ‘Restjes’), week kopiëren, week leegmaken, afdrukken
-- 🥩 Vlees of vis, of een ander gerecht, bij een maaltijd kiezen; maaltijden van losse ingrediënten
+- 🥩 Vlees of vis, of een ander gerecht, bij een maaltijd kiezen (niet bij de lunch); maaltijden van losse ingrediënten, met prijs
+- 🍴 Uit eten met één tik
 - ♻️ Restjes inplannen zonder dubbele boodschappen
 - Op de telefoon: ⋯-menu per maaltijd (verplaatsen, personen, vlees erbij), daglijst om naar een dag te springen
 - ✨ **Weekmenu met Claude**: kiest uit je receptenboek op basis van wensen, kooktijd, budget en huishouden

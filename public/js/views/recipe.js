@@ -237,13 +237,21 @@ export async function render(root, params) {
         <div class="quick-dates">${Array.from({ length: 7 }, (_, i) => addDays(todayISO(), i)).map((d) => `<button type="button" class="tag" data-date="${d}">${fmtDate(d, { weekday: 'short', day: 'numeric' })}</button>`).join('')}</div>
         <label>Moment <select class="input" name="meal">${m.meals.map((x) => `<option ${x === (r.category === 'Ontbijt' ? 'ontbijt' : r.category === 'Lunch' ? 'lunch' : 'diner') ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>
         <label>Personen <input type="number" class="input narrow" min="1" name="servings" value="${persons}"></label>
-        <label>🥩 Vlees of vis erbij${hasMeat ? ' <span class="muted small">(optioneel)</span>' : ''}
+        <label data-meat-row>🥩 Vlees of vis erbij${hasMeat ? ' <span class="muted small">(optioneel)</span>' : ''}
           <select class="input" name="meat"><option value="">– niets extra –</option>
             ${sides.length ? `<optgroup label="Gerechten">${sides.map((x) => `<option value="r${x.id}">${esc(x.title)}</option>`).join('')}</optgroup>` : ''}
             <optgroup label="Vlees, vis & vega">${meats.map((i) => `<option value="${i.id}">${esc(i.name)}</option>`).join('')}</optgroup></select></label>
         <div class="row end"><button class="btn btn-primary">Inplannen</button></div>
       </form>`);
     const form = $('[data-form]', md.el);
+    // Bij de lunch geen vlees of vis erbij
+    const meatRow = () => {
+      const hide = form.meal.value.toLowerCase() === 'lunch';
+      $('[data-meat-row]', md.el).hidden = hide;
+      if (hide) form.meat.value = '';
+    };
+    form.meal.addEventListener('change', meatRow);
+    meatRow();
     md.el.addEventListener('click', (e) => {
       const d = e.target.closest('[data-date]');
       if (d) form.date.value = d.dataset.date;
