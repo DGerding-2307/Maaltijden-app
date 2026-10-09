@@ -330,3 +330,22 @@ export function weightHistory(personId, days = 90) {
     to_goal_kg: last && person.target_weight_kg ? round(last.weight_kg - person.target_weight_kg, 1) : null,
   };
 }
+
+/**
+ * Dagboek van één persoon bij de weekplanning: per maaltijd of hij als gegeten is geregistreerd,
+ * het dagtotaal, en wat in het dagboek staat zonder dat het gepland was (zodat het ook in de planner te zien is).
+ */
+export function addDiaryToPlan(plan, personId) {
+  if (!personId || !getPerson(personId)) return plan;
+  const db = getDb();
+  const s = summary(personId, plan.start, plan.end);
+  const eaten = new Set(db.prepare('SELECT plan_entry_id FROM food_log WHERE person_id = ? AND date BETWEEN ? AND ? AND plan_entry_id IS NOT NULL')
+    .all(personId, plan.start, plan.end).map((r) => r.plan_entry_id));
+  const logged = db.prepare(`SELECT id, date, meal, name, kcal, servings, grams, type FROM food_log
+    WHERE person_id = ? AND date BETWEEN ? AND ? AND plan_entry_id IS NULL ORDER BY created_at, id`).all(personId, plan.start, plan.end);
+  for (const [i, d] of plan.days.entries()) {
+    d.diary = { ...s.days[i], target_kcal: s.target_kcal, items: logged.filter((x) => x.date === d.date) };
+    for (const e of d.entries) e.eaten = eaten.has(e.id);
+  }
+  return plan;
+}

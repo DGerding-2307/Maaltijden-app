@@ -87,20 +87,7 @@ const ROUTES = [
   ['PUT', '/ingredients/:id', (req) => repo.saveIngredient(req.body, Number(req.params.id)) || Promise.reject(notFound())],
   ['DELETE', '/ingredients/:id', (req) => repo.deleteIngredient(Number(req.params.id))],
 
-  ['GET', '/plan', (req) => {
-    const plan = repo.getPlan(week(req.query.week), 7);
-    const personId = Number(req.query.persoon);
-    if (personId && tracker.getPerson(personId)) {
-      const s = tracker.summary(personId, plan.start, plan.end);
-      const eaten = new Set(getDb().prepare('SELECT plan_entry_id FROM food_log WHERE person_id = ? AND date BETWEEN ? AND ? AND plan_entry_id IS NOT NULL')
-        .all(personId, plan.start, plan.end).map((r) => r.plan_entry_id));
-      for (const [i, d] of plan.days.entries()) {
-        d.diary = { ...s.days[i], target_kcal: s.target_kcal };
-        for (const e of d.entries) e.eaten = eaten.has(e.id);
-      }
-    }
-    return plan;
-  }],
+  ['GET', '/plan', (req) => tracker.addDiaryToPlan(repo.getPlan(week(req.query.week), 7), Number(req.query.persoon))],
   ['POST', '/plan', (req) => ({ id: repo.addPlanEntry(req.body) })],
   ['PUT', '/plan/:id', (req) => (repo.updatePlanEntry(Number(req.params.id), req.body) ? { ok: true } : Promise.reject(notFound()))],
   ['DELETE', '/plan/:id', (req) => repo.deletePlanEntry(Number(req.params.id))],

@@ -166,3 +166,24 @@ test('een gerecht als vlees bij een ander gerecht', async () => {
   await send('DELETE', `/recipes/${hachee.id}`);
   assert.equal((await get(`/plan?week=${date}`)).days[0].entries.find((e) => e.id === id).extras.length, 0);
 });
+
+test('planner toont kcal per maaltijd en ongeplande dagboekregels van een persoon', async () => {
+  const { people } = await get('/people');
+  const person = people[0];
+  const recipes = await get('/recipes');
+  const date = '2031-06-02';
+  const { id } = await send('POST', '/plan', { date, meal: 'diner', recipe_id: recipes[0].id, servings: 2 });
+  const banaan = (await get('/ingredients?q=banaan'))[0];
+  await send('POST', '/diary', { person_id: person.id, date, meal: 'lunch', type: 'ingredient', ingredient_id: banaan.id, grams: 120 });
+  await send('POST', '/diary', { person_id: person.id, date, meal: 'tussendoor', type: 'free', name: 'Koekje', values: { kcal: 80 } });
+  // Een geplande maaltijd als gegeten afvinken: die staat al als maaltijd in de planner, niet dubbel
+  await send('POST', '/diary/from-plan', { person_id: person.id, date, plan_entry_id: id });
+  const day = (await get(`/plan?week=${date}&persoon=${person.id}`)).days[0];
+  const entry = day.entries.find((e) => e.id === id);
+  assert.ok(entry.kcal_per_serving > 0);
+  assert.equal(entry.eaten, true);
+  assert.deepEqual(day.diary.items.map((x) => [x.meal, x.name]), [['lunch', 'banaan'], ['tussendoor', 'Koekje']]);
+  assert.ok(day.diary.items[0].kcal > 100);
+  // Zonder persoon geen dagboekgegevens
+  assert.equal((await get(`/plan?week=${date}`)).days[0].diary, undefined);
+});

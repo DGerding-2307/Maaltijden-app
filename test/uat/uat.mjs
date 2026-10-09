@@ -533,5 +533,24 @@ await scenario('UAT-34', 'Uit eten met één tik; geen vlees bij de lunch; prijs
   return `uit eten gepland; lunch zonder vlees-optie; losse ingrediënten: ${meta.match(/€\s?[\d,]+/)[0]}`;
 });
 
+await scenario('UAT-35', 'Planner: kcal per maaltijd, en wat in het dagboek staat is ook in de planner te zien', async () => {
+  await page.goto(B + '#/planner'); await page.waitForSelector('.day');
+  const today = iso();
+  const { people } = await japi(page, 'GET', '/people');
+  await japi(page, 'POST', '/diary', { person_id: people[0].id, date: today, meal: 'lunch', type: 'free', name: 'Broodje gezond bij de bakker', values: { kcal: 420 } });
+  await page.evaluate(() => localStorage.removeItem('maaltijden-persoon'));
+  await page.reload(); await page.waitForSelector('.day');
+  const lunch = (await page.locator(`.slot[data-date="${today}"][data-meal="lunch"]`).textContent()).replace(/\s+/g, ' ');
+  expect(/📓 Broodje gezond bij de bakker/.test(lunch) && /420 kcal/.test(lunch), `niet in de planner: ${lunch}`);
+  const figures = await page.locator('.plan-entry .entry-figures').allTextContents();
+  expect(figures.length && figures.every((t) => /\d kcal/.test(t)), `geen kcal op de kaartjes: ${figures.slice(0, 3).join(' | ')}`);
+  await page.locator(`.day.today`).screenshot({ path: `${OUT}/35-dagboek-in-planner.png` });
+  // Op de telefoon ook
+  await mob.goto(B + '#/planner'); await mob.evaluate(() => localStorage.removeItem('maaltijden-persoon'));
+  await mob.reload(); await mob.waitForSelector('.day');
+  expect(await mob.locator(`.slot[data-date="${today}"] .diary-items`).count() >= 1, 'dagboek niet zichtbaar op de telefoon');
+  return `lunch: ‘Broodje gezond’ (420 kcal) uit het dagboek; kaartjes: ${figures[0].trim()}`;
+});
+
 await browser.close();
 console.log(JSON.stringify({ results, errors }, null, 1));

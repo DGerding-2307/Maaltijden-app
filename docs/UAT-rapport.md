@@ -2,7 +2,7 @@
 
 **Datum:** 8 oktober 2026
 **Getest:** v1.0 (eerste versie), v2.0, v2.2 (barcode scannen; Jumbo-koppeling verwijderd), v2.3 (prijzen uit Open Prices), v2.6 (dagboek) en **v3.0**
-**Uitslag v3.1:** 34 van de 34 scenario's geslaagd ✅ (zie [§8](#8-v3-recensies-opnieuw-bekeken-en-9-nieuwe-scenarios))
+**Uitslag v3.2:** 35 van de 35 scenario's geslaagd ✅ (zie [§8](#8-v3-recensies-opnieuw-bekeken-en-9-nieuwe-scenarios))
 
 ## 1. Aanpak
 
@@ -164,8 +164,9 @@ Daarnaast is gekeken naar wat er bij het eigen gebruik in de Android-app misging
 | UAT-33 | Snel loggen: recent gebruikt met één tik, bake-off uit de Jumbo-lijst | V16 | ⚠️ alleen zoeken | ✅ |
 
 | UAT-34 | Uit eten met één tik; geen vlees bij de lunch; prijs bij losse ingrediënten *(v3.1, na feedback)* | V2, V20 | ⚠️ uit eten alleen als vrije tekst; geen prijs bij losse ingrediënten | ✅ |
+| UAT-35 | Planner: kcal per maaltijd; wat in het dagboek staat is ook in de planner te zien *(v3.2, na feedback)* | V16 | ⚠️ alleen kcal per dag; dagboek alleen als dagtotaal | ✅ op desktop en telefoon |
 
-UAT-01 t/m UAT-24 zijn in dezelfde ronde opnieuw uitgevoerd en blijven geslaagd. **v3.0: 33 van 33 geslaagd; v3.1: 34 van 34.**
+UAT-01 t/m UAT-24 zijn in dezelfde ronde opnieuw uitgevoerd en blijven geslaagd. **v3.0: 33 van 33 geslaagd; v3.1: 34 van 34; v3.2: 35 van 35.**
 
 ### 8.4 Uitgevallen scenario's in de eerste v3-ronde
 

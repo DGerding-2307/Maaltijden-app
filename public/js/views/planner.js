@@ -39,7 +39,10 @@ export async function render(root, params) {
           <span title="personen">👤 ${e.servings}</span>
           <button class="mini" data-serv="1" aria-label="Meer personen">+</button>
         </span>
-        ${(e.recipe_id || e.extras?.length) && !e.leftover_of ? `<span class="muted">${euro(e.cost_cents)}</span>` : ''}
+        ${e.kcal_per_serving != null || ((e.recipe_id || e.extras?.length) && !e.leftover_of) ? `<span class="muted entry-figures">${[
+          e.kcal_per_serving != null ? `<span title="per persoon">${num(e.kcal_per_serving, 0)} kcal</span>` : '',
+          (e.recipe_id || e.extras?.length) && !e.leftover_of ? `<span>${euro(e.cost_cents)}</span>` : '',
+        ].filter(Boolean).join(' · ')}</span>` : ''}
         ${e.recipe_id && e.date <= todayISO() ? `<button class="eat-toggle ${e.eaten ? 'on' : ''}" data-eat aria-pressed="${!!e.eaten}"
           title="${e.eaten ? `Staat in het dagboek van ${esc(person.name)}` : `Als gegeten in het dagboek van ${esc(person.name)} zetten`}">${e.eaten ? '✓ gegeten' : 'gegeten?'}</button>` : ''}
       </div>
@@ -48,6 +51,15 @@ export async function render(root, params) {
         <button class="mini danger" data-remove aria-label="Verwijderen" title="Verwijderen">✕</button>
       </div>
     </div>`;
+  }
+
+  // Dagboekregels die niet gepland waren, bij het juiste moment in de planner
+  function diaryItems(d, meal) {
+    const items = (d.diary?.items || []).filter((x) => (meal == null ? !meals.some((m) => m.toLowerCase() === x.meal.toLowerCase()) : x.meal.toLowerCase() === meal.toLowerCase()));
+    if (!items.length) return '';
+    return `<a class="diary-items" href="#/dagboek?datum=${d.date}&persoon=${person.id}" title="Uit het dagboek van ${esc(person.name)}">
+      ${items.map((x) => `<span class="diary-item"><span>📓 ${esc(x.name)}</span>${x.kcal != null ? `<span class="muted">${num(x.kcal, 0)} kcal</span>` : ''}</span>`).join('')}
+    </a>`;
   }
 
   function draw() {
@@ -107,9 +119,11 @@ export async function render(root, params) {
                 <div class="slot" data-date="${d.date}" data-meal="${esc(meal)}">
                   <div class="slot-label">${esc(meal)}</div>
                   ${d.entries.filter((e) => e.meal === meal).map(entryCard).join('')}
+                  ${diaryItems(d, meal)}
                   <button class="slot-add" data-add aria-label="Toevoegen aan ${esc(meal)} op ${DAY_NAMES[i]}">+</button>
                 </div>`).join('')}
               ${d.entries.some((e) => !meals.includes(e.meal)) ? `<div class="slot"><div class="slot-label">extra</div>${d.entries.filter((e) => !meals.includes(e.meal)).map(entryCard).join('')}</div>` : ''}
+              ${diaryItems(d, null) ? `<div class="slot"><div class="slot-label">tussendoor</div>${diaryItems(d, null)}</div>` : ''}
               <footer class="day-foot">
                 ${d.entries.length ? `<span title="per persoon">${num(d.nutrition_per_person.kcal, 0)} kcal p.p.</span><span>${euro(d.cost_cents)}</span>` : '<span class="muted">Nog niets gepland</span>'}
               </footer>

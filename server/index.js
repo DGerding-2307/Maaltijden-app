@@ -321,21 +321,8 @@ export function createApp() {
   }));
 
   // ---- Planning ----
-  api.get('/plan', wrap((req) => {
-    const plan = repo.getPlan(week(req.query.week), 7);
-    // Met ?persoon: per maaltijd of die persoon hem als gegeten heeft geregistreerd, en het dagtotaal uit het dagboek
-    const personId = Number(req.query.persoon);
-    if (personId && tracker.getPerson(personId)) {
-      const s = tracker.summary(personId, plan.start, plan.end);
-      const eaten = new Set(getDb().prepare('SELECT plan_entry_id FROM food_log WHERE person_id = ? AND date BETWEEN ? AND ? AND plan_entry_id IS NOT NULL')
-        .all(personId, plan.start, plan.end).map((r) => r.plan_entry_id));
-      for (const [i, d] of plan.days.entries()) {
-        d.diary = { ...s.days[i], target_kcal: s.target_kcal };
-        for (const e of d.entries) e.eaten = eaten.has(e.id);
-      }
-    }
-    return plan;
-  }));
+  // Met ?persoon: gegeten-markering, dagtotaal en ongeplande dagboekregels van die persoon
+  api.get('/plan', wrap((req) => tracker.addDiaryToPlan(repo.getPlan(week(req.query.week), 7), Number(req.query.persoon))));
   api.post('/plan', wrap((req) => ({ id: repo.addPlanEntry(req.body) })));
   api.put('/plan/:id', wrap((req) => (repo.updatePlanEntry(Number(req.params.id), req.body) ? { ok: true } : Promise.reject(notFound()))));
   api.delete('/plan/:id', wrap((req) => repo.deletePlanEntry(Number(req.params.id))));

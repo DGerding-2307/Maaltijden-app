@@ -3,6 +3,13 @@
 Een webapplicatie voor op je eigen server: een overzichtelijke weekplanner en een receptenboek met
 Nederlandse recepten, voedingswaarden per persoon (uit Open Food Facts), prijzen per maaltijd (uit Open Prices) en een Claude AI-integratie.
 
+## Nieuw in v3.2
+
+- 🔥 **Calorieën in de planner**: elke maaltijd toont kcal per persoon naast de prijs.
+- 📓 **Wat je in het dagboek zet, staat ook in de planner** bij het juiste moment (tussendoortjes onderaan de dag),
+  voor de persoon die je in de planner kiest. Tik erop om naar het dagboek te gaan. Het telt niet mee voor de boodschappen:
+  het is al gegeten. Geplande maaltijden die je als ‘gegeten’ afvinkt, staan er niet dubbel in.
+
 ## Nieuw in v3.1
 
 - 🍴 **Uit eten** met één tik bij het plannen van een maaltijd.
@@ -110,7 +117,8 @@ en receptenapps verwachten. Zie het [UAT-rapport](docs/UAT-rapport.md).
 - Weekoverzicht met ontbijt, lunch en diner (momenten zelf in te stellen)
 - Recepten slepen vanuit de zijbalk naar een dag; maaltijden verslepen tussen dagen (Ctrl/Alt + slepen = kopiëren)
 - Aantal personen per maaltijd aanpassen (− / +)
-- Per dag: kcal per persoon en kosten; per week: totale kosten (met budget) en gemiddelde kcal
+- Per maaltijd en per dag: kcal per persoon en kosten; per week: totale kosten (met budget) en gemiddelde kcal
+- Wat je in het dagboek zet, staat ook in de planner
 - Vrije invoer (‘Uit eten’, ‘Restjes’), week kopiëren, week leegmaken, afdrukken
 - 🥩 Vlees of vis, of een ander gerecht, bij een maaltijd kiezen (niet bij de lunch); maaltijden van losse ingrediënten, met prijs
 - 🍴 Uit eten met één tik

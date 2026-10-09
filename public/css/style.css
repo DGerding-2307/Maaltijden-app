@@ -731,3 +731,13 @@ button, a, label, select, summary { touch-action: manipulation; -webkit-tap-high
   .stat-sub { font-size: .72rem; }
   .stat-sub:not(.good):not(.bad) { display: none; }
 }
+
+/* Dagboekregels (niet gepland) in de planner */
+.diary-items { display: flex; flex-direction: column; gap: .15rem; margin: .25rem 0; padding: .35rem .5rem; border: 1px dashed var(--border); border-radius: 10px;
+  background: var(--surface); color: var(--text); text-decoration: none; font-size: .78rem; }
+.diary-items:hover { border-color: var(--primary); text-decoration: none; }
+.diary-item { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 .4rem; line-height: 1.3; }
+.diary-item > span:first-child { overflow-wrap: anywhere; }
+.diary-item .muted { white-space: nowrap; }
+.entry-figures { white-space: nowrap; }
+@media (pointer: coarse), (max-width: 720px) { .diary-items { min-height: 2.75rem; justify-content: center; } }
