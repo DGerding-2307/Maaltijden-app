@@ -1,7 +1,7 @@
 import { api, meta, liveSync } from '../api.js';
 import { meatDialog, extrasDialog, meatOptions, defaultPortion } from '../meat.js';
 import {
-  $, $$, esc, euro, num, addDays, mondayOf, todayISO, fmtDate, weekNumber, DAY_NAMES, toast, modal, confirmDialog, debounce, minutes,
+  $, $$, esc, euro, num, addDays, mondayOf, todayISO, fmtDate, weekNumber, DAY_NAMES, toast, modal, confirmDialog, debounce, minutes, meatOffered,
   savedPerson, rememberPerson,
 } from '../util.js';
 
@@ -19,10 +19,6 @@ export async function render(root, params) {
     [plan, recipes] = await Promise.all([api.get(`/plan?week=${start}&persoon=${person.id}`), recipes.length ? recipes : api.get('/recipes?sort=title')]);
     draw();
   }
-
-  // Bij deze momenten geen knop om vlees of vis toe te voegen (wel aan te passen als er al iets bij staat)
-  const NO_MEAT_MEALS = ['lunch'];
-  const meatOffered = (meal) => !NO_MEAT_MEALS.includes(String(meal).toLowerCase());
 
   function entryCard(e) {
     const title = e.recipe_id ? e.recipe_title : (e.title || (e.extras?.length ? e.extras.map((x) => x.name).join(', ') : 'Losse ingrediënten'));

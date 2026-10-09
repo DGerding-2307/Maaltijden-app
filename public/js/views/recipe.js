@@ -1,7 +1,7 @@
 import { api, meta, askClaude } from '../api.js';
 import {
   $, $$, esc, euro, num, qty, minutes, toast, modal, confirmDialog, miniMarkdown, todayISO, fmtDate, addDays,
-  NUTRIENT_LABELS, REFERENCE_INTAKE,
+  NUTRIENT_LABELS, REFERENCE_INTAKE, meatOffered,
 } from '../util.js';
 import { recipeThumb } from './recipes.js';
 import { linkIngredientDialog } from '../link-ingredient.js';
@@ -244,9 +244,9 @@ export async function render(root, params) {
         <div class="row end"><button class="btn btn-primary">Inplannen</button></div>
       </form>`);
     const form = $('[data-form]', md.el);
-    // Bij de lunch geen vlees of vis erbij
+    // Bij ontbijt en lunch geen vlees of vis erbij
     const meatRow = () => {
-      const hide = form.meal.value.toLowerCase() === 'lunch';
+      const hide = !meatOffered(form.meal.value);
       $('[data-meat-row]', md.el).hidden = hide;
       if (hide) form.meat.value = '';
     };

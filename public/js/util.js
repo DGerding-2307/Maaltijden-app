@@ -213,3 +213,7 @@ export function savedPerson() {
 export function rememberPerson(id) {
   try { localStorage.setItem(PERSON_KEY, String(id)); } catch { /* geen opslag */ }
 }
+
+// Bij deze momenten geen optie om vlees of vis toe te voegen (wel aan te passen als er al iets bij staat)
+export const NO_MEAT_MEALS = ['ontbijt', 'lunch'];
+export const meatOffered = (meal) => !NO_MEAT_MEALS.includes(String(meal).toLowerCase());

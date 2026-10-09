@@ -9,12 +9,13 @@ Nederlandse recepten, voedingswaarden per persoon (uit Open Food Facts), prijzen
 - 📓 **Wat je in het dagboek zet, staat ook in de planner** bij het juiste moment (tussendoortjes onderaan de dag),
   voor de persoon die je in de planner kiest. Tik erop om naar het dagboek te gaan. Het telt niet mee voor de boodschappen:
   het is al gegeten. Geplande maaltijden die je als ‘gegeten’ afvinkt, staan er niet dubbel in.
+- 🥐 Ook bij het **ontbijt** geen optie meer om vlees of vis toe te voegen; dat kan alleen nog bij het diner.
 
 ## Nieuw in v3.1
 
 - 🍴 **Uit eten** met één tik bij het plannen van een maaltijd.
 - 💶 Maaltijden van **losse ingrediënten** tonen nu hun prijs in de planner (en tellen mee in de dag- en weekkosten en het kcal-gemiddelde).
-- 🥪 Bij de **lunch** staat geen knop meer om vlees of vis toe te voegen (bij ontbijt en diner wel).
+- 🥪 Bij de **lunch** staat geen knop meer om vlees of vis toe te voegen.
 
 ## Nieuw in v3
 
@@ -120,7 +121,7 @@ en receptenapps verwachten. Zie het [UAT-rapport](docs/UAT-rapport.md).
 - Per maaltijd en per dag: kcal per persoon en kosten; per week: totale kosten (met budget) en gemiddelde kcal
 - Wat je in het dagboek zet, staat ook in de planner
 - Vrije invoer (‘Uit eten’, ‘Restjes’), week kopiëren, week leegmaken, afdrukken
-- 🥩 Vlees of vis, of een ander gerecht, bij een maaltijd kiezen (niet bij de lunch); maaltijden van losse ingrediënten, met prijs
+- 🥩 Vlees of vis, of een ander gerecht, bij een maaltijd kiezen (bij het diner); maaltijden van losse ingrediënten, met prijs
 - 🍴 Uit eten met één tik
 - ♻️ Restjes inplannen zonder dubbele boodschappen
 - Op de telefoon: ⋯-menu per maaltijd (verplaatsen, personen, vlees erbij), daglijst om naar een dag te springen

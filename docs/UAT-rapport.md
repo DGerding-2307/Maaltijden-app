@@ -163,7 +163,7 @@ Daarnaast is gekeken naar wat er bij het eigen gebruik in de Android-app misging
 | UAT-32 | Niet-herkend ingrediënt koppelen of aanmaken vanuit het recept | V8 | ❌ | ✅ en de naam wordt onthouden |
 | UAT-33 | Snel loggen: recent gebruikt met één tik, bake-off uit de Jumbo-lijst | V16 | ⚠️ alleen zoeken | ✅ |
 
-| UAT-34 | Uit eten met één tik; geen vlees bij de lunch; prijs bij losse ingrediënten *(v3.1, na feedback)* | V2, V20 | ⚠️ uit eten alleen als vrije tekst; geen prijs bij losse ingrediënten | ✅ |
+| UAT-34 | Uit eten met één tik; geen vlees bij ontbijt en lunch; prijs bij losse ingrediënten *(v3.1, na feedback)* | V2, V20 | ⚠️ uit eten alleen als vrije tekst; geen prijs bij losse ingrediënten | ✅ |
 | UAT-35 | Planner: kcal per maaltijd; wat in het dagboek staat is ook in de planner te zien *(v3.2, na feedback)* | V16 | ⚠️ alleen kcal per dag; dagboek alleen als dagtotaal | ✅ op desktop en telefoon |
 
 UAT-01 t/m UAT-24 zijn in dezelfde ronde opnieuw uitgevoerd en blijven geslaagd. **v3.0: 33 van 33 geslaagd; v3.1: 34 van 34; v3.2: 35 van 35.**
