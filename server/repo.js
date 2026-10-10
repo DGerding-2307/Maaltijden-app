@@ -1,6 +1,6 @@
 // Data-toegang: recepten, ingrediënten, planning en boodschappen.
 import { getDb, tx } from './db.js';
-import { computeRecipe, buildShoppingList, NUTRIENTS, effectiveAmount, pricePerGram } from './calc.js';
+import { computeRecipe, buildShoppingList, NUTRIENTS, effectiveAmount, gramsFor, pricePerGram } from './calc.js';
 import { addDays } from './seed.js';
 
 const ING_FIELDS = [
@@ -370,6 +370,7 @@ export function getPlan(start, days = 7) {
 export function extrasFor(entryId) {
   const db = getDb();
   const ingStmt = db.prepare('SELECT * FROM ingredients WHERE id = ?');
+  const servings = Number(db.prepare('SELECT servings FROM meal_plan WHERE id = ?').get(entryId)?.servings) || 1;
   return db.prepare('SELECT * FROM plan_extras WHERE plan_entry_id = ? ORDER BY position, id').all(entryId).map((x) => {
     if (x.recipe_id) {
       // Een gerecht als vlees: hoeveelheid in porties per persoon
@@ -387,14 +388,17 @@ export function extrasFor(entryId) {
       };
     }
     const ing = x.ingredient_id ? ingStmt.get(x.ingredient_id) : null;
-    const grams = effectiveAmount(x, ing).grams;
+    // Wat je eet: de hoeveelheid per persoon. Wat je koopt: de regels (hele verpakking, hele stuks, minimum)
+    // gelden voor de hele maaltijd, net als op de boodschappenlijst — niet per persoon.
+    const grams = gramsFor(x, ing);
+    const bought = effectiveAmount(x, ing, servings).grams;
     const ppg = pricePerGram(ing);
     return {
       ...x,
       image_url: ing?.image_url || null,
       grams_per_person: Math.round(grams),
       nutrition: Object.fromEntries(NUTRIENTS.map((k) => [k, ((Number(ing?.[k]) || 0) * grams) / 100])),
-      cost_cents: ppg != null ? ppg * grams : null,
+      cost_cents: ppg != null ? (ppg * bought) / servings : null,
     };
   }).filter(Boolean);
 }

@@ -187,3 +187,18 @@ test('planner toont kcal per maaltijd en ongeplande dagboekregels van een persoo
   // Zonder persoon geen dagboekgegevens
   assert.equal((await get(`/plan?week=${date}`)).days[0].diary, undefined);
 });
+
+test('losse ingrediënten met ‘hele verpakking’: kcal per persoon van de portie, prijs per maaltijd', async () => {
+  const full = (await get('/ingredients?q=aardappelen kruimig')).find((i) => i.name === 'aardappelen kruimig');
+  const aardappel = full;
+  await send('PUT', `/ingredients/${aardappel.id}`, { ...full, amount_rule: 'package' });
+  const date = '2031-07-07';
+  const { id } = await send('POST', '/plan', { date, meal: 'diner', title: '', servings: 2 });
+  await send('POST', `/plan/${id}/extras`, { ingredient_id: aardappel.id, quantity: 250, unit: 'g' });
+  const entry = (await get(`/plan?week=${date}`)).days[0].entries.find((e) => e.id === id);
+  // 250 g p.p. eten (≈ 215 kcal), niet de hele zak van 3 kg
+  assert.ok(Math.abs(entry.kcal_per_serving - (full.kcal * 250) / 100) < 1, `${entry.kcal_per_serving} kcal p.p.`);
+  // Eén hele zak voor de maaltijd (niet één per persoon)
+  assert.equal(Math.round(entry.cost_cents), full.price_cents);
+  await send('PUT', `/ingredients/${aardappel.id}`, { ...full, amount_rule: null });
+});

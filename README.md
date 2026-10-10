@@ -4,13 +4,14 @@ Weekplanner, receptenboek en calorieëndagboek voor op je eigen server. Plan je 
 boodschappenlijst met prijzen en voedingswaarden. Er zijn 50 Nederlandse recepten om mee te beginnen. Werkt op computer, telefoon en als Android-app.
 Geen account, geen abonnement, geen advertenties.
 
-## Laatste wijziging (v3.2)
+## Laatste wijziging (v3.2.1)
 
 - Calorieën per maaltijd in de planner, naast de prijs
 - Wat je in het dagboek zet, staat ook in de planner
 - 🍴 *Uit eten* met één tik bij het plannen
 - Maaltijden van losse ingrediënten tonen hun prijs
 - Vlees of vis toevoegen kan alleen nog bij het diner (niet bij ontbijt en lunch)
+- Opgelost: bij losse ingrediënten met de regel ‘hele verpakking’ rekende de planner per persoon een hele verpakking (veel te veel kcal en een te hoge prijs)
 
 ## Installeren
 
