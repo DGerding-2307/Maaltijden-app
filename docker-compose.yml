@@ -13,6 +13,10 @@ services:
       - "3000:3000"
     env_file:
       - .env
+    environment:
+      # ‘Nu updaten’ in de app: de app geeft de updater hieronder opdracht om te updaten
+      UPDATER_URL: http://updater:8080
+      UPDATER_TOKEN: ${UPDATE_TOKEN:-maaltijden-update}
     volumes:
       - ./data:/app/data
     labels:
@@ -32,3 +36,7 @@ services:
       # Elke nacht om 04:00 (seconden minuten uren dag maand weekdag)
       WATCHTOWER_SCHEDULE: "0 0 4 * * *"
       TZ: Europe/Amsterdam
+      # Updaten op verzoek van de app (alleen bereikbaar binnen deze stack; poort 8080 wordt niet gepubliceerd)
+      WATCHTOWER_HTTP_API_ENDPOINTS: update
+      WATCHTOWER_HTTP_API_TOKEN: ${UPDATE_TOKEN:-maaltijden-update}
+      WATCHTOWER_HTTP_API_PERIODIC_POLLS: "true"

@@ -47,6 +47,8 @@ const ROUTES = [
     return { ok: true };
   }],
   ['GET', '/changes', () => ({ version: changeCounter })],
+  // In de demo (in de browser) is er niets te updaten
+  ['GET', '/update', () => ({ current: null, latest: null, update_available: false, can_update: false, demo: true })],
 
   ['GET', '/recipes', (req) => repo.listRecipes({
     q: req.query.q || '', tag: req.query.tag || '', category: req.query.category || '',

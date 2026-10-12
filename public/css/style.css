@@ -744,3 +744,18 @@ button, a, label, select, summary { touch-action: manipulation; -webkit-tap-high
 .diary-item .muted { white-space: nowrap; }
 .entry-figures { white-space: nowrap; }
 @media (pointer: coarse), (max-width: 720px) { .diary-items { min-height: 2.75rem; justify-content: center; } }
+
+/* Direct updaten */
+.update-progress { position: fixed; inset: 0; z-index: 400; display: grid; place-items: center; padding: calc(1rem + var(--sat)) 1rem calc(1rem + var(--sab));
+  background: color-mix(in srgb, var(--bg) 85%, transparent); backdrop-filter: blur(3px); }
+.update-progress-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 1.4rem 1.6rem; max-width: 26rem; text-align: center; display: grid; gap: .5rem; justify-items: center; }
+.update-progress-box h2 { margin: .2rem 0 0; }
+.update-progress-box p { margin: 0; }
+.update-progress .spinner { width: 2.4rem; height: 2.4rem; border-radius: 50%; border: 4px solid var(--border); border-top-color: var(--primary);
+  animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .update-progress .spinner { animation-duration: 3s; } }
+.code-block { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: .7rem .8rem; overflow-x: auto;
+  font-size: .8rem; line-height: 1.45; white-space: pre; }
+[data-update-card] .good { color: var(--good); }

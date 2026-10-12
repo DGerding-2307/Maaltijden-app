@@ -15,6 +15,7 @@ import { buildIcs, calendarToken } from './calendar.js';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { UNITS } from './calc.js';
+import { updateStatus, triggerUpdate } from './updater.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 // Versie: uit het Docker-image (APP_VERSION) of anders uit package.json
@@ -122,6 +123,9 @@ export function createApp() {
     next();
   });
   api.get('/changes', (req, res) => res.json({ version: changeCounter, app_version: APP_VERSION }));
+  // Direct updaten (via de updater-container)
+  api.get('/update', wrap((req) => updateStatus(APP_VERSION, { refresh: req.query.vernieuw === '1' })));
+  api.post('/update', wrap(() => triggerUpdate()));
 
   // ---- Meta ----
   api.get('/meta', wrap(() => ({

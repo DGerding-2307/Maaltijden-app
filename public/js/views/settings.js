@@ -1,5 +1,6 @@
 import { api, meta } from '../api.js';
 import { $, esc, toast, confirmDialog } from '../util.js';
+import { updateStatus, startUpdate, shortVersion } from '../update.js';
 
 const GOALS = [['afvallen', 'Afvallen (−500 kcal per dag)'], ['onderhoud', 'Gewicht behouden'], ['aankomen', 'Aankomen (+300 kcal per dag)']];
 
@@ -125,11 +126,32 @@ export async function render(root) {
       <a class="btn" href="#/ingredienten">🥕 Naar ingrediënten</a>
     </section>
 
-    ${m.app_version ? `<section class="card">
+    ${m.app_version ? `<section class="card" data-update-card>
       <h2>Versie en updates</h2>
-      <p>Je gebruikt versie <strong>${esc(m.app_version)}</strong>.</p>
+      <p>Je gebruikt versie <strong>${esc(shortVersion(m.app_version))}</strong> <span class="muted small">(${esc(m.app_version)})</span>.</p>
       ${m.builtin_sync?.recipes && !m.builtin_sync.fresh ? `<p class="muted">Deze versie heeft ${m.builtin_sync.recipes} nieuwe recepten toegevoegd aan je receptenboek.</p>` : ''}
-      <p class="muted small">Met de standaard-installatie (Docker) worden nieuwe versies automatisch geïnstalleerd. Vóór elke update wordt een back-up
+      <p data-update-status class="muted">Controleren op updates…</p>
+      <div class="row wrap">
+        <button class="btn btn-primary" type="button" data-update-now hidden>⬇️ Nu updaten</button>
+        <button class="btn" type="button" data-update-check>🔄 Opnieuw controleren</button>
+      </div>
+      <details data-update-howto hidden>
+        <summary>Direct updaten instellen</summary>
+        <p class="small">Voeg in Portainer (Stacks → maaltijden → Editor) bij de twee diensten deze regels toe en klik op <em>Update the stack</em>:</p>
+        <pre class="code-block">  maaltijden:
+    environment:
+      UPDATER_URL: http://updater:8080
+      UPDATER_TOKEN: \${UPDATE_TOKEN:-maaltijden-update}
+
+  updater:
+    environment:
+      WATCHTOWER_HTTP_API_ENDPOINTS: update
+      WATCHTOWER_HTTP_API_TOKEN: \${UPDATE_TOKEN:-maaltijden-update}
+      WATCHTOWER_HTTP_API_PERIODIC_POLLS: "true"</pre>
+        <p class="muted small">Of neem de nieuwe stack uit de README over. De nachtelijke automatische update blijft werken.
+          Tot die tijd: in Portainer de stack openen en <em>Update the stack</em> met <em>Re-pull image</em> aan.</p>
+      </details>
+      <p class="muted small">Nieuwe versies worden ook elke nacht om 04:00 automatisch geïnstalleerd. Vóór elke update wordt een back-up
         van je gegevens gemaakt in <code>data/backups</code>. Je recepten, planning en instellingen blijven bewaard.</p>
     </section>` : ''}
 
@@ -148,6 +170,42 @@ export async function render(root) {
     </section>
   </div>`;
   const form = $('[data-form]', root);
+
+  // Versie en updates
+  const updCard = $('[data-update-card]', root);
+  let updInfo = null;
+  const checkUpdate = async (refresh = false) => {
+    const out = $('[data-update-status]', updCard);
+    out.className = 'muted';
+    out.textContent = 'Controleren op updates…';
+    try {
+      updInfo = await updateStatus(refresh);
+    } catch (err) {
+      out.textContent = `Controleren lukte niet: ${err.message}`;
+      return;
+    }
+    const nowBtn = $('[data-update-now]', updCard);
+    $('[data-update-howto]', updCard).hidden = updInfo.can_update;
+    nowBtn.hidden = !updInfo.can_update;
+    if (updInfo.update_available) {
+      out.className = 'good';
+      out.innerHTML = `✨ Nieuwe versie <strong>${esc(shortVersion(updInfo.latest))}</strong> beschikbaar.`;
+      nowBtn.textContent = '⬇️ Nu updaten';
+    } else if (updInfo.latest) {
+      out.textContent = '✔ Je hebt de nieuwste versie.';
+      nowBtn.textContent = '⬇️ Toch zoeken en installeren';
+    } else {
+      out.textContent = `Kon de nieuwste versie niet opvragen bij GitHub.${updInfo.can_update ? ' Je kunt wel direct updaten: de updater kijkt dan zelf of er iets nieuws is.' : ''}`;
+      nowBtn.textContent = '⬇️ Zoeken en installeren';
+    }
+    if (!updInfo.can_update) out.textContent += ' Direct updaten vanuit de app is nog niet ingesteld (zie hieronder).';
+  };
+  if (updCard) {
+    checkUpdate();
+    $('[data-update-check]', updCard).addEventListener('click', () => checkUpdate(true));
+    $('[data-update-now]', updCard).addEventListener('click', () => startUpdate({ expected: !!updInfo?.update_available }));
+  }
+
   $('[data-test-claude]', root)?.addEventListener('click', async (e) => {
     const out = $('[data-test-result]', root);
     e.target.disabled = true;

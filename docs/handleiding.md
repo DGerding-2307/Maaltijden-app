@@ -234,6 +234,10 @@ Open daarna `http://<server-ip>:3000`. Je gegevens staan in `./data`.
   2. wordt de database automatisch bijgewerkt (nieuwe kolommen, nieuwe standaardrecepten en -ingrediënten);
   3. krijgt wie de app open heeft een melding "Er is een nieuwe versie geïnstalleerd" met een knop om te vernieuwen.
 - Je ziet de geïnstalleerde versie bij **Instellingen → Versie en updates**.
+- **Direct updaten:** bij **Instellingen → Versie en updates → Nu updaten** (ook in de Android-app). De app vraagt de updater-container om meteen te updaten;
+  daarvoor hebben de app (`UPDATER_URL`, `UPDATER_TOKEN`) en de updater (`WATCHTOWER_HTTP_API_ENDPOINTS: update`, `WATCHTOWER_HTTP_API_TOKEN`,
+  `WATCHTOWER_HTTP_API_PERIODIC_POLLS: "true"`) een paar regels nodig, zie `docker-compose.yml`. De API van de updater is alleen binnen de stack bereikbaar.
+  Is er een nieuwe versie (laatste geslaagde build op GitHub), dan verschijnt ook een melding met *Nu updaten*.
 - Liever direct updaten? `docker compose pull && docker compose up -d`.
 - Terug naar een vorige versie: zet in `docker-compose.yml` een vaste versie, bijv. `image: ghcr.io/dgerding-2307/maaltijden-app:sha-1234567`,
   en zet zo nodig de back-up uit `data/backups/` terug als `data/maaltijden.db`.

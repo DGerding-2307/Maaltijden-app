@@ -1,5 +1,6 @@
 // Eenvoudige hash-router.
 import { $, $$, esc, closeAllModals } from './util.js';
+import { checkForUpdateBanner } from './update.js';
 
 const routes = [
   [/^\/planner$/, () => import('./views/planner.js')],
@@ -68,6 +69,9 @@ async function checkVersion() {
 }
 checkVersion();
 setInterval(() => !document.hidden && checkVersion(), 60000);
+// Nieuwe versie beschikbaar? Dan een melding met ‘Nu updaten’ (kort na het openen en daarna elke 6 uur)
+setTimeout(checkForUpdateBanner, 4000);
+setInterval(() => !document.hidden && checkForUpdateBanner(), 6 * 60 * 60 * 1000);
 document.addEventListener('visibilitychange', () => !document.hidden && checkVersion());
 
 // Offline-melding

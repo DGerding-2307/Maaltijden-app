@@ -4,8 +4,10 @@ Weekplanner, receptenboek en calorieëndagboek voor op je eigen server. Plan je 
 boodschappenlijst met prijzen en voedingswaarden. Er zijn 50 Nederlandse recepten om mee te beginnen. Werkt op computer, telefoon en als Android-app.
 Geen account, geen abonnement, geen advertenties.
 
-## Laatste wijziging (v3.2.3)
+## Laatste wijziging (v3.3.0)
 
+- ⬇️ **Direct updaten** vanuit de app en de website (Instellingen → Versie en updates), met een melding als er een nieuwe versie is.
+  Eenmalig de stack bijwerken, zie [Updates](#updates)
 - Calorieën per maaltijd in de planner, naast de prijs
 - Wat je in het dagboek zet, staat ook in de planner
 - 🍴 *Uit eten* met één tik bij het plannen
@@ -33,6 +35,9 @@ Geen account, geen abonnement, geen advertenties.
        user: "99:100"
        ports:
          - "3000:3000"
+       environment:
+         UPDATER_URL: http://updater:8080
+         UPDATER_TOKEN: ${UPDATE_TOKEN:-maaltijden-update}
        volumes:
          - /mnt/user/appdata/maaltijden:/app/data
        labels:
@@ -49,6 +54,9 @@ Geen account, geen abonnement, geen advertenties.
          WATCHTOWER_CLEANUP: "true"
          WATCHTOWER_SCHEDULE: "0 0 4 * * *"
          TZ: Europe/Amsterdam
+         WATCHTOWER_HTTP_API_ENDPOINTS: update
+         WATCHTOWER_HTTP_API_TOKEN: ${UPDATE_TOKEN:-maaltijden-update}
+         WATCHTOWER_HTTP_API_PERIODIC_POLLS: "true"
    ```
 3. Klik op **Deploy the stack** en open `http://<ip-van-je-server>:3000`.
 
@@ -66,7 +74,11 @@ Open daarna `http://<ip-van-je-server>:3000`. Je gegevens staan in `./data`.
 ### Updates
 
 Gaan vanzelf: elke nacht om 04:00 wordt de nieuwste versie geïnstalleerd, met eerst een back-up van je gegevens.
-Meteen bijwerken: in Portainer de stack openen en **Update the stack** met *Re-pull image* aan, of `docker compose pull && docker compose up -d`.
+Meteen bijwerken: in de app of op de website bij **Instellingen → Versie en updates → Nu updaten**. Staat er een nieuwe versie klaar,
+dan zie je ook een melding met *Nu updaten*.
+
+Al geïnstalleerd met een oudere stack? Neem de stack hierboven één keer over (Stacks → maaltijden → Editor → *Update the stack*).
+Wil je een eigen geheime code voor de updater, zet dan bij *Environment variables* `UPDATE_TOKEN` op een zelfgekozen waarde.
 
 ### Android-app
 
