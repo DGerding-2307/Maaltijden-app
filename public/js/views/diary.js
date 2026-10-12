@@ -430,7 +430,7 @@ export async function render(root, params) {
         ${h.entries.length ? `<div class="legend">
             <span><i class="sw sw-dot"></i>Meting</span>
             <span><i class="sw sw-line"></i>Trend (gemiddelde 7 dagen)</span>
-            ${goal ? '<span><i class="sw sw-ref"></i>Doel</span>' : ''}
+            ${goal ? `<span><i class="sw sw-ref"></i>Doel ${kg(goal)}</span>` : ''}
           </div>
           <div class="chart" data-chart="weight"></div>
           <details class="chart-table"><summary>Als tabel</summary>
@@ -495,6 +495,11 @@ export async function render(root, params) {
     if (goalInView) {
       s += `<line x1="${pad.l}" x2="${W - pad.r}" y1="${y(goal)}" y2="${y(goal)}" class="ref"/>`;
       s += `<text x="${W - pad.r + 6}" y="${y(goal) + 4}" class="axis">doel ${num(goal, 1)}</text>`;
+    } else if (goal) {
+      // Doel ver van de metingen: niet meeschalen (dan wordt de lijn plat), wel aangeven waar het ligt
+      const below = goal < lo;
+      s += `<text x="${W - pad.r + 6}" y="${below ? pad.t + ih - 16 : pad.t + 10}" class="axis goal-off">${below ? '↓' : '↑'} doel</text>`;
+      s += `<text x="${W - pad.r + 6}" y="${below ? pad.t + ih - 2 : pad.t + 24}" class="axis goal-off">${num(goal, 1)} kg</text>`;
     }
     s += `<path class="trend" d="${entries.map((e, i) => `${i ? 'L' : 'M'}${x(ts[i]).toFixed(1)},${y(e.trend_kg).toFixed(1)}`).join(' ')}"/>`;
     entries.forEach((e, i) => { s += `<circle class="dot" cx="${x(ts[i])}" cy="${y(e.weight_kg)}" r="4"/>`; });
