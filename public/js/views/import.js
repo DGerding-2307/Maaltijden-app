@@ -51,6 +51,9 @@ export async function render(root, params) {
         <label>Personen <input class="input narrow" type="number" min="1" name="servings" value="${m.default_servings}"></label>`,
     };
     form.innerHTML = `${forms[tab]}
+      <label class="check jumbo-opt"><input type="checkbox" name="jumbo" ${jumboPref() ? 'checked' : ''}>
+        <span>🛒 Onbekende ingrediënten opzoeken bij Jumbo en toevoegen</span>
+        <span class="muted small">(met echte prijs, voedingswaarden en foto; duurt langer, ± 5–15 cent per ingrediënt)</span></label>
       <div class="row end"><button class="btn btn-ai" type="submit" ${m.claude.configured ? '' : 'disabled'}>${tab === 'generate' ? 'Bedenk recept' : 'Importeer recept'}</button></div>
       <div class="progress-msg" hidden></div>`;
     file = null;
@@ -78,6 +81,10 @@ export async function render(root, params) {
     drop.addEventListener('dragleave', () => drop.classList.remove('drop'));
     drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('drop'); setFile(e.dataTransfer.files[0]); });
   }
+
+  form.addEventListener('change', (e) => {
+    if (e.target.name === 'jumbo') { try { localStorage.setItem(JUMBO_PREF, e.target.checked ? '1' : '0'); } catch { /* geen opslag */ } }
+  });
 
   view.addEventListener('click', (e) => {
     const t = e.target.closest('[data-tab]');
@@ -110,6 +117,8 @@ export async function render(root, params) {
         draft = await api.post('/ai/import', { image: file, text: fd.get('text') || '' });
       }
       if (draft.truncated) toast('Let op: de pagina was erg lang en is ingekort voor Claude', 'info');
+      clearInterval(timer);
+      if (fd.has('jumbo')) await lookUpAtJumbo(draft, msg);
       // Bekende ingrediënten hebben geen schatting nodig.
       draft.ingredients = draft.ingredients.map(({ known, ...row }) => ({ ...row, estimate: known ? null : row.estimate }));
       sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
@@ -124,4 +133,44 @@ export async function render(root, params) {
   });
 
   drawTab();
+}
+
+const JUMBO_PREF = 'maaltijden-jumbo-opzoeken';
+function jumboPref() {
+  try { return localStorage.getItem(JUMBO_PREF) !== '0'; } catch { return true; }
+}
+
+/**
+ * Onbekende ingrediënten van een concept-recept opzoeken op jumbo.com en als ingrediënt toevoegen.
+ * Twee tegelijk; lukt het voor een ingrediënt niet, dan blijft de schatting van Claude staan.
+ */
+async function lookUpAtJumbo(draft, msg) {
+  const rows = draft.ingredients.filter((r) => !r.known && r.name?.trim());
+  if (!rows.length) return;
+  let done = 0;
+  const added = [];
+  const failed = [];
+  const show = (name) => { msg.textContent = `🛒 Bij Jumbo zoeken (${done}/${rows.length})${name ? `: ${name}…` : ''}`; };
+  show();
+  const queue = [...rows];
+  const worker = async () => {
+    while (queue.length) {
+      const row = queue.shift();
+      show(row.name);
+      try {
+        const r = await api.post('/ingredients/add-from-jumbo', { name: row.name });
+        row.ingredient_id = r.ingredient.id;
+        row.known = true;
+        row.estimate = null;
+        added.push(r.created ? r.ingredient.name : `${r.ingredient.name} (bestond al)`);
+      } catch {
+        failed.push(row.name);
+      }
+      done++;
+      show();
+    }
+  };
+  await Promise.all([worker(), worker()]);
+  if (added.length) toast(`Bij Jumbo gevonden en toegevoegd: ${added.join(', ')}`, 'success');
+  if (failed.length) toast(`Niet gevonden bij Jumbo (schatting blijft staan): ${failed.join(', ')}`, 'info');
 }

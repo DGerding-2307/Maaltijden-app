@@ -450,6 +450,91 @@ Haal hieruit de gegevens voor een ingrediënt in de maaltijdplanner:
   };
 }
 
+// ---------- Ingrediënt opzoeken bij Jumbo ----------
+// Claude zoekt zelf op jumbo.com (web search + web fetch, alleen dat domein) en geeft de productgegevens terug
+// via een strikte tool. Structured outputs kan hier niet: die gaan niet samen met de bronvermeldingen van web search.
+
+const JUMBO_DOMAINS = ['jumbo.com'];
+const JUMBO_TOOL = {
+  name: 'jumbo_product',
+  description: 'Lever het gevonden Jumbo-product aan. Roep dit precies één keer aan, als laatste stap. Niets passends gevonden? Roep het aan met found=false.',
+  strict: true,
+  input_schema: {
+    ...SHOP_SCHEMA,
+    required: [...SHOP_SCHEMA.required, 'product_url'],
+    properties: { ...SHOP_SCHEMA.properties, product_url: { type: ['string', 'null'] } },
+  },
+};
+
+// Web search/fetch met dynamische filtering op de nieuwste modellen; Haiku gebruikt de basisversies.
+function webTools(model) {
+  const dynamic = !/haiku/.test(model);
+  return [
+    { type: dynamic ? 'web_search_20260209' : 'web_search_20250305', name: 'web_search', max_uses: 3, allowed_domains: JUMBO_DOMAINS,
+      user_location: { type: 'approximate', country: 'NL', timezone: 'Europe/Amsterdam' } },
+    { type: dynamic ? 'web_fetch_20260209' : 'web_fetch_20250910', name: 'web_fetch', max_uses: 3, allowed_domains: JUMBO_DOMAINS, max_content_tokens: 20000 },
+  ];
+}
+
+/**
+ * Een ingrediënt opzoeken op jumbo.com.
+ * @returns velden zoals ingredientFromShop (naam, voedingswaarden per 100 g, verpakking, prijs, foto, shop_url)
+ */
+export async function ingredientFromJumbo(name) {
+  const query = String(name || '').trim().slice(0, 120);
+  if (!query) throw Object.assign(new Error('Geef de naam van een ingrediënt op'), { status: 400 });
+  const model = getModel();
+  const messages = [{
+    role: 'user',
+    content: `Zoek op jumbo.com het product dat het best past bij het ingrediënt "${query}" (een gangbare, betaalbare verpakking; liefst het Jumbo-huismerk).
+Open de productpagina en roep daarna de tool jumbo_product aan met:
+- "name": korte, algemene Nederlandse ingrediëntnaam in kleine letters zonder merk of verpakking (bv. "kokosmelk", "griekse yoghurt").
+- "product_name" en "brand" zoals op de pagina, "product_url" de link naar de productpagina.
+- Voedingswaarden per 100 g (of 100 ml) zoals op de pagina; onbekend → null.
+- "package_grams" (ml telt als gram) en "package_label" (bv. "400 ml", "6 stuks"); "price_cents": de prijs van de verpakking in centen (geen kiloprijs).
+- "unit_weight_g" als het product per stuk gebruikt wordt, anders null; "pantry": true voor kruiden, olie, sauzen, bloem e.d.
+- "ean" als die op de pagina staat, "image_url" de productfoto (absolute URL) of null.
+Gebruik alleen gegevens van jumbo.com. Vind je niets passends, roep de tool dan aan met found=false.`,
+  }];
+  const tools = [...webTools(model), JUMBO_TOOL];
+  let nudged = false;
+  for (let turn = 0; turn < 6; turn++) {
+    const response = await withFallback((extra) => client().beta.messages.create({
+      model,
+      max_tokens: 16000,
+      ...extra,
+      system: [{ type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } }],
+      messages,
+      tools,
+      tool_choice: { type: 'auto' },
+      output_config: { effort: 'low' },
+    }));
+    if (response.stop_reason === 'refusal') throw Object.assign(new Error('Claude heeft dit verzoek geweigerd.'), { status: 422 });
+    const call = response.content.find((b) => b.type === 'tool_use' && b.name === 'jumbo_product');
+    if (call) {
+      const data = call.input;
+      if (!data.found) throw Object.assign(new Error(`Geen passend product gevonden bij Jumbo voor “${query}”.`), { status: 404 });
+      let url = null;
+      try { url = data.product_url && /(^|\.)jumbo\.com$/.test(new URL(data.product_url).hostname) ? data.product_url : null; } catch { /* ongeldige link */ }
+      return {
+        ...data,
+        shop_url: url,
+        shop_host: 'jumbo.com',
+        nutrition_source: data.kcal != null ? `Jumbo: ${data.product_name}`.slice(0, 200) : null,
+      };
+    }
+    // Server-tools die nog bezig zijn (pause_turn): de beurt terugsturen, dan gaat de server verder.
+    messages.push({ role: 'assistant', content: response.content });
+    if (response.stop_reason !== 'pause_turn') {
+      // Klaar zonder de tool aan te roepen: één keer vragen om het resultaat via de tool te leveren
+      if (nudged) break;
+      nudged = true;
+      messages.push({ role: 'user', content: 'Lever het resultaat nu aan met de tool jumbo_product (found=false als je niets passends vond).' });
+    }
+  }
+  throw Object.assign(new Error('Claude kon het product bij Jumbo niet goed opzoeken. Probeer het nog eens of vul de gegevens zelf in.'), { status: 502 });
+}
+
 // ---------- Weekmenu ----------
 
 const WEEK_SCHEMA = {

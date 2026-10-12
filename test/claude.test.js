@@ -25,6 +25,23 @@ const mock = http.createServer((req, res) => {
     if (mode === 'auth') return error(401, 'authentication_error', 'invalid x-api-key');
     if (mode === 'credit') return error(400, 'invalid_request_error', 'Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.');
     if (mode === 'no-fallback' && json.fallbacks) return error(400, 'invalid_request_error', 'fallbacks: Extra inputs are not permitted');
+    // Opzoeken bij Jumbo: eerst een gepauzeerde zoekbeurt (server tools), daarna de tool jumbo_product
+    if (json.tools?.some((t) => t.name === 'jumbo_product')) {
+      const resumed = json.messages.length > 1;
+      const query = JSON.stringify(json.messages[0].content).match(/ingrediënt \\"([^\\]+)\\"/)?.[1] || '';
+      const notFound = query.includes('onvindbaar');
+      const reply = !resumed
+        ? { content: [{ type: 'server_tool_use', id: 'srvtoolu_1', name: 'web_search', input: { query: `jumbo ${query}` } }], stop_reason: 'pause_turn' }
+        : { content: [{ type: 'tool_use', id: 'toolu_1', name: 'jumbo_product', input: {
+          found: !notFound, name: query.includes('tempeh') ? 'tempeh' : 'kokosmelk', product_name: query.includes('tempeh') ? 'Jumbo Tempeh 200 g' : 'Jumbo Kokosmelk 400 ml', brand: 'Jumbo',
+          category: json.tools.find((t) => t.name === 'jumbo_product').input_schema.properties.category.enum[0],
+          kcal: 180, protein: 1.5, carbs: 3, sugar: 2, fat: 18, sat_fat: 16, fiber: 0, salt: 0.05,
+          package_grams: 400, package_label: '400 ml', price_cents: 149, unit_weight_g: null, pantry: true, ean: null,
+          image_url: 'https://static.jumbo.com/product/kokosmelk.png', product_url: 'https://www.jumbo.com/producten/jumbo-kokosmelk-400ml-123',
+        } }], stop_reason: 'tool_use' };
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ id: 'msg_j', type: 'message', role: 'assistant', model: json.model, ...reply, stop_sequence: null, usage: { input_tokens: 5, output_tokens: 1 } }));
+    }
     const schema = json.output_config?.format?.schema;
     const prompt = JSON.stringify(json.messages);
     const text = schema?.properties?.found
@@ -155,5 +172,67 @@ test('model kiezen: Haiku zonder terugvalfunctie, Sonnet met; onbekend model val
   await put('/settings', { claude_model: 'gpt-iets' });
   r = await post('/ai/test');
   assert.equal(r.model, 'claude-opus-5-5');
+  await put('/settings', { claude_model: null });
+});
+
+test('ingrediënt opzoeken bij Jumbo: alleen jumbo.com, strikte tool, pauze hervatten, toevoegen en hergebruiken', async () => {
+  mode = 'ok';
+  const before = seen.length;
+  const d = await post('/ingredients/from-jumbo', { name: 'kokosmelk light' });
+  assert.equal(d.name, 'kokosmelk', JSON.stringify(d));
+  assert.equal(d.price_cents, 149);
+  assert.equal(d.shop_url, 'https://www.jumbo.com/producten/jumbo-kokosmelk-400ml-123');
+  assert.equal(d.shop_host, 'jumbo.com');
+  assert.match(d.nutrition_source, /^Jumbo: /);
+  // Twee aanvragen: de gepauzeerde zoekbeurt werd hervat met de assistent-beurt erbij
+  const reqs = seen.slice(before);
+  assert.equal(reqs.length, 2);
+  const body = reqs[0].body;
+  const search = body.tools.find((t) => t.name === 'web_search');
+  const fetchTool = body.tools.find((t) => t.name === 'web_fetch');
+  assert.equal(search.type, 'web_search_20260209');
+  assert.equal(fetchTool.type, 'web_fetch_20260209');
+  assert.deepEqual(search.allowed_domains, ['jumbo.com']);
+  assert.deepEqual(fetchTool.allowed_domains, ['jumbo.com']);
+  const tool = body.tools.find((t) => t.name === 'jumbo_product');
+  assert.equal(tool.strict, true);
+  assert.equal(tool.input_schema.additionalProperties, false);
+  assert.equal(body.tool_choice.type, 'auto');
+  assert.equal(body.output_config.format, undefined, 'geen structured outputs naast web search');
+  assert.equal(reqs[1].body.messages.length, 2);
+  assert.equal(reqs[1].body.messages[1].role, 'assistant');
+
+  // Toevoegen: nieuw ingrediënt met winkelprijs, foto, link en de receptnaam als andere naam
+  const add = await post('/ingredients/add-from-jumbo', { name: 'tempeh naturel' });
+  assert.equal(add.created, true, JSON.stringify(add));
+  assert.equal(add.ingredient.name, 'tempeh');
+  assert.equal(add.ingredient.price_cents, 149);
+  assert.equal(add.ingredient.price_source, 'handmatig');
+  assert.equal(add.ingredient.image_url, 'https://static.jumbo.com/product/kokosmelk.png');
+  assert.match(add.ingredient.aliases, /tempeh naturel/);
+  // Nog een keer: hetzelfde ingrediënt hergebruikt, geen dubbele
+  const again = await post('/ingredients/add-from-jumbo', { name: 'tempeh blokjes' });
+  assert.equal(again.created, false);
+  assert.equal(again.ingredient.id, add.ingredient.id);
+  // Bestaand standaardingrediënt met een geschatte prijs krijgt de Jumbo-prijs en -link, voedingswaarden blijven
+  const kokos = await post('/ingredients/add-from-jumbo', { name: 'kokosmelk light' });
+  assert.equal(kokos.created, false);
+  assert.equal(kokos.ingredient.price_cents, 149);
+  assert.equal(kokos.ingredient.price_source, 'handmatig');
+  assert.equal(kokos.ingredient.shop_url, 'https://www.jumbo.com/producten/jumbo-kokosmelk-400ml-123');
+  assert.equal(kokos.ingredient.kcal, 190, 'voedingswaarden van het bestaande ingrediënt blijven');
+
+  // Niets gevonden en lege naam
+  const none = await post('/ingredients/from-jumbo', { name: 'onvindbaar product' });
+  assert.equal(none.status, 404);
+  assert.match(none.error, /Geen passend product/);
+  assert.equal((await post('/ingredients/from-jumbo', { name: ' ' })).status, 400);
+
+  // Haiku: de basisversies van de webtools, zonder terugvalfunctie
+  await put('/settings', { claude_model: 'claude-haiku-5-5' });
+  await post('/ingredients/from-jumbo', { name: 'kokosmelk' });
+  const hb = seen.at(-1).body;
+  assert.equal(hb.tools.find((t) => t.name === 'web_search').type, 'web_search_20250305');
+  assert.equal(hb.tools.find((t) => t.name === 'web_fetch').type, 'web_fetch_20250910');
   await put('/settings', { claude_model: null });
 });

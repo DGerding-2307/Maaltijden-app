@@ -228,10 +228,8 @@ export function createApp() {
     return repo.saveIngredient(update, ing.id);
   }));
   api.post('/ingredients/estimate', wrap((req) => ai.estimateIngredient(String(req.body.name || ''))));
-  // Gegevens van een product in een webwinkel ophalen (Claude leest de pagina)
-  api.post('/ingredients/from-url', wrap(async (req) => {
-    const data = await ai.ingredientFromShop(String(req.body.url || ''));
-    // Geen voedingswaarden op de pagina maar wel een barcode: aanvullen uit Open Food Facts
+  // Geen voedingswaarden in de winkel maar wel een barcode: aanvullen uit Open Food Facts
+  const enrichFromOff = async (data) => {
     if (data.kcal == null && data.ean && process.env.OFF_DISABLED !== '1') {
       try {
         const p = await productByBarcode(data.ean);
@@ -242,6 +240,42 @@ export function createApp() {
       } catch { /* niet gevonden: dan zonder voedingswaarden */ }
     }
     return data;
+  };
+  // Gegevens van een product in een webwinkel ophalen (Claude leest de pagina)
+  api.post('/ingredients/from-url', wrap(async (req) => enrichFromOff(await ai.ingredientFromShop(String(req.body.url || '')))));
+  // Een product opzoeken op jumbo.com (Claude zoekt zelf) – vult het formulier, slaat nog niets op
+  api.post('/ingredients/from-jumbo', wrap(async (req) => enrichFromOff(await ai.ingredientFromJumbo(String(req.body.name || '')))));
+  // Opzoeken bij Jumbo én toevoegen (bij een recept van Claude). Bestaat het ingrediënt al, dan wordt dat gebruikt.
+  api.post('/ingredients/add-from-jumbo', wrap(async (req) => {
+    const wanted = String(req.body.name || '').trim();
+    const d = await enrichFromOff(await ai.ingredientFromJumbo(wanted));
+    const existing = repo.listIngredients('').find((i) => i.name.toLowerCase() === String(d.name).toLowerCase());
+    if (existing) {
+      // Bestaand ingrediënt: een geschatte prijs vervangen door de Jumbo-prijs; link en foto aanvullen
+      const upd = {};
+      if (d.price_cents != null && existing.price_source === 'schatting') {
+        Object.assign(upd, { price_cents: d.price_cents, package_grams: d.package_grams ?? existing.package_grams, package_label: d.package_label || existing.package_label,
+          price_source: 'handmatig', price_updated_at: new Date().toISOString().slice(0, 10), price_note: `Uit webwinkel jumbo.com (${d.product_name})`.slice(0, 200), price_count: null });
+      }
+      if (!existing.shop_url && d.shop_url) upd.shop_url = d.shop_url;
+      if (!existing.image_url && d.image_url) upd.image_url = d.image_url;
+      if (Object.keys(upd).length) repo.saveIngredient({ ...existing, ...upd }, existing.id);
+      return { ingredient: repo.addIngredientAlias(existing.id, wanted), created: false, updated: Object.keys(upd), product: d };
+    }
+    const fields = {
+      name: String(d.name).toLowerCase(), category: d.category, pantry: !!d.pantry,
+      kcal: d.kcal, protein: d.protein, carbs: d.carbs, sugar: d.sugar, fat: d.fat, sat_fat: d.sat_fat, fiber: d.fiber, salt: d.salt,
+      unit_weight_g: d.unit_weight_g, package_grams: d.package_grams, package_label: d.package_label,
+      image_url: d.image_url, shop_url: d.shop_url, nutrition_source: d.nutrition_source, off_code: d.off_code || null,
+    };
+    if (d.price_cents != null) {
+      // Een winkelprijs geldt als zelf ingevoerd: Open Prices overschrijft hem niet
+      Object.assign(fields, { price_cents: d.price_cents, price_source: 'handmatig', price_updated_at: new Date().toISOString().slice(0, 10),
+        price_note: `Uit webwinkel jumbo.com${d.product_name ? ` (${d.product_name})` : ''}`.slice(0, 200), price_count: null });
+    }
+    const ing = repo.saveIngredient(fields);
+    if (ing.kcal == null) autoEnrich([ing.id]);
+    return { ingredient: repo.addIngredientAlias(ing.id, wanted), created: true, product: d };
   }));
 
   // ---- Open Food Facts ----

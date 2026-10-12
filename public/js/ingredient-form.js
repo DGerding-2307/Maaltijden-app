@@ -38,7 +38,8 @@ export function mediaFields(ing = {}, { claude = false } = {}) {
         ${ing.shop_url ? `<a class="btn btn-ghost" href="${esc(ing.shop_url)}" target="_blank" rel="noopener" title="Openen">↗</a>` : ''}
       </div>
     </label>
-    <p class="muted small" data-shop-status>${claude ? 'Plak een productlink en klik op ‘Gegevens ophalen’: Claude leest de pagina en vult naam, voedingswaarden, verpakking, prijs en foto in.' : ''}</p>`;
+    ${claude ? '<div class="row wrap"><button type="button" class="btn btn-ai" data-jumbo-search>🛒 Zoek bij Jumbo</button></div>' : ''}
+    <p class="muted small" data-shop-status>${claude ? 'Plak een productlink en klik op ‘Gegevens ophalen’, of klik op ‘Zoek bij Jumbo’: Claude zoekt het product op jumbo.com en vult naam, voedingswaarden, verpakking, prijs en foto in.' : ''}</p>`;
 }
 
 /**
@@ -65,41 +66,56 @@ export function bindMediaFields(form) {
     e.target.value = '';
   });
 
-  $('[data-shop-fetch]', form)?.addEventListener('click', async (e) => {
-    const btn = e.target;
+  const fill = (d) => {
+    if (!form.name.value.trim()) form.name.value = d.name;
+    if (form.category && d.category) form.category.value = d.category;
+    for (const k of NUTRIENTS) if (d[k] != null && form[k]) form[k].value = d[k];
+    if (d.unit_weight_g != null && form.unit_weight_g) form.unit_weight_g.value = d.unit_weight_g;
+    if (d.package_grams != null && form.package_grams) form.package_grams.value = d.package_grams;
+    if (d.package_label && form.package_label) form.package_label.value = d.package_label;
+    if (d.price_cents != null && form.price) form.price.value = (d.price_cents / 100).toFixed(2);
+    if (form.pantry) form.pantry.checked = !!d.pantry;
+    if (d.image_url && !form.image_url.value) { form.image_url.value = d.image_url; preview(); }
+    if (d.shop_url && form.shop_url && !form.shop_url.value.trim()) form.shop_url.value = d.shop_url;
+    form.shopData = d;
+    const parts = [
+      `${d.product_name}${d.brand ? ` (${d.brand})` : ''}`,
+      d.kcal != null ? 'voedingswaarden' : 'geen voedingswaarden gevonden',
+      d.price_cents != null ? `prijs € ${(d.price_cents / 100).toFixed(2).replace('.', ',')}` : 'geen prijs gevonden',
+    ];
+    return parts;
+  };
+  // Eén knop bezig tegelijk; status onder het formulier
+  const run = async (btn, busyLabel, statusText, call) => {
     const status = $('[data-shop-status]', form);
-    const url = form.shop_url.value.trim();
-    if (!url) { form.shop_url.focus(); return toast('Plak eerst een link naar het product', 'error'); }
+    const label = btn.textContent;
     btn.disabled = true;
-    btn.textContent = 'Claude leest de pagina…';
+    btn.textContent = busyLabel;
     status.className = 'muted small';
-    status.textContent = 'Pagina ophalen en uitlezen (kan 10–30 seconden duren)…';
+    status.textContent = statusText;
     try {
-      const d = await api.post('/ingredients/from-url', { url });
-      if (!form.name.value.trim()) form.name.value = d.name;
-      if (form.category && d.category) form.category.value = d.category;
-      for (const k of NUTRIENTS) if (d[k] != null && form[k]) form[k].value = d[k];
-      if (d.unit_weight_g != null && form.unit_weight_g) form.unit_weight_g.value = d.unit_weight_g;
-      if (d.package_grams != null && form.package_grams) form.package_grams.value = d.package_grams;
-      if (d.package_label && form.package_label) form.package_label.value = d.package_label;
-      if (d.price_cents != null && form.price) form.price.value = (d.price_cents / 100).toFixed(2);
-      if (form.pantry) form.pantry.checked = !!d.pantry;
-      if (d.image_url && !form.image_url.value) { form.image_url.value = d.image_url; preview(); }
-      form.shopData = d;
-      const parts = [
-        `${d.product_name}${d.brand ? ` (${d.brand})` : ''}`,
-        d.kcal != null ? 'voedingswaarden' : 'geen voedingswaarden gevonden',
-        d.price_cents != null ? `prijs € ${(d.price_cents / 100).toFixed(2).replace('.', ',')}` : 'geen prijs gevonden',
-      ];
+      const d = await call();
+      const parts = fill(d);
       status.className = 'small good';
-      status.textContent = `✔ Opgehaald van ${d.shop_host}: ${parts.join(' · ')}. Controleer de waarden en sla op.`;
+      status.textContent = `✔ Gevonden bij ${d.shop_host}: ${parts.join(' · ')}. Controleer de waarden en sla op.`;
     } catch (err) {
       status.className = 'small bad';
       status.textContent = `✖ ${err.message}`;
     } finally {
       btn.disabled = false;
-      btn.textContent = '✨ Gegevens ophalen';
+      btn.textContent = label;
     }
+  };
+
+  $('[data-shop-fetch]', form)?.addEventListener('click', (e) => {
+    const url = form.shop_url.value.trim();
+    if (!url) { form.shop_url.focus(); return toast('Plak eerst een link naar het product', 'error'); }
+    run(e.target, 'Claude leest de pagina…', 'Pagina ophalen en uitlezen (kan 10–30 seconden duren)…', () => api.post('/ingredients/from-url', { url }));
+  });
+  $('[data-jumbo-search]', form)?.addEventListener('click', (e) => {
+    const name = form.name.value.trim();
+    if (!name) { form.name.focus(); return toast('Vul eerst de naam van het ingrediënt in', 'error'); }
+    run(e.target, 'Claude zoekt bij Jumbo…', `“${name}” opzoeken op jumbo.com (kan 20–60 seconden duren)…`, () => api.post('/ingredients/from-jumbo', { name }));
   });
 }
 

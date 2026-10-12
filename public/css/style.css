@@ -764,3 +764,6 @@ button, a, label, select, summary { touch-action: manipulation; -webkit-tap-high
 .make-recipe-choices { display: flex; flex-wrap: wrap; gap: .5rem; margin: .4rem 0 .8rem; }
 .pick-item.new-dish { border-style: dashed; border-color: var(--primary); }
 .plan-link-note { background: var(--primary-soft); border: 1px solid var(--primary); border-radius: 10px; padding: .5rem .7rem; margin: .4rem 0 0; }
+label.check.jumbo-opt { display: grid; grid-template-columns: auto 1fr; gap: .1rem .55rem; align-items: start; font-weight: 600; }
+.jumbo-opt input { margin-top: .25rem; }
+.jumbo-opt .muted { grid-column: 2; font-weight: 400; }

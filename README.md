@@ -4,8 +4,10 @@ Weekplanner, receptenboek en calorieëndagboek voor op je eigen server. Plan je 
 boodschappenlijst met prijzen en voedingswaarden. Er zijn 50 Nederlandse recepten om mee te beginnen. Werkt op computer, telefoon en als Android-app.
 Geen account, geen abonnement, geen advertenties.
 
-## Laatste wijziging (v3.4.0)
+## Laatste wijziging (v3.5.0)
 
+- 🛒 **Claude zoekt ingrediënten op bij Jumbo**: laat Claude een recept bedenken (of importeer er een) en onbekende ingrediënten worden
+  op jumbo.com opgezocht en toegevoegd, met echte prijs, voedingswaarden, foto en productlink. Bij een ingrediënt kan het ook los: *🛒 Zoek bij Jumbo*
 - 📝 **Gerechten plannen die nog geen recept zijn**: typ de naam bij het plannen en kies *‘…’ plannen*. Tik later op de maaltijd
   om er een recept van te maken (zelf of met Claude) of een bestaand recept te kiezen; het nieuwe recept wordt meteen gekoppeld
 - ⬇️ **Direct updaten** vanuit de app en de website (Instellingen → Versie en updates), met een melding als er een nieuwe versie is.

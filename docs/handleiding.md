@@ -143,6 +143,10 @@ en receptenapps verwachten. Zie het [UAT-rapport](UAT-rapport.md).
 - Dupliceren, bewerken, afdrukken
 
 **Recepten toevoegen met Claude** ✨
+- **Ingrediënten opzoeken bij Jumbo**: met het vinkje *Onbekende ingrediënten opzoeken bij Jumbo en toevoegen* zoekt Claude elk ingrediënt dat nog
+  niet in de database staat op jumbo.com (web search en web fetch van Anthropic, alleen dat domein) en voegt het toe met prijs, voedingswaarden per 100 g,
+  verpakking, foto en productlink. Bestaat het ingrediënt al, dan wordt het gebruikt (een geschatte prijs wordt vervangen door de Jumbo-prijs).
+  Kost ± 5–15 cent per ingrediënt (zoekopdrachten en het lezen van de pagina). Bij een ingrediënt kan het ook los met *🛒 Zoek bij Jumbo*.
 - Via **link** naar een receptensite (leest schema.org-receptgegevens, werkt met de meeste sites)
 - Via **geplakte tekst** (elke taal; Amerikaanse maten worden omgerekend)
 - Via **foto of PDF** (bv. een foto van een kookboekpagina)
