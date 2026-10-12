@@ -1,7 +1,7 @@
 import { api, meta, liveSync } from '../api.js';
 import { meatDialog, extrasDialog, meatOptions, defaultPortion } from '../meat.js';
 import {
-  $, $$, esc, euro, num, addDays, mondayOf, todayISO, fmtDate, weekNumber, DAY_NAMES, toast, modal, confirmDialog, debounce, minutes, meatOffered,
+  $, $$, esc, euro, num, addDays, mondayOf, todayISO, fmtDate, weekNumber, DAY_NAMES, toast, modal, confirmDialog, debounce, minutes, meatOffered, PLAN_LINK_KEY,
   savedPerson, rememberPerson,
 } from '../util.js';
 
@@ -20,10 +20,15 @@ export async function render(root, params) {
     draw();
   }
 
+  // Een geplande maaltijd met alleen een naam (bv. ‘Lasagne van oma’) kan een recept worden
+  const NOT_A_RECIPE = /^(uit eten|restjes|afhaal|bezorg|pizza bestellen)/i;
+  const canBecomeRecipe = (e) => !e.recipe_id && !e.leftover_of && !e.extras?.length && e.title && !NOT_A_RECIPE.test(e.title.trim());
+
   function entryCard(e) {
     const title = e.recipe_id ? e.recipe_title : (e.title || (e.extras?.length ? e.extras.map((x) => x.name).join(', ') : 'Losse ingrediënten'));
     return `<div class="plan-entry ${e.recipe_id ? '' : 'free'} ${e.leftover_of ? 'leftover' : ''}" draggable="true" data-entry="${e.id}">
-      <a class="plan-entry-title" ${e.recipe_id ? `href="#/recept/${e.recipe_id}?personen=${e.servings}"` : ''}>${e.leftover_of ? '♻️ ' : ''}${esc(title)}</a>
+      <a class="plan-entry-title" ${e.recipe_id ? `href="#/recept/${e.recipe_id}?personen=${e.servings}"` : canBecomeRecipe(e) ? 'href="#" data-make-recipe role="button"' : ''}>${e.leftover_of ? '♻️ ' : ''}${esc(title)}</a>
+      ${canBecomeRecipe(e) ? '<button class="plan-extras add" data-make-recipe title="Er een recept van maken of een bestaand recept kiezen">📖 Recept maken</button>' : ''}
       ${e.leftover_of ? '<span class="muted small">restjes – geen boodschappen</span>' : ''}
       ${!e.recipe_id && e.extras?.length ? '<button class="plan-extras" data-ingredients title="Ingrediënten en hoeveelheden wijzigen">🥕 ingrediënten wijzigen</button>'
         : e.extras?.length ? `<button class="plan-extras" data-meat title="Vlees of vis wijzigen">🥩 + ${e.extras.map((x) => esc(x.name)).join(', ')}</button>`
@@ -199,6 +204,7 @@ export async function render(root, params) {
         return load();
       }
       if (e.target.closest('[data-entry-menu]') && entry) return entryMenu(entry);
+      if (e.target.closest('[data-make-recipe]') && entry) { e.preventDefault(); return makeRecipeDialog(entry); }
       if (e.target.closest('[data-meat]') && entry) return meatDialog(entry, load);
       if (e.target.closest('[data-ingredients]') && entry) return extrasDialog(entry, load, { mode: 'all' });
       if (e.target.closest('[data-eat]') && entry) {
@@ -306,6 +312,59 @@ export async function render(root, params) {
     });
   }
 
+  // Van een geplande naam een recept maken: zelf invullen, door Claude laten bedenken, of een bestaand recept kiezen
+  function makeRecipeDialog(entry) {
+    const title = entry.title.trim();
+    // Vergelijkbare recepten: op hele woorden (≥ 4 letters), zonder vulwoorden
+    const STOP = new Set(['van', 'met', 'een', 'het', 'den', 'der', 'voor', 'zonder', 'en', 'de', 'in', 'uit', 'oma', 'opa', 'mama', 'papa']);
+    const wordsOf = (t) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z0-9]+/).filter((w) => w.length >= 4 && !STOP.has(w));
+    const words = wordsOf(title);
+    const similar = recipes.filter((r) => wordsOf(r.title).some((rw) => words.some((w) => rw.startsWith(w) || w.startsWith(rw)))).slice(0, 5);
+    const md = modal(`
+      <h2>📖 ${esc(title)}</h2>
+      <p class="muted">Dit staat nog niet in je receptenboek. Maak er een recept van, dan kun je het later weer plannen en komt het op de boodschappenlijst.</p>
+      <div class="make-recipe-choices">
+        <button class="btn btn-primary" type="button" data-new>📖 Recept maken</button>
+        ${m.claude.configured ? '<button class="btn btn-ai" type="button" data-claude>✨ Laat Claude het recept maken</button>' : ''}
+      </div>
+      <h3>Of kies een bestaand recept</h3>
+      <input type="search" class="input" placeholder="Zoek recept…" data-link-q>
+      <div class="pick-list" data-link-list></div>`);
+    const draw = () => {
+      const q = $('[data-link-q]', md.el).value.toLowerCase().trim();
+      const list = q ? recipes.filter((r) => r.title.toLowerCase().includes(q)) : similar;
+      $('[data-link-list]', md.el).innerHTML = list.slice(0, 20).map((r) => `<button class="pick-item" data-link="${r.id}">
+          <span>${esc(r.title)}</span><span class="muted small">${esc(r.category)} · ${minutes(r.total_minutes)}</span></button>`).join('')
+        || `<p class="muted small">${q ? 'Geen recepten gevonden.' : 'Typ om te zoeken.'}</p>`;
+    };
+    draw();
+    $('[data-link-q]', md.el).addEventListener('input', draw);
+    const remember = () => {
+      try { sessionStorage.setItem(PLAN_LINK_KEY, JSON.stringify({ id: entry.id, title, date: entry.date, meal: entry.meal, at: Date.now() })); } catch { /* geen opslag */ }
+    };
+    md.el.addEventListener('click', async (e) => {
+      if (e.target.closest('[data-new]')) {
+        remember();
+        md.close();
+        location.hash = `#/recept/nieuw?titel=${encodeURIComponent(title)}`;
+        return;
+      }
+      if (e.target.closest('[data-claude]')) {
+        remember();
+        md.close();
+        location.hash = `#/importeren?idee=${encodeURIComponent(title)}`;
+        return;
+      }
+      const link = e.target.closest('[data-link]');
+      if (link) {
+        await api.put(`/plan/${entry.id}`, { recipe_id: Number(link.dataset.link), title: '' });
+        md.close();
+        toast('Recept gekoppeld aan je planning', 'success');
+        load();
+      }
+    });
+  }
+
   async function pickRecipe(date, meal) {
     const meats = await meatOptions();
     const sides = recipes.filter((r) => r.is_side);
@@ -338,6 +397,14 @@ export async function render(root, params) {
           <span>${r.favorite ? '★ ' : ''}${esc(r.title)}</span>
           <span class="muted small">${esc(r.category)} · ${minutes(r.total_minutes)} · ${num(r.kcal_per_serving, 0)} kcal · ${euro(r.cost_per_serving_cents)} p.p.</span>
         </button>`).join('') || '<p class="muted">Geen recepten gevonden.</p>';
+      // Nog niet in je receptenboek? Plan het toch; later kun je er een recept van maken
+      const raw = $('[data-q]', md.el).value.trim();
+      if (raw && !recipes.some((r) => r.title.toLowerCase() === raw.toLowerCase())) {
+        $('.pick-list', md.el).insertAdjacentHTML('beforeend', `<button class="pick-item new-dish" data-plan-new>
+          <span>📝 ‘${esc(raw)}’ plannen</span>
+          <span class="muted small">Nog geen recept – tik later op de maaltijd om er een recept van te maken</span>
+        </button>`);
+      }
     };
     drawList();
     $('[data-q]', md.el).addEventListener('input', drawList);
@@ -355,6 +422,13 @@ export async function render(root, params) {
         const entry = { id, date, meal, servings: servings(), extras: [] };
         // Niets gekozen? Dan de lege maaltijd weer weghalen.
         return extrasDialog(entry, load, { mode: 'all', onClose: async (extras) => { if (!extras.length) await api.del(`/plan/${id}`); load(); } });
+      }
+      if (e.target.closest('[data-plan-new]')) {
+        const title = $('[data-q]', md.el).value.trim();
+        await api.post('/plan', { date, meal, title, servings: servings() });
+        md.close();
+        toast(`‘${title}’ gepland. Tik erop om er een recept van te maken.`, 'success');
+        return load();
       }
       const pick = e.target.closest('[data-pick]');
       if (!pick) return;

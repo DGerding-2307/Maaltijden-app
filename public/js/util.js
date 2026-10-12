@@ -217,3 +217,15 @@ export function rememberPerson(id) {
 // Bij deze momenten geen optie om vlees of vis toe te voegen (wel aan te passen als er al iets bij staat)
 export const NO_MEAT_MEALS = ['ontbijt', 'lunch'];
 export const meatOffered = (meal) => !NO_MEAT_MEALS.includes(String(meal).toLowerCase());
+
+// Planner → recepteditor: welke geplande maaltijd aan het nieuwe recept gekoppeld moet worden
+export const PLAN_LINK_KEY = 'maaltijden-plan-koppeling';
+export function pendingPlanLink() {
+  try {
+    const link = JSON.parse(sessionStorage.getItem(PLAN_LINK_KEY) || 'null');
+    return link && Date.now() - link.at < 2 * 60 * 60 * 1000 ? link : null;
+  } catch { return null; }
+}
+export function clearPlanLink() {
+  try { sessionStorage.removeItem(PLAN_LINK_KEY); } catch { /* geen opslag */ }
+}

@@ -556,5 +556,32 @@ await scenario('UAT-35', 'Planner: kcal per maaltijd, en wat in het dagboek staa
   return `lunch: ‘Broodje gezond’ (420 kcal) uit het dagboek; kaartjes: ${figures[0].trim()}`;
 });
 
+await scenario('UAT-36', 'Een gerecht plannen dat nog geen recept is, en er later een recept van maken', async () => {
+  await mob.goto(B + '#/planner'); await mob.waitForSelector('.day');
+  const day = iso();
+  const name = 'Stoofpotje van oma ' + Math.random().toString(36).slice(2, 6);
+  await mob.locator(`.slot[data-date="${day}"][data-meal="diner"] [data-add]`).tap();
+  await mob.fill('.modal [data-q]', name); await mob.waitForSelector('.modal [data-plan-new]');
+  await mob.locator('.modal [data-plan-new]').tap(); await mob.waitForTimeout(700);
+  const card = mob.locator('.plan-entry', { hasText: name });
+  expect(await card.locator('[data-make-recipe].plan-extras').count() === 1, 'geen knop ‘Recept maken’ op het kaartje');
+  // Op de naam tikken geeft de keuze
+  await card.locator('.plan-entry-title').tap(); await mob.waitForSelector('.modal [data-new]');
+  await mob.screenshot({ path: `${OUT}/36-recept-maken.png` });
+  await mob.locator('.modal [data-new]').tap();
+  await mob.waitForSelector('[data-form] [name=title]');
+  expect((await mob.inputValue('[data-form] [name=title]')) === name, 'titel niet ingevuld');
+  expect(await mob.locator('[data-plan-link]').count() === 1, 'geen melding over de koppeling met de planning');
+  await mob.locator('[data-form] button[type=submit]').tap();
+  await mob.waitForFunction(() => location.hash.startsWith('#/planner'), null, { timeout: 10000 });
+  await mob.waitForSelector('.day'); await mob.waitForTimeout(500);
+  const link = mob.locator(`.slot[data-date="${day}"][data-meal="diner"] .plan-entry-title`, { hasText: name });
+  expect(/#\/recept\/\d+/.test(await link.getAttribute('href') || ''), 'maaltijd niet gekoppeld aan het nieuwe recept');
+  expect(!(await mob.locator('.plan-entry', { hasText: name }).locator('[data-make-recipe]').count()), 'knop staat er nog');
+  // ‘Uit eten’ krijgt geen recept-knop
+  expect(!(await mob.locator('.plan-entry', { hasText: 'Uit eten' }).locator('[data-make-recipe]').count()), 'recept-knop bij uit eten');
+  return `‘${name}’ gepland → recept gemaakt → gekoppeld (${await link.getAttribute('href')})`;
+});
+
 await browser.close();
 console.log(JSON.stringify({ results, errors }, null, 1));

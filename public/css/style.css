@@ -759,3 +759,8 @@ button, a, label, select, summary { touch-action: manipulation; -webkit-tap-high
 .code-block { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: .7rem .8rem; overflow-x: auto;
   font-size: .8rem; line-height: 1.45; white-space: pre; }
 [data-update-card] .good { color: var(--good); }
+
+/* Recept maken vanuit de planner */
+.make-recipe-choices { display: flex; flex-wrap: wrap; gap: .5rem; margin: .4rem 0 .8rem; }
+.pick-item.new-dish { border-style: dashed; border-color: var(--primary); }
+.plan-link-note { background: var(--primary-soft); border: 1px solid var(--primary); border-radius: 10px; padding: .5rem .7rem; margin: .4rem 0 0; }

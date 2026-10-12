@@ -2,7 +2,7 @@
 import { api, meta } from '../api.js';
 import { scanBarcode } from '../scanner.js';
 import { linkIngredientDialog } from '../link-ingredient.js';
-import { $, $$, esc, toast, readImageFile, modal, num } from '../util.js';
+import { $, $$, esc, toast, readImageFile, modal, num, fmtDate, pendingPlanLink, clearPlanLink } from '../util.js';
 
 export const DRAFT_KEY = 'recipeDraft';
 
@@ -25,7 +25,7 @@ export async function render(root, params) {
       recipe = JSON.parse(draft);
       isDraft = true;
     } else {
-      recipe = { title: '', description: '', servings: m.default_servings, category: 'Hoofdgerecht', cuisine: 'Nederlands', tags: [], steps: [], ingredients: [] };
+      recipe = { title: params.titel || '', description: '', servings: m.default_servings, category: 'Hoofdgerecht', cuisine: 'Nederlands', tags: [], steps: [], ingredients: [] };
     }
   }
   const rows = (recipe.ingredients || []).map((r) => ({
@@ -40,6 +40,9 @@ export async function render(root, params) {
     return { name: '', quantity: '', unit: 'g', note: '', optional: false, grams: null, ingredient_id: null, estimate: null };
   }
 
+  // Gekomen via ‘Recept maken’ in de planner? (niet bij het bewerken van een bestaand recept)
+  let planLink = params.id ? null : pendingPlanLink();
+
   const ingById = new Map(ingredients.map((i) => [i.id, i]));
   const ingByName = new Map(ingredients.map((i) => [i.name.toLowerCase(), i]));
 
@@ -47,6 +50,9 @@ export async function render(root, params) {
     <div class="page-head">
       <h1>${params.id ? 'Recept bewerken' : isDraft ? 'Concept nakijken' : 'Nieuw recept'}</h1>
       ${isDraft ? '<p class="muted">Claude heeft dit recept voor je klaargezet. Controleer het en klik op Opslaan.</p>' : ''}
+      ${planLink ? `<p class="plan-link-note" data-plan-link>📅 Na opslaan staat dit recept in je planning op
+        ${esc(fmtDate(planLink.date, { weekday: 'long', day: 'numeric', month: 'long' }))} (${esc(planLink.meal)}), in plaats van ‘${esc(planLink.title)}’.
+        <button type="button" class="link-btn" data-unlink>Niet koppelen</button></p>` : ''}
     </div>
     <form class="form" data-form>
       <div class="grid-2">
@@ -91,7 +97,7 @@ export async function render(root, params) {
       <label>Notities <textarea class="input" name="notes" rows="2">${esc(recipe.notes || '')}</textarea></label>
 
       <div class="row end sticky-actions">
-        <a class="btn" href="${params.id ? `#/recept/${params.id}` : '#/recepten'}">Annuleren</a>
+        <a class="btn" href="${params.id ? `#/recept/${params.id}` : planLink ? `#/planner?week=${planLink.date}` : '#/recepten'}">Annuleren</a>
         <button class="btn btn-primary" type="submit">Opslaan</button>
       </div>
     </form>
@@ -301,6 +307,11 @@ export async function render(root, params) {
     });
   }
 
+  $('[data-unlink]', root)?.addEventListener('click', () => {
+    planLink = null;
+    clearPlanLink();
+    $('[data-plan-link]', root).remove();
+  });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(form);
@@ -327,6 +338,14 @@ export async function render(root, params) {
     try {
       const saved = params.id ? await api.put(`/recipes/${params.id}`, data) : await api.post('/recipes', data);
       if (isDraft) sessionStorage.removeItem(DRAFT_KEY);
+      if (planLink) {
+        // Vanuit de planner: het nieuwe recept meteen aan de geplande maaltijd koppelen en terug naar die week
+        clearPlanLink();
+        await api.put(`/plan/${planLink.id}`, { recipe_id: saved.id, title: '' }).catch(() => null);
+        toast(`Recept opgeslagen en ingepland op ${fmtDate(planLink.date, { weekday: 'long', day: 'numeric', month: 'long' })}`, 'success');
+        location.hash = `#/planner?week=${planLink.date}`;
+        return;
+      }
       toast('Recept opgeslagen', 'success');
       location.hash = `#/recept/${saved.id}`;
     } catch (err) {

@@ -4,8 +4,10 @@ Weekplanner, receptenboek en calorieëndagboek voor op je eigen server. Plan je 
 boodschappenlijst met prijzen en voedingswaarden. Er zijn 50 Nederlandse recepten om mee te beginnen. Werkt op computer, telefoon en als Android-app.
 Geen account, geen abonnement, geen advertenties.
 
-## Laatste wijziging (v3.3.0)
+## Laatste wijziging (v3.4.0)
 
+- 📝 **Gerechten plannen die nog geen recept zijn**: typ de naam bij het plannen en kies *‘…’ plannen*. Tik later op de maaltijd
+  om er een recept van te maken (zelf of met Claude) of een bestaand recept te kiezen; het nieuwe recept wordt meteen gekoppeld
 - ⬇️ **Direct updaten** vanuit de app en de website (Instellingen → Versie en updates), met een melding als er een nieuwe versie is.
   Eenmalig de stack bijwerken, zie [Updates](#updates)
 - Calorieën per maaltijd in de planner, naast de prijs
