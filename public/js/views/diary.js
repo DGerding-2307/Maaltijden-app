@@ -428,7 +428,7 @@ export async function render(root, params) {
             ${[[30, '30 dagen'], [90, '3 maanden'], [180, '6 maanden'], [365, '1 jaar']].map(([v, l]) => `<option value="${v}" ${v === range ? 'selected' : ''}>${l}</option>`).join('')}
           </select></div>
         ${h.entries.length ? `<div class="legend">
-            <span><i class="sw sw-dot"></i>Meting</span>
+            <span><i class="sw sw-meas"></i>Meting</span>
             <span><i class="sw sw-line"></i>Trend (gemiddelde 7 dagen)</span>
             ${goal ? `<span><i class="sw sw-ref"></i>Doel ${kg(goal)}</span>` : ''}
           </div>
@@ -501,10 +501,12 @@ export async function render(root, params) {
       s += `<text x="${W - pad.r + 6}" y="${below ? pad.t + ih - 16 : pad.t + 10}" class="axis goal-off">${below ? '↓' : '↑'} doel</text>`;
       s += `<text x="${W - pad.r + 6}" y="${below ? pad.t + ih - 2 : pad.t + 24}" class="axis goal-off">${num(goal, 1)} kg</text>`;
     }
+    // Metingen met elkaar verbonden; de trend (gemiddelde van 7 dagen) vlakt dagelijkse schommelingen af
+    s += `<path class="meas" d="${entries.map((e, i) => `${i ? 'L' : 'M'}${x(ts[i]).toFixed(1)},${y(e.weight_kg).toFixed(1)}`).join(' ')}"/>`;
     s += `<path class="trend" d="${entries.map((e, i) => `${i ? 'L' : 'M'}${x(ts[i]).toFixed(1)},${y(e.trend_kg).toFixed(1)}`).join(' ')}"/>`;
     entries.forEach((e, i) => { s += `<circle class="dot" cx="${x(ts[i])}" cy="${y(e.weight_kg)}" r="4"/>`; });
     const last = entries.at(-1);
-    s += `<text x="${x(ts.at(-1)) + 8}" y="${y(last.trend_kg) + 4}" class="label">${num(last.trend_kg, 1)}</text>`;
+    s += `<text x="${x(ts.at(-1)) + 8}" y="${y(last.weight_kg) + 4}" class="label">${num(last.weight_kg, 1)}</text>`;
     s += `<line class="cross" x1="0" x2="0" y1="${pad.t}" y2="${pad.t + ih}" visibility="hidden"/>
       <circle class="dot focus" r="6" visibility="hidden"/>
       <rect class="overlay" x="${pad.l}" y="${pad.t}" width="${iw}" height="${ih}" tabindex="0" aria-label="Gebruik de pijltjestoetsen om metingen te bekijken"/>`;
