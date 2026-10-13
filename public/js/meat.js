@@ -40,7 +40,7 @@ export async function extrasDialog(entry, onChange, { mode = 'meat', onClose } =
       </select>
     </div>
     <div data-sides></div>
-    <div class="meat-grid" data-meat-list></div>`, { wide: true, onClose: () => onClose?.(extras) });
+    <div class="meat-grid" data-meat-list></div>`, { wide: true, autosave: true, onClose: () => onClose?.(extras) });
   const el = md.el;
   let extras = entry.extras || [];
 

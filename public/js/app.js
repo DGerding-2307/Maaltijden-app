@@ -1,5 +1,5 @@
 // Eenvoudige hash-router.
-import { $, $$, esc, closeAllModals } from './util.js';
+import { $, $$, esc, closeAllModals, hasDirtyModal } from './util.js';
 import { checkForUpdateBanner } from './update.js';
 
 const routes = [
@@ -18,7 +18,15 @@ const routes = [
 
 let cleanup = null;
 
+let currentHash = location.hash;
 async function router() {
+  // Terugknop/-veeggebaar terwijl je iets aan het invullen bent: eerst vragen, anders blijft het venster staan
+  if (location.hash !== currentHash && hasDirtyModal()
+    && !window.confirm('Je hebt iets ingevuld dat nog niet is opgeslagen. Weggooien en verdergaan?')) {
+    history.replaceState(null, '', currentHash || location.pathname);
+    return;
+  }
+  currentHash = location.hash;
   const hash = location.hash.slice(1) || '/planner';
   const [path, query = ''] = hash.split('?');
   const params = Object.fromEntries(new URLSearchParams(query));

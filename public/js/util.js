@@ -101,11 +101,17 @@ export function closeAllModals() {
   for (const close of [...openModals]) close();
 }
 
-export function modal(html, { wide = false, onClose } = {}) {
+/** Is er een open venster met ingevulde, nog niet opgeslagen gegevens? */
+export function hasDirtyModal() {
+  return [...openModals].some((close) => close.isDirty?.());
+}
+
+export function modal(html, { wide = false, onClose, autosave = false } = {}) {
   const wrap = document.createElement('div');
   wrap.className = 'modal-backdrop';
   wrap.innerHTML = `<div class="modal ${wide ? 'modal-wide' : ''}" role="dialog" aria-modal="true">
     <button class="modal-close icon-btn" aria-label="Sluiten">✕</button>${html}</div>`;
+  const box = wrap.querySelector('.modal');
   const close = () => {
     if (!openModals.has(close)) return;
     openModals.delete(close);
@@ -113,17 +119,55 @@ export function modal(html, { wide = false, onClose } = {}) {
     document.removeEventListener('keydown', onKey);
     onClose?.();
   };
+  // Heb je al iets ingevuld of gewijzigd, dan sluit het venster niet per ongeluk
+  close.isDirty = () => wrap.isConnected && wrap.dataset.dirty === '1';
+  // Zoekvelden en vensters die elke wijziging meteen opslaan (autosave) tellen niet als ‘niet opgeslagen’
+  const markDirty = (e) => {
+    if (!autosave && !(e.target instanceof HTMLInputElement && e.target.type === 'search')) wrap.dataset.dirty = '1';
+  };
+  wrap.addEventListener('input', markDirty);
+  wrap.addEventListener('change', markDirty);
   // Escape sluit alleen het bovenste venster (er kan een scanner boven een ander venster openstaan)
-  const onKey = (e) => e.key === 'Escape' && [...document.querySelectorAll('.modal-backdrop')].at(-1) === wrap && close();
+  const onKey = (e) => {
+    if (e.key !== 'Escape' || [...document.querySelectorAll('.modal-backdrop')].at(-1) !== wrap) return;
+    if (close.isDirty() && !window.confirm('Je hebt iets ingevuld dat nog niet is opgeslagen. Venster toch sluiten?')) return;
+    close();
+  };
+  // Naast het venster tikken sluit het alleen als je daar ook begon (niet na tekst selecteren of slepen)
+  // en alleen bij vensters zonder invulvelden. Een formulier sluit je met ✕, Annuleren of Opslaan.
+  let downOnBackdrop = false;
+  wrap.addEventListener('pointerdown', (e) => { downOnBackdrop = e.target === wrap; });
   wrap.addEventListener('click', (e) => {
-    if (e.target === wrap || e.target.closest('.modal-close')) close();
+    if (e.target.closest('.modal-close')) return close();
+    if (e.target !== wrap) return;
+    const hasFields = !!box.querySelector('input:not([type=hidden]):not([type=search]), textarea, select');
+    if (downOnBackdrop && !hasFields) return close();
+    box.classList.remove('nudge');
+    void box.offsetWidth; // animatie opnieuw starten
+    box.classList.add('nudge');
+  });
+  // Enter in een formulier met meerdere velden: naar het volgende veld in plaats van meteen opslaan
+  // (de ‘Ga’-toets op een telefoontoetsenbord verstuurde anders het halve formulier)
+  wrap.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
+    const el = e.target;
+    if (!(el instanceof HTMLInputElement) || ['submit', 'button', 'checkbox', 'radio', 'file', 'search'].includes(el.type)) return;
+    const form = el.form;
+    if (!form) return;
+    const fields = [...form.querySelectorAll('input, select, textarea')]
+      .filter((f) => !f.disabled && f.type !== 'hidden' && !f.closest('[hidden]') && f.offsetParent !== null);
+    if (fields.length < 3) return; // kleine formulieren (één zoekveld of één regel) mogen met Enter
+    e.preventDefault();
+    const next = fields[fields.indexOf(el) + 1];
+    if (next) next.focus();
+    else form.querySelector('button[type=submit], button:not([type])')?.focus();
   });
   document.addEventListener('keydown', onKey);
   openModals.add(close);
   document.body.append(wrap);
   const first = wrap.querySelector('input, select, textarea');
   first?.focus();
-  return { el: wrap.querySelector('.modal'), close };
+  return { el: box, close };
 }
 
 export function confirmDialog(message, okLabel = 'Verwijderen') {

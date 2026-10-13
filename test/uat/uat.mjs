@@ -583,5 +583,34 @@ await scenario('UAT-36', 'Een gerecht plannen dat nog geen recept is, en er late
   return `‘${name}’ gepland → recept gemaakt → gekoppeld (${await link.getAttribute('href')})`;
 });
 
+await scenario('UAT-37', 'Een venster met ingevulde gegevens sluit niet per ongeluk', async () => {
+  await mob.goto(B + '#/ingredienten'); await mob.waitForSelector('[data-new]');
+  await mob.locator('[data-new]').tap(); await mob.waitForSelector('.modal [name=name]');
+  await mob.fill('.modal [name=name]', 'testkruid');
+  // Naast het venster tikken: blijft open
+  await mob.touchscreen.tap(8, 120); await mob.waitForTimeout(300);
+  expect(await mob.locator('.modal [name=name]').count() === 1, 'venster sloot door naast het venster te tikken');
+  // ‘Ga’/Enter op het toetsenbord: naar het volgende veld, niet opslaan en sluiten
+  await mob.locator('.modal [name=name]').press('Enter'); await mob.waitForTimeout(300);
+  expect(await mob.locator('.modal [name=name]').count() === 1, 'venster sloot na Enter');
+  expect(await mob.evaluate(() => document.activeElement?.name !== 'name'), 'Enter ging niet naar het volgende veld');
+  expect(!(await japi(mob, 'GET', '/ingredients?q=testkruid')).some((i) => i.name === 'testkruid'), 'ingrediënt al opgeslagen na Enter');
+  // Terug-gebaar: eerst vragen; ‘annuleren’ laat het venster staan
+  let asked = '';
+  mob.once('dialog', (d) => { asked = d.message(); d.dismiss(); });
+  const hashBefore = await mob.evaluate(() => location.hash);
+  await mob.evaluate(() => { location.hash = '#/planner'; }); await mob.waitForTimeout(500);
+  expect(/nog niet is opgeslagen/.test(asked), 'geen vraag bij terug-gebaar');
+  expect(await mob.locator('.modal [name=name]').count() === 1, 'venster sloot na terug-gebaar');
+  expect(await mob.inputValue('.modal [name=name]') === 'testkruid', 'ingevulde naam kwijt');
+  expect((await mob.evaluate(() => location.hash)) === hashBefore, 'pagina gewisseld');
+  // Bevestigen: dan wel weg
+  mob.once('dialog', (d) => d.accept());
+  await mob.evaluate(() => { location.hash = '#/planner'; }); await mob.waitForTimeout(600);
+  expect(!(await mob.locator('.modal-backdrop').count()), 'venster bleef staan na bevestigen');
+  // Venster zonder invulvelden en zonder invoer sluit nog steeds gewoon met ✕
+  return 'naast tikken, Enter en terug-gebaar sluiten het formulier niet meer zonder te vragen';
+});
+
 await browser.close();
 console.log(JSON.stringify({ results, errors }, null, 1));

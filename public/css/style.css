@@ -767,3 +767,8 @@ button, a, label, select, summary { touch-action: manipulation; -webkit-tap-high
 label.check.jumbo-opt { display: grid; grid-template-columns: auto 1fr; gap: .1rem .55rem; align-items: start; font-weight: 600; }
 .jumbo-opt input { margin-top: .25rem; }
 .jumbo-opt .muted { grid-column: 2; font-weight: 400; }
+
+/* Naast een formuliervenster getikt: kort ‘schudden’ in plaats van sluiten */
+.modal.nudge { animation: nudge .3s ease; }
+@keyframes nudge { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+@media (prefers-reduced-motion: reduce) { .modal.nudge { animation: none; outline: 2px solid var(--primary); } }
