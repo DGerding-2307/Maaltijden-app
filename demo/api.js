@@ -107,6 +107,7 @@ const ROUTES = [
   ['GET', '/shopping', (req) => repo.getShoppingList(week(req.query.week), 7)],
   ['PUT', '/shopping/check', (req) => repo.setShoppingCheck(week(req.body.week), req.body.key, req.body.checked)],
   ['PUT', '/shopping/have', (req) => repo.setShoppingHave(week(req.body.week), req.body.key, req.body.have)],
+  ['POST', '/shopping/checked-to-have', (req) => repo.shoppingCheckedToHave(week(req.body.week))],
   ['POST', '/shopping/extras', (req) => repo.addShoppingExtra(week(req.body.week), String(req.body.name || '').trim())],
   ['PUT', '/shopping/extras/:id', (req) => repo.updateShoppingExtra(Number(req.params.id), req.body.checked)],
   ['DELETE', '/shopping/extras/:id', (req) => repo.deleteShoppingExtra(Number(req.params.id))],

@@ -381,6 +381,7 @@ export function createApp() {
   api.get('/shopping', wrap((req) => repo.getShoppingList(week(req.query.week), 7)));
   api.put('/shopping/check', wrap((req) => repo.setShoppingCheck(week(req.body.week), req.body.key, req.body.checked)));
   api.put('/shopping/have', wrap((req) => repo.setShoppingHave(week(req.body.week), req.body.key, req.body.have)));
+  api.post('/shopping/checked-to-have', wrap((req) => repo.shoppingCheckedToHave(week(req.body.week))));
   api.post('/shopping/extras', wrap((req) => repo.addShoppingExtra(week(req.body.week), String(req.body.name || '').trim())));
   api.put('/shopping/extras/:id', wrap((req) => repo.updateShoppingExtra(Number(req.params.id), req.body.checked)));
   api.delete('/shopping/extras/:id', wrap((req) => repo.deleteShoppingExtra(Number(req.params.id))));

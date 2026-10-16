@@ -202,3 +202,31 @@ test('losse ingrediënten met ‘hele verpakking’: kcal per persoon van de por
   assert.equal(Math.round(entry.cost_cents), full.price_cents);
   await send('PUT', `/ingredients/${aardappel.id}`, { ...full, amount_rule: null });
 });
+
+test('boodschappen: alles wat is afgevinkt in één keer naar ‘Al in huis’', async () => {
+  const recipes = await get('/recipes');
+  const date = '2031-08-04';
+  await send('POST', '/plan', { date, meal: 'diner', recipe_id: recipes[0].id, servings: 2 });
+  const list = await get(`/shopping?week=${date}`);
+  const [a, b, c] = list.items.filter((i) => !i.pantry);
+  await send('PUT', '/shopping/check', { week: date, key: a.key, checked: true });
+  await send('PUT', '/shopping/check', { week: date, key: b.key, checked: true });
+  await send('POST', '/shopping/extras', { week: date, name: 'wc-papier' });
+  await send('POST', '/shopping/extras', { week: date, name: 'koffie' });
+  const ex = (await get(`/shopping?week=${date}`)).extras;
+  await send('PUT', `/shopping/extras/${ex.find((x) => x.name === 'wc-papier').id}`, { checked: true });
+
+  const r = await send('POST', '/shopping/checked-to-have', { week: date });
+  assert.deepEqual(r, { moved: 2, extras_removed: 1 });
+  const after = await get(`/shopping?week=${date}`);
+  const byKey = new Map(after.items.map((i) => [i.key, i]));
+  assert.equal(byKey.get(a.key).have, true);
+  assert.equal(byKey.get(a.key).checked, false);
+  assert.equal(byKey.get(b.key).have, true);
+  assert.equal(byKey.get(c.key).have, false, 'niet-afgevinkt blijft op de lijst');
+  assert.deepEqual(after.extras.map((x) => x.name), ['koffie']);
+  // Kosten van wat al in huis is tellen niet meer mee
+  assert.ok(after.total_cents < list.total_cents);
+  // Nog een keer: niets meer te doen
+  assert.deepEqual(await send('POST', '/shopping/checked-to-have', { week: date }), { moved: 0, extras_removed: 0 });
+});

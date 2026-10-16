@@ -1,5 +1,5 @@
 import { api, liveSync } from '../api.js';
-import { $, esc, euro, num, qty, addDays, mondayOf, todayISO, fmtDate, weekNumber, toast } from '../util.js';
+import { $, esc, euro, num, qty, addDays, mondayOf, todayISO, fmtDate, weekNumber, toast, confirmDialog } from '../util.js';
 import { ingThumb } from '../ingredient-form.js';
 
 const COUNT_UNITS = ['stuk', 'teen', 'blik', 'pak', 'zakje', 'bos', 'plak'];
@@ -42,6 +42,7 @@ export async function render(root, params) {
     }
     const open = items.filter((i) => !i.checked);
     const openCost = open.reduce((s, i) => s + (i.cost_cents || 0), 0);
+    const doneCount = data.items.filter((i) => i.checked && !i.have).length + data.extras.filter((x) => x.checked).length;
     view.innerHTML = `
       <div class="page-head">
         <div class="week-nav">
@@ -83,6 +84,11 @@ export async function render(root, params) {
               </li>`).join('')}
           </ul>
         </section>`).join('')}
+
+      ${doneCount ? `<div class="done-bar no-print">
+        <span>✔ ${doneCount} afgevinkt</span>
+        <button class="btn btn-primary" data-done-to-have>🏠 Afgevinkte in huis zetten</button>
+      </div>` : ''}
 
       ${inHouse.length ? `<details class="shop-group in-house no-print">
         <summary><h2>🏠 Al in huis (${inHouse.length})</h2></summary>
@@ -131,6 +137,16 @@ export async function render(root, params) {
     load();
   });
   view.addEventListener('click', async (e) => {
+    if (e.target.closest('[data-done-to-have]')) {
+      const items = data.items.filter((i) => i.checked && !i.have).length;
+      const extras = data.extras.filter((x) => x.checked).length;
+      const parts = [items ? `${items} afgevinkte ${items === 1 ? 'artikel' : 'artikelen'} naar ‘Al in huis’ zetten` : '',
+        extras ? `${extras} afgevinkte extra ${extras === 1 ? 'boodschap' : 'boodschappen'} van de lijst halen` : ''].filter(Boolean);
+      if (!(await confirmDialog(`${parts.join(' en ')}?`, 'In huis zetten'))) return;
+      const r = await api.post('/shopping/checked-to-have', { week: start });
+      toast(`${r.moved ? `${r.moved} naar ‘Al in huis’` : ''}${r.moved && r.extras_removed ? ', ' : ''}${r.extras_removed ? `${r.extras_removed} extra van de lijst` : ''}. Per artikel terug met ‘toch kopen’.`, 'success');
+      return load();
+    }
     const have = e.target.closest('[data-have], [data-unhave]');
     if (have) {
       const key = have.dataset.have || have.dataset.unhave;

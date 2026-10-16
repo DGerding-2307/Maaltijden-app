@@ -533,6 +533,15 @@ export function setShoppingHave(week, key, have) {
     ON CONFLICT(week, item_key) DO UPDATE SET have = excluded.have`).run(week, key, have ? 1 : 0);
 }
 
+/** Alles wat is afgevinkt (gekocht) naar ‘Al in huis’; afgevinkte extra boodschappen zijn klaar en gaan van de lijst. */
+export function shoppingCheckedToHave(week) {
+  return tx((db) => {
+    const moved = db.prepare('UPDATE shopping_state SET have = 1, checked = 0 WHERE week = ? AND checked = 1').run(week).changes;
+    const extras = db.prepare('DELETE FROM shopping_extras WHERE week = ? AND checked = 1').run(week).changes;
+    return { moved: Number(moved), extras_removed: Number(extras) };
+  });
+}
+
 // ---------- Back-up ----------
 
 // Geheimen gaan nooit mee in een back-up en blijven bij terugzetten behouden.

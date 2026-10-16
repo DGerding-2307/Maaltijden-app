@@ -612,5 +612,25 @@ await scenario('UAT-37', 'Een venster met ingevulde gegevens sluit niet per onge
   return 'naast tikken, Enter en terug-gebaar sluiten het formulier niet meer zonder te vragen';
 });
 
+await scenario('UAT-38', 'Boodschappen: alles wat is afgevinkt in één keer naar ‘Al in huis’', async () => {
+  await mob.goto(B + '#/boodschappen'); await mob.waitForSelector('.shop-list [data-key]');
+  const boxes = mob.locator('.shop-list input[data-key]:not(:checked)');
+  const before = await boxes.count();
+  expect(before >= 3, `te weinig artikelen (${before})`);
+  for (let i = 0; i < 3; i++) { await mob.locator('.shop-list input[data-key]:not(:checked)').first().tap(); await mob.waitForTimeout(250); }
+  await mob.waitForSelector('[data-done-to-have]');
+  await mob.screenshot({ path: `${OUT}/38-afgevinkt-in-huis.png` });
+  await mob.locator('[data-done-to-have]').tap();
+  await mob.waitForSelector('.modal [data-yes]');
+  const question = (await mob.textContent('.modal .confirm-msg')).trim();
+  await mob.locator('.modal [data-yes]').tap(); await mob.waitForTimeout(700);
+  const checkedLeft = await mob.locator('.shop-list input[data-key]:checked').count();
+  expect(checkedLeft === 0, `nog ${checkedLeft} afgevinkt op de lijst`);
+  expect(!(await mob.locator('[data-done-to-have]').count()), 'knop staat er nog');
+  const inHouse = (await mob.textContent('.in-house summary')).replace(/\s+/g, ' ');
+  expect(/Al in huis \(\d+\)/.test(inHouse), 'geen sectie ‘Al in huis’');
+  return `${question} → lijst leeg van afgevinkte artikelen; ${inHouse.trim()}`;
+});
+
 await browser.close();
 console.log(JSON.stringify({ results, errors }, null, 1));

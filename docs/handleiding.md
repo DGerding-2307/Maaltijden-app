@@ -158,6 +158,7 @@ en receptenapps verwachten. Zie het [UAT-rapport](UAT-rapport.md).
 - Hoeveelheden opgeteld en omgerekend naar aantal verpakkingen + geschatte kosten
 - Voorraadkast-artikelen (zout, olie, kruiden) standaard verborgen
 - Afvinken, extra artikelen toevoegen, kopiëren (voor WhatsApp/notities) en afdrukken
+- Na het boodschappen doen: **🏠 Afgevinkte in huis zetten** – alles wat is afgevinkt gaat naar ‘Al in huis’ (terug met ‘toch kopen’), afgevinkte extra boodschappen gaan van de lijst
 
 **Ingrediënten & prijzen**
 - 223 standaardingrediënten met stuksgewicht, verpakking en voedingswaarden per 100 g, waarvan 88 Jumbo bake-offbroodjes en -snacks (met allergenen)

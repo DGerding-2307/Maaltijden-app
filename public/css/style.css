@@ -772,3 +772,11 @@ label.check.jumbo-opt { display: grid; grid-template-columns: auto 1fr; gap: .1r
 .modal.nudge { animation: nudge .3s ease; }
 @keyframes nudge { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
 @media (prefers-reduced-motion: reduce) { .modal.nudge { animation: none; outline: 2px solid var(--primary); } }
+
+/* Boodschappen: afgevinkte artikelen in één keer naar ‘Al in huis’ */
+.done-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .6rem; margin: .6rem 0;
+  padding: .6rem .8rem; border: 1px solid var(--primary); border-radius: var(--radius); background: var(--primary-soft); }
+.done-bar span { font-weight: 600; }
+/* Blijft onderaan in beeld terwijl je door de lijst scrolt (op de telefoon boven de onderbalk) */
+.done-bar { position: sticky; bottom: .8rem; z-index: 20; box-shadow: var(--shadow); }
+@media (max-width: 720px) { .done-bar { bottom: calc(var(--nav-h) + var(--sab) + .5rem); } }
