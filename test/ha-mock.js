@@ -1,4 +1,4 @@
-// Nep-Home Assistant voor tests: REST (/api/, /api/states) en WebSocket (inloggen, lovelace-dashboards).
+// Nep-Home Assistant voor tests: REST (/api/, /api/states) en WebSocket (om te controleren dat de app geen dashboards aanpast).
 import http from 'node:http';
 import crypto from 'node:crypto';
 

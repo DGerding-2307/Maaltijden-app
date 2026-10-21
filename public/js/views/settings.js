@@ -122,15 +122,18 @@ export async function render(root) {
     ${ha ? `<section class="card" data-ha-card>
       <h2>🏠 Home Assistant</h2>
       <p class="muted">Een overzicht van vandaag op het hoofdscherm van Home Assistant: ontbijt, lunch en diner met kcal,
-        de kosten van vandaag, hoeveel boodschappen er nog te halen zijn en wat je morgen eet. De app zet de kaart er zelf neer
-        en houdt hem bij (na elke wijziging en elke 5 minuten).</p>
+        de kosten van vandaag, hoeveel boodschappen er nog te halen zijn en wat je morgen eet. Na het koppelen stuurt de app
+        dit als sensor naar Home Assistant (na elke wijziging en elke 5 minuten). De app past je dashboards niet aan:
+        de kaart zet je er zelf op.</p>
       ${ha.link ? `<p class="ha-status good">✔ Gekoppeld met <a href="${esc(ha.link.url)}" target="_blank" rel="noopener">${esc(ha.link.url)}</a></p>
         ${ha.link.error ? `<p class="small bad">Laatste keer bijwerken mislukt: ${esc(ha.link.error)}</p>` : ''}
         <div class="row wrap">
           <button class="btn" type="button" data-ha-sync>🔄 Nu bijwerken</button>
-          <button class="btn" type="button" data-ha-card-again>➕ Kaart opnieuw plaatsen</button>
           <button class="btn btn-ghost" type="button" data-ha-disconnect>Ontkoppelen</button>
-        </div>` : `<form class="form ha-connect" data-ha-connect>
+        </div>
+        <p class="small">Kaart op je dashboard: Dashboard → ✏️ Bewerken → <em>Kaart toevoegen</em> → <em>Handmatig</em>, plak dit en sla op.</p>
+        <pre class="code-block" data-ha-cardcode>${esc(ha.card)}</pre>
+        <button class="btn small" type="button" data-copy-ha="card">📋 Kopiëren</button>` : `<form class="form ha-connect" data-ha-connect>
         <label>Adres van Home Assistant
           <input class="input" name="url" inputmode="url" autocomplete="off" placeholder="bv. http://192.168.1.10:8123 of http://homeassistant.local:8123" required></label>
         <label>Langlevend toegangstoken
@@ -140,7 +143,6 @@ export async function render(root) {
             <li>Open Home Assistant en klik linksonder op <strong>je naam</strong> (je profiel).</li>
             <li>Ga naar het tabblad <strong>Beveiliging</strong> en scrol naar <strong>Langlevende toegangstokens</strong>.</li>
             <li>Klik op <strong>Token aanmaken</strong>, noem het <em>Maaltijden</em>, en kopieer het token (je ziet het maar één keer).</li>
-            <li>Gebruik een account met beheerrechten, anders kan de app de kaart niet op het dashboard zetten.</li>
           </ol>
         </details>
         <div class="row end"><button class="btn btn-primary" type="submit">🔗 Koppelen</button></div>
@@ -163,9 +165,9 @@ export async function render(root) {
             plak deze regels onderaan en herstart Home Assistant. Gebruik in de link het IP-adres van je server als daar nu <code>localhost</code> staat.
             <pre class="code-block" data-ha-sensor>${esc(ha.sensor)}</pre>
             <button class="btn small" type="button" data-copy-ha="sensor">📋 Kopiëren</button></li>
-          <li>Dashboard → ✏️ Bewerken → <em>Kaart toevoegen</em> → <em>Handmatig</em>, plak dit en sla op:
+          ${ha.link ? '<li>Zet daarna de kaart hierboven op je dashboard.</li>' : `<li>Dashboard → ✏️ Bewerken → <em>Kaart toevoegen</em> → <em>Handmatig</em>, plak dit en sla op:
             <pre class="code-block" data-ha-cardcode>${esc(ha.card)}</pre>
-            <button class="btn small" type="button" data-copy-ha="card">📋 Kopiëren</button></li>
+            <button class="btn small" type="button" data-copy-ha="card">📋 Kopiëren</button></li>`}
         </ol>
         <p class="muted">De link bevat een geheime code; met de link kan iemand je planning van vandaag lezen.
           <button class="btn btn-ghost small" type="button" data-new-ha>Nieuwe code maken</button></p>
@@ -324,12 +326,8 @@ export async function render(root) {
         await api.post('/homeassistant/sync');
         return toast('Home Assistant bijgewerkt', 'success');
       }
-      if (e.target.closest('[data-ha-card-again]')) {
-        const r = await api.post('/homeassistant/card');
-        return toast(r.added ? `Kaart geplaatst op het dashboard ‘${r.dashboard}’` : `De kaart staat al op het dashboard ‘${r.dashboard}’`, 'success');
-      }
       if (e.target.closest('[data-ha-disconnect]')) {
-        if (!(await confirmDialog('Home Assistant ontkoppelen? De kaart blijft staan maar wordt niet meer bijgewerkt. Verwijder in Home Assistant ook het token.', 'Ontkoppelen'))) return;
+        if (!(await confirmDialog('Home Assistant ontkoppelen? De sensoren worden dan niet meer bijgewerkt. Verwijder in Home Assistant ook het token.', 'Ontkoppelen'))) return;
         await api.post('/homeassistant/disconnect');
         return render(root);
       }
@@ -363,20 +361,11 @@ export async function render(root) {
     out.className = 'small';
     out.textContent = 'Bezig met koppelen…';
     try {
-      const r = await api.post('/homeassistant/connect', { url: fd.get('url'), token: fd.get('token') });
-      const where = r.reason === 'auto'
-        ? `op het nieuwe dashboard ‘Maaltijden’ (je hoofdscherm wordt automatisch door Home Assistant gemaakt en kan de app niet aanpassen; zet het dashboard eventueel bovenaan in de zijbalk)`
-        : `bovenaan het dashboard ‘${r.dashboard}’`;
-      toast(`Gekoppeld met Home Assistant – de kaart staat ${r.reason === 'auto' ? 'op het dashboard ‘Maaltijden’' : `op ‘${r.dashboard}’`}`, 'success');
+      await api.post('/homeassistant/connect', { url: fd.get('url'), token: fd.get('token') });
+      toast('Gekoppeld – de sensoren staan in Home Assistant. Zet nu de kaart op je dashboard.', 'success');
       await render(root);
-      const note = $('[data-ha-card] .ha-status', root);
-      if (note) note.insertAdjacentHTML('afterend', `<p class="small">De kaart staat ${esc(where)}.</p>`);
+      $('[data-ha-card] [data-ha-cardcode]', root)?.scrollIntoView({ block: 'center' });
     } catch (err) {
-      // Sensoren werken wel, alleen de kaart niet: gekoppeld tonen, met ‘Kaart opnieuw plaatsen’
-      if (/dashboard|kaart/i.test(err.message)) {
-        await render(root);
-        return toast(err.message, 'error');
-      }
       out.className = 'small bad';
       out.textContent = err.message;
       btn.disabled = false;

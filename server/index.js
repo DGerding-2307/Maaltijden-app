@@ -12,7 +12,7 @@ import { enqueuePrices, priceQueueStatus, clearPriceQueue } from './pricequeue.j
 import { lookupBarcode, applyBarcode } from './scan.js';
 import * as tracker from './tracker.js';
 import { buildIcs, calendarToken } from './calendar.js';
-import { haToken, todayOverview, haConfig, haLink, connectHomeAssistant, disconnectHomeAssistant, addDashboardCard, pushStates, schedulePush, lastPushError } from './homeassistant.js';
+import { haToken, todayOverview, haConfig, haLink, connectHomeAssistant, disconnectHomeAssistant, pushStates, schedulePush, lastPushError } from './homeassistant.js';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { UNITS } from './calc.js';
@@ -362,7 +362,6 @@ export function createApp() {
   }));
   // Automatisch koppelen: adres + langlevend token van Home Assistant; de app maakt de sensoren en de kaart zelf
   api.post('/homeassistant/connect', wrap((req) => connectHomeAssistant(req.body, baseUrl(req))));
-  api.post('/homeassistant/card', wrap(() => (haLink() ? addDashboardCard() : Promise.reject(Object.assign(new Error('Nog niet gekoppeld'), { status: 400 })))));
   api.post('/homeassistant/sync', wrap(async () => ({ ok: await pushStates() })));
   api.post('/homeassistant/disconnect', wrap(() => { disconnectHomeAssistant(); return { ok: true }; }));
   api.post('/homeassistant/new-link', wrap((req) => { haToken(true); return haConfig(baseUrl(req)); }));

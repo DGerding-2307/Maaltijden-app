@@ -141,14 +141,8 @@ content: "{{ state_attr('sensor.maaltijden_vandaag', 'markdown') }}"`;
 
 // ---------- Automatisch koppelen: de app stuurt zelf gegevens naar Home Assistant ----------
 // Met het adres van Home Assistant en een ‘langlevend toegangstoken’ (profiel → Beveiliging in Home Assistant):
-// - sensoren via de REST API (POST /api/states/…), zonder configuration.yaml of herstart;
-// - de kaart op het dashboard via de WebSocket API (lovelace/config en lovelace/config/save).
-
-export const CARD = {
-  type: 'markdown',
-  title: 'Maaltijden',
-  content: "{{ state_attr('sensor.maaltijden_vandaag', 'markdown') }}",
-};
+// sensoren via de REST API (POST /api/states/…), zonder configuration.yaml of herstart.
+// Dashboards past de app niet aan.
 
 export function haLink() {
   const url = getSetting('homeassistant_url', null);
@@ -199,101 +193,19 @@ export async function pushStates(link = haLink()) {
   return true;
 }
 
-/** Kleine WebSocket-sessie met Home Assistant: inloggen en commando's één voor één uitvoeren. */
-async function haSocket({ url, token }, run) {
-  const wsUrl = `${url.replace(/^http/i, 'ws')}/api/websocket`;
-  const ws = new WebSocket(wsUrl);
-  let nextId = 1;
-  const pending = new Map();
-  let authed;
-  const ready = new Promise((resolve, reject) => {
-    authed = { resolve, reject };
-    setTimeout(() => reject(Object.assign(new Error('Home Assistant reageert niet (WebSocket).'), { status: 502 })), 10000).unref?.();
-  });
-  ws.addEventListener('message', (ev) => {
-    let msg;
-    try { msg = JSON.parse(ev.data); } catch { return; }
-    if (msg.type === 'auth_required') ws.send(JSON.stringify({ type: 'auth', access_token: token }));
-    else if (msg.type === 'auth_ok') authed.resolve();
-    else if (msg.type === 'auth_invalid') authed.reject(Object.assign(new Error('Home Assistant weigert het token.'), { status: 400 }));
-    else if (msg.type === 'result' && pending.has(msg.id)) {
-      const { resolve } = pending.get(msg.id);
-      pending.delete(msg.id);
-      resolve(msg);
-    }
-  });
-  ws.addEventListener('error', () => authed.reject(Object.assign(new Error(`Home Assistant is niet bereikbaar op ${url}.`), { status: 502 })));
-  const call = (payload) => new Promise((resolve, reject) => {
-    const id = nextId++;
-    pending.set(id, { resolve });
-    ws.send(JSON.stringify({ id, ...payload }));
-    setTimeout(() => { if (pending.delete(id)) reject(Object.assign(new Error('Home Assistant reageert niet.'), { status: 502 })); }, 15000).unref?.();
-  });
-  try {
-    await ready;
-    return await run(call);
-  } finally {
-    try { ws.close(); } catch { /* al dicht */ }
-  }
-}
-
-// Home Assistant eist een streepje in het adres van een dashboard
-const DASH = 'dashboard-maaltijden';
-const hasOurCard = (config) => JSON.stringify(config || {}).includes('sensor.maaltijden_vandaag');
-
-/** De kaart bovenaan het eerste tabblad zetten (zowel ‘secties’ als klassieke weergave). */
-function withCard(config) {
-  const cfg = structuredClone(config);
-  cfg.views = cfg.views?.length ? cfg.views : [{ title: 'Overzicht', cards: [] }];
-  const view = cfg.views[0];
-  if (view.type === 'sections' || view.sections) {
-    view.sections = [{ type: 'grid', cards: [CARD] }, ...(view.sections || [])];
-  } else {
-    view.cards = [CARD, ...(view.cards || [])];
-  }
-  return cfg;
-}
-
 /**
- * Kaart op het hoofddashboard zetten. Wordt het hoofddashboard automatisch door Home Assistant gemaakt
- * (of via YAML beheerd), dan nemen we het niet over maar maken we een eigen dashboard ‘Maaltijden’ in de zijbalk.
+ * Koppelen vanuit Instellingen: verbinding testen en de sensoren aanmaken. De app past bewust geen dashboards aan;
+ * de kaart zet je zelf (of met Claude via de Home Assistant-connector) op het dashboard.
  */
-export async function addDashboardCard(link = haLink()) {
-  return haSocket(link, async (call) => {
-    const main = await call({ type: 'lovelace/config', url_path: null });
-    if (main.success && main.result && typeof main.result === 'object' && !main.result.strategy) {
-      if (hasOurCard(main.result)) return { dashboard: 'Overzicht', added: false, path: '/lovelace' };
-      const saved = await call({ type: 'lovelace/config/save', url_path: null, config: withCard(main.result) });
-      if (saved.success) return { dashboard: 'Overzicht', added: true, path: '/lovelace' };
-    }
-    // Eigen dashboard
-    const list = await call({ type: 'lovelace/dashboards/list' });
-    if (!(list.result || []).some((d) => d.url_path === DASH)) {
-      const created = await call({ type: 'lovelace/dashboards/create', url_path: DASH, title: 'Maaltijden', icon: 'mdi:silverware-fork-knife', show_in_sidebar: true, require_admin: false, mode: 'storage' });
-      if (!created.success) {
-        throw Object.assign(new Error(`Kon geen dashboard aanmaken in Home Assistant${created.error?.message ? `: ${created.error.message}` : ''}. Is het token van een beheerder?`), { status: 502 });
-      }
-    }
-    const own = await call({ type: 'lovelace/config', url_path: DASH });
-    if (own.success && hasOurCard(own.result)) return { dashboard: 'Maaltijden', added: false, path: `/${DASH}`, reason: 'auto' };
-    const saved = await call({ type: 'lovelace/config/save', url_path: DASH, config: { title: 'Maaltijden', views: [{ title: 'Vandaag', path: 'vandaag', cards: [CARD] }] } });
-    if (!saved.success) throw Object.assign(new Error('Kon de kaart niet opslaan in Home Assistant. Is het token van een beheerder?'), { status: 502 });
-    return { dashboard: 'Maaltijden', added: true, path: `/${DASH}`, reason: 'auto' };
-  });
-}
-
-/** Koppelen vanuit Instellingen: verbinding testen, sensoren aanmaken en de kaart plaatsen. */
 export async function connectHomeAssistant({ url, token }, appUrl) {
   const link = { url: cleanHaUrl(url), token: String(token || '').trim(), app_url: appUrl };
   if (!link.token) throw Object.assign(new Error('Plak het langlevende toegangstoken uit Home Assistant'), { status: 400 });
   await haFetch(link, '/api/');
   await pushStates(link);
-  // Bewaren zodra de sensoren werken; mislukt alleen de kaart, dan kan ‘Kaart opnieuw plaatsen’ later
   setSetting('homeassistant_url', link.url);
   setSetting('homeassistant_token', link.token);
   setSetting('homeassistant_app_url', appUrl);
-  const card = await addDashboardCard(link);
-  return { url: link.url, ...card };
+  return { url: link.url };
 }
 
 export function disconnectHomeAssistant() {

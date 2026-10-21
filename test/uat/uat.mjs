@@ -647,7 +647,7 @@ await scenario('UAT-39', 'Home Assistant: overzicht van vandaag op het dashboard
   return `sensor: ‘${data.state}’, ${data.boodschappen_open} boodschappen open, ${data.kcal_pp} kcal p.p.`;
 });
 
-await scenario('UAT-40', 'Home Assistant koppelen: sensoren en kaart automatisch', async () => {
+await scenario('UAT-40', 'Home Assistant koppelen: sensoren automatisch, kaart zelf plakken', async () => {
   const HA = process.env.HA_MOCK || 'http://localhost:3998';
   await mob.goto(B + '#/instellingen'); await mob.waitForSelector('[data-ha-connect]');
   await mob.fill('[data-ha-connect] [name=url]', HA.replace('http://', ''));
@@ -659,15 +659,16 @@ await scenario('UAT-40', 'Home Assistant koppelen: sensoren en kaart automatisch
   await mob.click('[data-ha-connect] [type=submit]');
   await mob.waitForSelector('[data-ha-card] .ha-status');
   const text = await mob.textContent('[data-ha-card]');
-  expect(/Gekoppeld met/.test(text) && /De kaart staat/.test(text), 'geen bevestiging');
+  expect(/Gekoppeld met/.test(text), 'geen bevestiging');
+  expect(await mob.isVisible('[data-ha-card] [data-ha-cardcode]'), 'kaartcode niet zichtbaar na koppelen');
+  expect(!(await mob.$('[data-ha-card-again]')), 'knop om de kaart te plaatsen hoort weg');
   const width = await mob.evaluate(() => document.documentElement.scrollWidth);
   expect(width <= 391, `pagina te breed (${width}px)`);
   await mob.locator('[data-ha-card]').screenshot({ path: `${OUT}/40-home-assistant-gekoppeld.png` });
   await mob.click('[data-ha-sync]');
   await mob.waitForSelector('.toast');
-  const where = text.match(/De kaart staat ([^.]+)/)?.[1];
   await japi(mob, 'POST', '/homeassistant/disconnect');
-  return `gekoppeld; kaart ${where}`;
+  return 'gekoppeld; sensoren aangemaakt, kaartcode klaar om te plakken';
 });
 
 await browser.close();

@@ -1,4 +1,4 @@
-// Home Assistant koppelen: sensoren aanmaken (REST) en de kaart op het dashboard zetten (WebSocket).
+// Home Assistant koppelen: de app maakt sensoren aan (REST) en past geen dashboards aan.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -24,28 +24,24 @@ before(async () => {
 });
 after(() => { server.close(); haServer.close(); });
 
-test('koppelen: sensoren aangemaakt en kaart bovenaan het hoofddashboard', async () => {
+test('koppelen: sensoren aangemaakt, dashboards niet aangeraakt', async () => {
   resetHa('storage');
   const r = await post('/homeassistant/connect', { url: `${haUrl}/`, token: ` ${TOKEN} ` });
   assert.equal(r.status, 200, JSON.stringify(r.body));
-  assert.equal(r.body.added, true);
-  assert.equal(r.body.dashboard, 'Overzicht');
+  assert.equal(r.body.url, haUrl);
   assert.ok(ha.states['sensor.maaltijden_vandaag'].attributes.markdown);
   assert.equal(ha.states['sensor.maaltijden_vandaag'].attributes.friendly_name, 'Maaltijden vandaag');
   assert.ok('sensor.maaltijden_boodschappen_open' in ha.states);
-  const cards = ha.configs.main.views[0].cards;
-  assert.equal(cards.length, 2);
-  assert.match(cards[0].content, /sensor\.maaltijden_vandaag/);
+  assert.ok(!ha.calls.some((c) => c.startsWith('WS ')), `geen dashboard-commando's: ${ha.calls}`);
+  assert.equal(ha.configs.main.views[0].cards.length, 1);
+  assert.equal(ha.dashboards.length, 0);
+  assert.equal((await post('/homeassistant/card')).status, 404, 'geen route meer om de kaart te plaatsen');
 
-  // Status in Instellingen, token niet zichtbaar
+  // Status in Instellingen met de kaart om zelf te plakken, token niet zichtbaar
   const s = await (await fetch(`${base}/api/homeassistant`)).json();
   assert.equal(s.link.url, haUrl);
+  assert.match(s.card, /sensor\.maaltijden_vandaag/);
   assert.ok(!JSON.stringify(s).includes(TOKEN));
-
-  // Nog eens plaatsen: geen dubbele kaart
-  const again = await post('/homeassistant/card');
-  assert.equal(again.body.added, false);
-  assert.equal(ha.configs.main.views[0].cards.length, 2);
 
   // Token staat niet in een back-up
   const backup = await (await fetch(`${base}/api/backup`)).text();
@@ -57,30 +53,6 @@ test('koppelen: sensoren aangemaakt en kaart bovenaan het hoofddashboard', async
   assert.ok(ha.states['sensor.maaltijden_vandaag']);
   await post('/homeassistant/disconnect');
   assert.equal((await (await fetch(`${base}/api/homeassistant`)).json()).link, null);
-});
-
-test('automatisch hoofdscherm: eigen dashboard ‘Maaltijden’, sectie-weergave krijgt een sectie', async () => {
-  for (const mode of ['auto', 'strategy']) {
-    resetHa(mode);
-    const r = await post('/homeassistant/connect', { url: haUrl, token: TOKEN });
-    assert.equal(r.status, 200, JSON.stringify(r.body));
-    assert.equal(r.body.reason, 'auto');
-    assert.equal(r.body.dashboard, 'Maaltijden');
-    assert.deepEqual(ha.dashboards.map((d) => d.url_path), ['dashboard-maaltijden']);
-    assert.match(JSON.stringify(ha.configs['dashboard-maaltijden']), /sensor\.maaltijden_vandaag/);
-    assert.equal(ha.configs.main.views[0].cards.length, 1, 'hoofddashboard niet aangeraakt');
-    // Tweede keer: dashboard bestaat al, geen nieuwe
-    const again = await post('/homeassistant/card');
-    assert.equal(again.body.added, false);
-    assert.equal(ha.dashboards.length, 1);
-  }
-  resetHa('storage');
-  ha.configs.main = { views: [{ type: 'sections', sections: [{ type: 'grid', cards: [{ type: 'tile' }] }] }] };
-  await post('/homeassistant/connect', { url: haUrl, token: TOKEN });
-  const secs = ha.configs.main.views[0].sections;
-  assert.equal(secs.length, 2);
-  assert.match(JSON.stringify(secs[0]), /sensor\.maaltijden_vandaag/);
-  await post('/homeassistant/disconnect');
 });
 
 test('foute token of adres: duidelijke melding en niets opgeslagen', async () => {
