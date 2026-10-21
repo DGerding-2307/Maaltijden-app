@@ -17,12 +17,12 @@ import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { UNITS } from './calc.js';
 import { updateStatus, triggerUpdate } from './updater.js';
+import { uploadDir } from './paths.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 // Versie: uit het Docker-image (APP_VERSION) of anders uit package.json
 export const APP_VERSION = process.env.APP_VERSION
   || JSON.parse(fs.readFileSync(path.join(here, '..', 'package.json'), 'utf8')).version;
-const uploadDir = () => path.resolve(process.env.UPLOAD_DIR || path.join(path.dirname(process.env.DB_FILE && process.env.DB_FILE !== ':memory:' ? process.env.DB_FILE : 'data/x'), 'uploads'));
 
 // Teller die bij elke wijziging omhoog gaat; telefoons van huisgenoten verversen als hij verandert.
 let changeCounter = Date.now();

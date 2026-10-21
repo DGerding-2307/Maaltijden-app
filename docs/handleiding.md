@@ -199,6 +199,11 @@ een eigen kaart waarin je zelf kiest wat je ziet, de week, de foto van het diner
 een gewichtsgrafiek, alle sensoren op een rij en een automatisering die om 16:30 meldt wat je eet.
 Plakken doe je in Home Assistant via Dashboard → ✏️ Bewerken → *Kaart toevoegen* → *Handmatig*. Daar staat ook de lijst met alle sensoren en attributen.
 
+**Foto's.** Home Assistant via https (bv. Nabu Casa) kan geen foto's van een http-adres tonen. Bij koppelen zet de app de foto van het
+diner daarom in Home Assistant zelf (zoals een profielfoto) en verwijst naar `/api/image/serve/…` op je Home Assistant; zo komt hij via https.
+Elke foto wordt maar één keer geüpload. Foto's met een https-adres blijven zoals ze zijn. Bij de YAML-route komen foto's van het adres van de app;
+gebruik dan een https-adres voor de app (`APP_URL`).
+
 Het token wordt alleen op je eigen server bewaard en zit niet in back-ups. *Ontkoppelen* stopt het bijwerken; verwijder dan ook het token in Home Assistant.
 
 **Zonder token, met YAML.** Onder *Liever zonder token, met YAML* staat een blok voor `configuration.yaml` dat dezelfde sensoren maakt.

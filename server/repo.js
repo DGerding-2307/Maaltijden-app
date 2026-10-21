@@ -545,7 +545,7 @@ export function shoppingCheckedToHave(week) {
 // ---------- Back-up ----------
 
 // Geheimen gaan nooit mee in een back-up en blijven bij terugzetten behouden.
-const SECRET_SETTINGS = ['anthropic_api_key', 'calendar_token', 'ha_token', 'homeassistant_token', 'homeassistant_url', 'homeassistant_app_url'];
+const SECRET_SETTINGS = ['anthropic_api_key', 'calendar_token', 'ha_token', 'homeassistant_token', 'homeassistant_url', 'homeassistant_app_url', 'homeassistant_images'];
 const BACKUP_TABLES = ['ingredients', 'recipes', 'recipe_ingredients', 'meal_plan', 'plan_extras', 'shopping_state', 'shopping_extras', 'settings', 'people', 'food_log', 'weight_log'];
 
 export function exportAll() {

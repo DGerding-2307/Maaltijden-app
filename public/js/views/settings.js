@@ -123,7 +123,8 @@ export async function render(root) {
       <h2>🏠 Home Assistant</h2>
       <p class="muted">Na het koppelen stuurt de app alles als sensoren naar Home Assistant: vandaag, morgen, de week met kosten,
         de boodschappen en per persoon de calorieën van vandaag en het gewicht (na elke wijziging en elke 5 minuten).
-        Daarmee maak je zelf de kaarten die je wilt; voorbeelden staan hieronder. De app past je dashboards niet aan.</p>
+        Daarmee maak je zelf de kaarten die je wilt; voorbeelden staan hieronder. Foto's zet de app in Home Assistant zelf,
+        zodat ze ook via https (bv. Nabu Casa) te zien zijn. De app past je dashboards niet aan.</p>
       ${ha.link ? `<p class="ha-status good">✔ Gekoppeld met <a href="${esc(ha.link.url)}" target="_blank" rel="noopener">${esc(ha.link.url)}</a></p>
         ${ha.link.error ? `<p class="small bad">Laatste keer bijwerken mislukt: ${esc(ha.link.error)}</p>` : ''}
         <div class="row wrap">
@@ -171,6 +172,8 @@ export async function render(root) {
           plak deze regels onderaan en herstart Home Assistant. Je krijgt dezelfde sensoren. Gebruik in de link het IP-adres van je server als daar nu <code>localhost</code> staat.</p>
         <pre class="code-block" data-ha-sensor>${esc(ha.sensor)}</pre>
         <button class="btn small" type="button" data-copy-ha>📋 Kopiëren</button>
+        <p class="muted">Foto's komen bij deze manier van het adres van de app. Open je Home Assistant via https (bv. Nabu Casa),
+          dan toont hij alleen foto's als de app ook via https bereikbaar is (zet <code>APP_URL</code> op dat adres). Met koppelen hoeft dat niet.</p>
         <p class="muted">De link bevat een geheime code; met de link kan iemand je planning lezen.
           <button class="btn btn-ghost small" type="button" data-new-ha>Nieuwe code maken</button></p>
       </details>

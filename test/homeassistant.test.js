@@ -26,6 +26,10 @@ after(() => { server.close(); haServer.close(); });
 
 test('koppelen: sensoren aangemaakt, dashboards niet aangeraakt', async () => {
   resetHa('storage');
+  // Diner vandaag met een ingebouwde foto (http-adres van de app)
+  const { todayISO } = await import('../server/homeassistant.js');
+  const recipe = (await (await fetch(`${base}/api/recipes`)).json()).find((x) => x.image_url);
+  const { id } = await post('/plan', { date: todayISO(), meal: 'diner', recipe_id: recipe.id, servings: 2 }).then((x) => x.body);
   const r = await post('/homeassistant/connect', { url: `${haUrl}/`, token: ` ${TOKEN} ` });
   assert.equal(r.status, 200, JSON.stringify(r.body));
   assert.equal(r.body.url, haUrl);
@@ -36,6 +40,14 @@ test('koppelen: sensoren aangemaakt, dashboards niet aangeraakt', async () => {
   assert.equal(ha.states['sensor.maaltijden_week'].attributes.dagen.length, 7);
   assert.equal(ha.states['sensor.maaltijden_ik_kcal'].attributes.unit_of_measurement, 'kcal');
   assert.match(ha.states['sensor.maaltijden_week'].attributes.markdown, /\| Dag \|/);
+
+  // Foto's via Home Assistant (https), niet via het http-adres van de app
+  const v = ha.states['sensor.maaltijden_vandaag'].attributes;
+  assert.match(v.entity_picture, /^\/api\/image\/serve\/img\d+\/512x512$/);
+  assert.equal(v.afbeelding, v.entity_picture);
+  assert.ok(v.diner.every((x) => !x.afbeelding || x.afbeelding.startsWith('/api/image/serve/')), JSON.stringify(v.diner));
+  const uploads = ha.uploads.length;
+  assert.ok(uploads > 0);
   assert.ok(!ha.calls.some((c) => c.startsWith('WS ')), `geen dashboard-commando's: ${ha.calls}`);
   assert.equal(ha.configs.main.views[0].cards.length, 1);
   assert.equal(ha.dashboards.length, 0);
@@ -58,7 +70,9 @@ test('koppelen: sensoren aangemaakt, dashboards niet aangeraakt', async () => {
   ha.states = {};
   assert.equal((await post('/homeassistant/sync')).body.ok, true);
   assert.ok(ha.states['sensor.maaltijden_vandaag']);
+  assert.equal(ha.uploads.length, uploads, 'dezelfde foto niet opnieuw uploaden');
   await post('/homeassistant/disconnect');
+  await fetch(`${base}/api/plan/${id}`, { method: 'DELETE' });
   assert.equal((await (await fetch(`${base}/api/homeassistant`)).json()).link, null);
 });
 

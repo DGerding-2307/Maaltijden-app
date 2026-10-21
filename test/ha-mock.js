@@ -3,8 +3,8 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 
 export const TOKEN = 'ha-token';
-export const ha = { states: {}, dashboards: [], configs: {}, mainMode: 'storage', calls: [] };
-export const resetHa = (mainMode) => Object.assign(ha, { states: {}, dashboards: [], configs: { main: { views: [{ title: 'Thuis', cards: [{ type: 'entities' }] }] } }, mainMode, calls: [] });
+export const ha = { states: {}, dashboards: [], configs: {}, mainMode: 'storage', calls: [], uploads: [] };
+export const resetHa = (mainMode) => Object.assign(ha, { states: {}, dashboards: [], configs: { main: { views: [{ title: 'Thuis', cards: [{ type: 'entities' }] }] } }, mainMode, calls: [], uploads: [] });
 
 function sendFrame(socket, text) {
   const data = Buffer.from(text);
@@ -52,6 +52,11 @@ export const haServer = http.createServer((req, res) => {
   req.on('end', () => {
     res.setHeader('Content-Type', 'application/json');
     if (req.url === '/api/') return res.end(JSON.stringify({ message: 'API running.' }));
+    if (req.url === '/api/image/upload' && req.method === 'POST') {
+      if (!/multipart\/form-data/.test(req.headers['content-type'] || '') || !body.includes('name="file"')) { res.statusCode = 400; return res.end('{}'); }
+      ha.uploads.push(body.length);
+      return res.end(JSON.stringify({ id: `img${ha.uploads.length}`, filesize: body.length }));
+    }
     const m = req.url.match(/^\/api\/states\/(.+)$/);
     if (m && req.method === 'POST') { ha.states[m[1]] = JSON.parse(body); res.statusCode = 201; return res.end(body); }
     res.statusCode = 404;

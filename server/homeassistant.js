@@ -1,6 +1,9 @@
 // Home Assistant: overzicht van vandaag als JSON voor een REST-sensor, met een kant-en-klare Markdown-tekst voor een kaart.
 // Beveiligd met een eigen geheime code in de link (los van de agenda-link), zodat het ook werkt met APP_PASSWORD.
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import { uploadDir, publicDir } from './paths.js';
 import { getSetting, setSetting } from './db.js';
 import * as repo from './repo.js';
 import * as tracker from './tracker.js';
@@ -378,10 +381,76 @@ async function haFetch({ url, token }, path, options = {}) {
   return res.json().catch(() => ({}));
 }
 
+// ---------- Foto's via Home Assistant ----------
+// Home Assistant via https (bv. Nabu Casa) kan geen foto's van http://… tonen. Daarom zetten we de foto in Home Assistant
+// zelf (dezelfde upload als voor profielfoto's) en verwijzen we naar /api/image/serve/…: zo komt hij via het adres
+// van Home Assistant, met https, en zonder inloggen. Foto's die al https zijn, blijven zoals ze zijn.
+
+/** Foto lezen: eigen uploads en ingebouwde foto's van schijf, andere http-links ophalen. */
+async function readImage(src, appUrl) {
+  let rel = src;
+  if (appUrl && src.startsWith(appUrl)) rel = src.slice(appUrl.length);
+  if (!/^https?:/i.test(rel)) {
+    const clean = decodeURIComponent(rel.split('?')[0]).replace(/^\/+/, '');
+    const file = clean.startsWith('uploads/') ? path.join(uploadDir(), clean.slice(8)) : path.join(publicDir, clean);
+    const root = clean.startsWith('uploads/') ? uploadDir() : publicDir;
+    if (!path.resolve(file).startsWith(path.resolve(root) + path.sep)) return null;
+    const stat = fs.statSync(file, { throwIfNoEntry: false });
+    return stat ? { buf: fs.readFileSync(file), key: `${clean}:${stat.size}:${stat.mtimeMs}`, name: path.basename(file) } : null;
+  }
+  const res = await fetch(rel, { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) return null;
+  return { buf: Buffer.from(await res.arrayBuffer()), key: rel, name: path.basename(new URL(rel).pathname) || 'foto.jpg' };
+}
+
+const IMAGE_TYPES = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif' };
+
+/** Adres van de foto zoals Home Assistant hem kan tonen, of het oorspronkelijke adres als dat niet lukt. */
+async function haImage(link, src) {
+  if (!src || /^https:/i.test(src)) return src;
+  try {
+    const img = await readImage(src, link.app_url);
+    if (!img) return src;
+    const cache = getSetting('homeassistant_images', {});
+    if (cache[img.key]) return cache[img.key];
+    const form = new FormData();
+    const type = IMAGE_TYPES[path.extname(img.name).toLowerCase()] || 'image/jpeg';
+    form.append('file', new Blob([img.buf], { type }), img.name);
+    const res = await fetch(`${link.url}/api/image/upload`, {
+      method: 'POST', headers: { Authorization: `Bearer ${link.token}` }, body: form, signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) return src;
+    const { id } = await res.json();
+    if (!id) return src;
+    const url = `/api/image/serve/${id}/512x512`;
+    // Oudste vergeten als het er veel worden (de foto's blijven in Home Assistant staan)
+    const entries = Object.entries({ ...cache, [img.key]: url }).slice(-200);
+    setSetting('homeassistant_images', Object.fromEntries(entries));
+    return url;
+  } catch {
+    return src;
+  }
+}
+
+/** Foto's in de sensor van vandaag vervangen door adressen die Home Assistant kan tonen. */
+async function withHaImages(link, sensor) {
+  const a = sensor.attributes;
+  const fix = async (u) => (u ? haImage(link, u) : u);
+  for (const meal of Object.keys(a)) {
+    if (Array.isArray(a[meal]) && a[meal].some((x) => x && typeof x === 'object' && 'afbeelding' in x)) {
+      for (const item of a[meal]) item.afbeelding = await fix(item.afbeelding);
+    }
+  }
+  a.afbeelding = await fix(a.afbeelding);
+  a.entity_picture = a.afbeelding || undefined;
+  return sensor;
+}
+
 /** Sensoren bijwerken (maakt ze aan als ze nog niet bestaan). */
 export async function pushStates(link = haLink()) {
   if (!link) return false;
   for (const x of haSensors(link.app_url)) {
+    if (x.key === 'vandaag') await withHaImages(link, x);
     await haFetch(link, `/api/states/${x.entity_id}`, { method: 'POST', body: JSON.stringify({ state: x.state, attributes: x.attributes }) });
   }
   return true;
@@ -403,7 +472,7 @@ export async function connectHomeAssistant({ url, token }, appUrl) {
 }
 
 export function disconnectHomeAssistant() {
-  for (const k of ['homeassistant_url', 'homeassistant_token', 'homeassistant_app_url']) setSetting(k, null);
+  for (const k of ['homeassistant_url', 'homeassistant_token', 'homeassistant_app_url', 'homeassistant_images']) setSetting(k, null);
 }
 
 // Na een wijziging (planning, boodschappen, dagboek) even wachten en dan bijwerken; daarnaast elke 5 minuten
