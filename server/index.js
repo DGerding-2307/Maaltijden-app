@@ -12,7 +12,7 @@ import { enqueuePrices, priceQueueStatus, clearPriceQueue } from './pricequeue.j
 import { lookupBarcode, applyBarcode } from './scan.js';
 import * as tracker from './tracker.js';
 import { buildIcs, calendarToken } from './calendar.js';
-import { haToken, todayOverview, haConfig } from './homeassistant.js';
+import { haToken, todayOverview, haConfig, haLink, connectHomeAssistant, disconnectHomeAssistant, addDashboardCard, pushStates, schedulePush, lastPushError } from './homeassistant.js';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { UNITS } from './calc.js';
@@ -128,7 +128,7 @@ export function createApp() {
   const notFound = (what = 'Niet gevonden') => Object.assign(new Error(what), { status: 404 });
   const week = (q) => (q ? mondayOf(new Date(q + 'T12:00:00')) : mondayOf(new Date()));
   api.use((req, res, next) => {
-    if (req.method !== 'GET') res.on('finish', () => { if (res.statusCode < 400) changeCounter++; });
+    if (req.method !== 'GET') res.on('finish', () => { if (res.statusCode < 400) { changeCounter++; schedulePush(); } });
     next();
   });
   api.get('/changes', (req, res) => res.json({ version: changeCounter, app_version: APP_VERSION }));
@@ -356,7 +356,15 @@ export function createApp() {
   api.put('/weight', wrap((req) => tracker.logWeight(req.body)));
   api.delete('/weight/:id', wrap((req) => tracker.deleteWeight(Number(req.params.id))));
   api.get('/calendar', wrap((req) => ({ url: `${req.protocol}://${req.get('host')}/agenda/${calendarToken()}.ics` })));
-  api.get('/homeassistant', wrap((req) => ({ ...haConfig(baseUrl(req)), preview: todayOverview(baseUrl(req)) })));
+  api.get('/homeassistant', wrap((req) => {
+    const link = haLink();
+    return { ...haConfig(baseUrl(req)), preview: todayOverview(baseUrl(req)), link: link ? { url: link.url, error: lastPushError() } : null };
+  }));
+  // Automatisch koppelen: adres + langlevend token van Home Assistant; de app maakt de sensoren en de kaart zelf
+  api.post('/homeassistant/connect', wrap((req) => connectHomeAssistant(req.body, baseUrl(req))));
+  api.post('/homeassistant/card', wrap(() => (haLink() ? addDashboardCard() : Promise.reject(Object.assign(new Error('Nog niet gekoppeld'), { status: 400 })))));
+  api.post('/homeassistant/sync', wrap(async () => ({ ok: await pushStates() })));
+  api.post('/homeassistant/disconnect', wrap(() => { disconnectHomeAssistant(); return { ok: true }; }));
   api.post('/homeassistant/new-link', wrap((req) => { haToken(true); return haConfig(baseUrl(req)); }));
   api.post('/calendar/new-link', wrap((req) => ({ url: `${req.protocol}://${req.get('host')}/agenda/${calendarToken(true)}.ics` })));
 
@@ -467,6 +475,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const host = process.env.HOST || '0.0.0.0';
   initialOffSync();
   initialPriceSync();
+  // Home Assistant: bij het starten en elke 5 minuten bijwerken (ook als de dag wisselt)
+  schedulePush(5000);
+  setInterval(() => schedulePush(0), 5 * 60 * 1000).unref();
   createApp().listen(port, host, () => {
     console.log(`🍽️  Maaltijden-app draait op http://${host === '0.0.0.0' ? 'localhost' : host}:${port}`);
     if (!ai.claudeStatus().configured) console.log('ℹ️  Claude is nog niet ingesteld (ANTHROPIC_API_KEY of via Instellingen).');

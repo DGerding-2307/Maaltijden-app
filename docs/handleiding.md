@@ -181,14 +181,21 @@ back-up, offline inzien, live bijwerken tussen huisgenoten, agenda-abonnement. G
 
 ## Home Assistant
 
-Bij **Instellingen → Home Assistant** staan twee blokjes YAML met jouw adres en een geheime code al ingevuld:
+**Automatisch (aanbevolen).** Ga naar **Instellingen → Home Assistant**, vul het adres van Home Assistant in
+(bv. `192.168.1.10:8123`) en een *langlevend toegangstoken* (Home Assistant → je profiel → Beveiliging → Token aanmaken; gebruik
+een account met beheerrechten) en tik op **🔗 Koppelen**. De app:
 
-1. Een REST-sensor voor `configuration.yaml`: `sensor.maaltijden_vandaag` (waarde: het diner van vandaag; attributen o.a. `ontbijt`, `lunch`,
-   `diner`, `kcal_pp`, `kosten`, `boodschappen_open`, `boodschappen`, `morgen_diner`, `afbeelding` en `markdown`) en
-   `sensor.maaltijden_boodschappen_open`. Ververst elke 5 minuten.
-2. Een Markdown-kaart voor je dashboard die het overzicht van vandaag toont, met links naar de recepten.
+- maakt de sensoren `sensor.maaltijden_vandaag` (waarde: het diner van vandaag; attributen o.a. `ontbijt`, `lunch`, `diner`, `kcal_pp`,
+  `kosten`, `boodschappen_open`, `boodschappen`, `morgen_diner`, `afbeelding` en `markdown`) en `sensor.maaltijden_boodschappen_open`;
+- zet een Markdown-kaart met het overzicht van vandaag bovenaan je hoofddashboard. Wordt je hoofddashboard nog automatisch door
+  Home Assistant gemaakt, dan laat de app dat met rust en maakt een eigen dashboard **Maaltijden** in de zijbalk;
+- werkt de sensoren bij na elke wijziging in de app en daarnaast elke 5 minuten.
 
-De link (`/ha/<code>/vandaag.json`) werkt zonder inloggen, ook met `APP_PASSWORD`; de geheime code beschermt hem en is opnieuw aan te maken.
+Het token wordt alleen op je eigen server bewaard en zit niet in back-ups. *Ontkoppelen* stopt het bijwerken; verwijder dan ook het token in Home Assistant.
+
+**Handmatig met YAML.** Onder *Liever zelf instellen met YAML* staan een REST-sensor voor `configuration.yaml` en een kaart om te plakken.
+Die link (`/ha/<code>/vandaag.json`) werkt zonder inloggen, ook met `APP_PASSWORD`; de geheime code beschermt hem en is opnieuw aan te maken.
+
 ‘Vandaag’ volgt de tijdzone `TZ` (standaard Europe/Amsterdam). Achter een reverse proxy kun je met `APP_URL` het adres voor de links instellen.
 Wil je de hele week als agenda in Home Assistant, voeg dan de integratie *Remote calendar* toe met de agenda-link.
 

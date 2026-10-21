@@ -787,3 +787,5 @@ label.check.jumbo-opt { display: grid; grid-template-columns: auto 1fr; gap: .1r
 .ha-steps .code-block { margin: .4rem 0; max-height: 18rem; }
 .ha-preview { border: 1px solid var(--border); border-radius: 12px; padding: .8rem 1rem; margin: .5rem 0; background: var(--surface); line-height: 1.5; }
 .ha-preview .ha-h { font-size: 1.05rem; }
+.ha-status { font-weight: 600; margin-bottom: .25rem; overflow-wrap: anywhere; }
+.ha-connect .row.end { margin-top: .25rem; }

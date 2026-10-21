@@ -121,17 +121,31 @@ export async function render(root) {
 
     ${ha ? `<section class="card" data-ha-card>
       <h2>🏠 Home Assistant</h2>
-      <p class="muted">Zet een overzicht van vandaag op het dashboard van Home Assistant: ontbijt, lunch en diner met kcal,
-        de kosten van vandaag, hoeveel boodschappen er nog te halen zijn en wat je morgen eet.</p>
-      <ol class="small ha-steps">
-        <li>Open in Home Assistant je <code>configuration.yaml</code> (bv. met de add-on <em>File editor</em> of <em>Studio Code Server</em>),
-          plak deze regels onderaan en herstart Home Assistant (Instellingen → Systeem → Herstarten).
-          <pre class="code-block" data-ha-sensor>${esc(ha.sensor)}</pre>
-          <button class="btn small" type="button" data-copy-ha="sensor">📋 Kopiëren</button></li>
-        <li>Ga naar je dashboard → ✏️ Bewerken → <em>Kaart toevoegen</em> → <em>Handmatig</em>, plak dit en sla op:
-          <pre class="code-block" data-ha-cardcode>${esc(ha.card)}</pre>
-          <button class="btn small" type="button" data-copy-ha="card">📋 Kopiëren</button></li>
-      </ol>
+      <p class="muted">Een overzicht van vandaag op het hoofdscherm van Home Assistant: ontbijt, lunch en diner met kcal,
+        de kosten van vandaag, hoeveel boodschappen er nog te halen zijn en wat je morgen eet. De app zet de kaart er zelf neer
+        en houdt hem bij (na elke wijziging en elke 5 minuten).</p>
+      ${ha.link ? `<p class="ha-status good">✔ Gekoppeld met <a href="${esc(ha.link.url)}" target="_blank" rel="noopener">${esc(ha.link.url)}</a></p>
+        ${ha.link.error ? `<p class="small bad">Laatste keer bijwerken mislukt: ${esc(ha.link.error)}</p>` : ''}
+        <div class="row wrap">
+          <button class="btn" type="button" data-ha-sync>🔄 Nu bijwerken</button>
+          <button class="btn" type="button" data-ha-card-again>➕ Kaart opnieuw plaatsen</button>
+          <button class="btn btn-ghost" type="button" data-ha-disconnect>Ontkoppelen</button>
+        </div>` : `<form class="form ha-connect" data-ha-connect>
+        <label>Adres van Home Assistant
+          <input class="input" name="url" inputmode="url" autocomplete="off" placeholder="bv. http://192.168.1.10:8123 of http://homeassistant.local:8123" required></label>
+        <label>Langlevend toegangstoken
+          <input class="input" name="token" type="password" autocomplete="off" placeholder="plak hier het token" required></label>
+        <details class="small help-list"><summary>Waar vind ik het token?</summary>
+          <ol>
+            <li>Open Home Assistant en klik linksonder op <strong>je naam</strong> (je profiel).</li>
+            <li>Ga naar het tabblad <strong>Beveiliging</strong> en scrol naar <strong>Langlevende toegangstokens</strong>.</li>
+            <li>Klik op <strong>Token aanmaken</strong>, noem het <em>Maaltijden</em>, en kopieer het token (je ziet het maar één keer).</li>
+            <li>Gebruik een account met beheerrechten, anders kan de app de kaart niet op het dashboard zetten.</li>
+          </ol>
+        </details>
+        <div class="row end"><button class="btn btn-primary" type="submit">🔗 Koppelen</button></div>
+        <p class="small" data-ha-result></p>
+      </form>`}
       <details class="small help-list"><summary>Voorbeeld van vandaag en meer mogelijkheden</summary>
         <div class="ha-preview">${haPreview(ha.preview.markdown)}</div>
         <ul>
@@ -141,12 +155,21 @@ export async function render(root) {
           <li><code>sensor.maaltijden_boodschappen_open</code> telt wat er nog te halen is – handig voor een automatisering
             (bv. een melding als je bij de supermarkt bent).</li>
           <li>Wil je de hele week als agenda in Home Assistant? Voeg de integratie <em>Remote calendar</em> toe met de agenda-link hierboven.</li>
-          <li>Home Assistant moet de server kunnen bereiken op <code>${esc(ha.url.split('/ha/')[0])}</code>. Draait Home Assistant op een ander
-            apparaat, gebruik dan het IP-adres van je server in plaats van <code>localhost</code>.</li>
         </ul>
       </details>
-      <p class="muted small">De link bevat een geheime code; met de link kan iemand je planning van vandaag lezen.
-        <button class="btn btn-ghost small" type="button" data-new-ha>Nieuwe code maken</button> (daarna de regels in Home Assistant vervangen).</p>
+      <details class="small help-list"><summary>Liever zelf instellen met YAML (zonder token)</summary>
+        <ol class="ha-steps">
+          <li>Open in Home Assistant je <code>configuration.yaml</code> (bv. met de add-on <em>File editor</em>),
+            plak deze regels onderaan en herstart Home Assistant. Gebruik in de link het IP-adres van je server als daar nu <code>localhost</code> staat.
+            <pre class="code-block" data-ha-sensor>${esc(ha.sensor)}</pre>
+            <button class="btn small" type="button" data-copy-ha="sensor">📋 Kopiëren</button></li>
+          <li>Dashboard → ✏️ Bewerken → <em>Kaart toevoegen</em> → <em>Handmatig</em>, plak dit en sla op:
+            <pre class="code-block" data-ha-cardcode>${esc(ha.card)}</pre>
+            <button class="btn small" type="button" data-copy-ha="card">📋 Kopiëren</button></li>
+        </ol>
+        <p class="muted">De link bevat een geheime code; met de link kan iemand je planning van vandaag lezen.
+          <button class="btn btn-ghost small" type="button" data-new-ha>Nieuwe code maken</button></p>
+      </details>
     </section>` : ''}
 
     <section class="card">
@@ -297,6 +320,19 @@ export async function render(root) {
         try { await navigator.clipboard.writeText(input.value); } catch { input.select(); document.execCommand('copy'); }
         return toast('Link gekopieerd', 'success');
       }
+      if (e.target.closest('[data-ha-sync]')) {
+        await api.post('/homeassistant/sync');
+        return toast('Home Assistant bijgewerkt', 'success');
+      }
+      if (e.target.closest('[data-ha-card-again]')) {
+        const r = await api.post('/homeassistant/card');
+        return toast(r.added ? `Kaart geplaatst op het dashboard ‘${r.dashboard}’` : `De kaart staat al op het dashboard ‘${r.dashboard}’`, 'success');
+      }
+      if (e.target.closest('[data-ha-disconnect]')) {
+        if (!(await confirmDialog('Home Assistant ontkoppelen? De kaart blijft staan maar wordt niet meer bijgewerkt. Verwijder in Home Assistant ook het token.', 'Ontkoppelen'))) return;
+        await api.post('/homeassistant/disconnect');
+        return render(root);
+      }
       const copyHa = e.target.closest('[data-copy-ha]');
       if (copyHa) {
         const text = $(copyHa.dataset.copyHa === 'sensor' ? '[data-ha-sensor]' : '[data-ha-cardcode]', root).textContent;
@@ -316,6 +352,30 @@ export async function render(root) {
         toast('Nieuwe link gemaakt', 'success');
       }
     } catch (err) { toast(err.message, 'error'); }
+  });
+  $('[data-ha-connect]', root)?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const haForm = e.currentTarget;
+    const out = $('[data-ha-result]', haForm);
+    const btn = $('button[type=submit]', haForm);
+    const fd = new FormData(haForm);
+    btn.disabled = true;
+    out.className = 'small';
+    out.textContent = 'Bezig met koppelen…';
+    try {
+      const r = await api.post('/homeassistant/connect', { url: fd.get('url'), token: fd.get('token') });
+      const where = r.reason === 'auto'
+        ? `op het nieuwe dashboard ‘Maaltijden’ (je hoofdscherm wordt automatisch door Home Assistant gemaakt en kan de app niet aanpassen; zet het dashboard eventueel bovenaan in de zijbalk)`
+        : `bovenaan het dashboard ‘${r.dashboard}’`;
+      toast(`Gekoppeld met Home Assistant – de kaart staat ${r.reason === 'auto' ? 'op het dashboard ‘Maaltijden’' : `op ‘${r.dashboard}’`}`, 'success');
+      await render(root);
+      const note = $('[data-ha-card] .ha-status', root);
+      if (note) note.insertAdjacentHTML('afterend', `<p class="small">De kaart staat ${esc(where)}.</p>`);
+    } catch (err) {
+      out.className = 'small bad';
+      out.textContent = err.message;
+      btn.disabled = false;
+    }
   });
   $('[data-restore]', root).addEventListener('change', async (e) => {
     const file = e.target.files[0];
