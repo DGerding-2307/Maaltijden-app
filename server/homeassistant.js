@@ -237,6 +237,8 @@ async function haSocket({ url, token }, run) {
   }
 }
 
+// Home Assistant eist een streepje in het adres van een dashboard
+const DASH = 'dashboard-maaltijden';
 const hasOurCard = (config) => JSON.stringify(config || {}).includes('sensor.maaltijden_vandaag');
 
 /** De kaart bovenaan het eerste tabblad zetten (zowel ‘secties’ als klassieke weergave). */
@@ -266,17 +268,17 @@ export async function addDashboardCard(link = haLink()) {
     }
     // Eigen dashboard
     const list = await call({ type: 'lovelace/dashboards/list' });
-    if (!(list.result || []).some((d) => d.url_path === 'maaltijden')) {
-      const created = await call({ type: 'lovelace/dashboards/create', url_path: 'maaltijden', title: 'Maaltijden', icon: 'mdi:silverware-fork-knife', show_in_sidebar: true, require_admin: false, mode: 'storage' });
+    if (!(list.result || []).some((d) => d.url_path === DASH)) {
+      const created = await call({ type: 'lovelace/dashboards/create', url_path: DASH, title: 'Maaltijden', icon: 'mdi:silverware-fork-knife', show_in_sidebar: true, require_admin: false, mode: 'storage' });
       if (!created.success) {
         throw Object.assign(new Error(`Kon geen dashboard aanmaken in Home Assistant${created.error?.message ? `: ${created.error.message}` : ''}. Is het token van een beheerder?`), { status: 502 });
       }
     }
-    const own = await call({ type: 'lovelace/config', url_path: 'maaltijden' });
-    if (own.success && hasOurCard(own.result)) return { dashboard: 'Maaltijden', added: false, path: '/maaltijden', reason: 'auto' };
-    const saved = await call({ type: 'lovelace/config/save', url_path: 'maaltijden', config: { title: 'Maaltijden', views: [{ title: 'Vandaag', path: 'vandaag', cards: [CARD] }] } });
+    const own = await call({ type: 'lovelace/config', url_path: DASH });
+    if (own.success && hasOurCard(own.result)) return { dashboard: 'Maaltijden', added: false, path: `/${DASH}`, reason: 'auto' };
+    const saved = await call({ type: 'lovelace/config/save', url_path: DASH, config: { title: 'Maaltijden', views: [{ title: 'Vandaag', path: 'vandaag', cards: [CARD] }] } });
     if (!saved.success) throw Object.assign(new Error('Kon de kaart niet opslaan in Home Assistant. Is het token van een beheerder?'), { status: 502 });
-    return { dashboard: 'Maaltijden', added: true, path: '/maaltijden', reason: 'auto' };
+    return { dashboard: 'Maaltijden', added: true, path: `/${DASH}`, reason: 'auto' };
   });
 }
 
@@ -286,10 +288,11 @@ export async function connectHomeAssistant({ url, token }, appUrl) {
   if (!link.token) throw Object.assign(new Error('Plak het langlevende toegangstoken uit Home Assistant'), { status: 400 });
   await haFetch(link, '/api/');
   await pushStates(link);
-  const card = await addDashboardCard(link);
+  // Bewaren zodra de sensoren werken; mislukt alleen de kaart, dan kan ‘Kaart opnieuw plaatsen’ later
   setSetting('homeassistant_url', link.url);
   setSetting('homeassistant_token', link.token);
   setSetting('homeassistant_app_url', appUrl);
+  const card = await addDashboardCard(link);
   return { url: link.url, ...card };
 }
 

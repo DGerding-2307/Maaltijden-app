@@ -66,8 +66,8 @@ test('automatisch hoofdscherm: eigen dashboard ‘Maaltijden’, sectie-weergave
     assert.equal(r.status, 200, JSON.stringify(r.body));
     assert.equal(r.body.reason, 'auto');
     assert.equal(r.body.dashboard, 'Maaltijden');
-    assert.deepEqual(ha.dashboards.map((d) => d.url_path), ['maaltijden']);
-    assert.match(JSON.stringify(ha.configs.maaltijden), /sensor\.maaltijden_vandaag/);
+    assert.deepEqual(ha.dashboards.map((d) => d.url_path), ['dashboard-maaltijden']);
+    assert.match(JSON.stringify(ha.configs['dashboard-maaltijden']), /sensor\.maaltijden_vandaag/);
     assert.equal(ha.configs.main.views[0].cards.length, 1, 'hoofddashboard niet aangeraakt');
     // Tweede keer: dashboard bestaat al, geen nieuwe
     const again = await post('/homeassistant/card');

@@ -188,7 +188,7 @@ een account met beheerrechten) en tik op **🔗 Koppelen**. De app:
 - maakt de sensoren `sensor.maaltijden_vandaag` (waarde: het diner van vandaag; attributen o.a. `ontbijt`, `lunch`, `diner`, `kcal_pp`,
   `kosten`, `boodschappen_open`, `boodschappen`, `morgen_diner`, `afbeelding` en `markdown`) en `sensor.maaltijden_boodschappen_open`;
 - zet een Markdown-kaart met het overzicht van vandaag bovenaan je hoofddashboard. Wordt je hoofddashboard nog automatisch door
-  Home Assistant gemaakt, dan laat de app dat met rust en maakt een eigen dashboard **Maaltijden** in de zijbalk;
+  Home Assistant gemaakt, dan laat de app dat met rust en maakt een eigen dashboard **Maaltijden** in de zijbalk (adres `/dashboard-maaltijden`);
 - werkt de sensoren bij na elke wijziging in de app en daarnaast elke 5 minuten.
 
 Het token wordt alleen op je eigen server bewaard en zit niet in back-ups. *Ontkoppelen* stopt het bijwerken; verwijder dan ook het token in Home Assistant.

@@ -39,6 +39,7 @@ function lovelace(msg) {
   }
   if (msg.type === 'lovelace/config/save') { ha.configs[key] = msg.config; return { success: true, result: null }; }
   if (msg.type === 'lovelace/dashboards/list') return { success: true, result: ha.dashboards };
+  if (msg.type === 'lovelace/dashboards/create' && !msg.url_path.includes('-')) return { success: false, error: { code: 'invalid_format', message: 'Url path needs to contain a hyphen (-)' } };
   if (msg.type === 'lovelace/dashboards/create') { ha.dashboards.push({ url_path: msg.url_path, title: msg.title }); return { success: true, result: {} }; }
   return { success: false, error: { code: 'unknown_command' } };
 }
