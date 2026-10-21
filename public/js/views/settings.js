@@ -372,6 +372,11 @@ export async function render(root) {
       const note = $('[data-ha-card] .ha-status', root);
       if (note) note.insertAdjacentHTML('afterend', `<p class="small">De kaart staat ${esc(where)}.</p>`);
     } catch (err) {
+      // Sensoren werken wel, alleen de kaart niet: gekoppeld tonen, met ‘Kaart opnieuw plaatsen’
+      if (/dashboard|kaart/i.test(err.message)) {
+        await render(root);
+        return toast(err.message, 'error');
+      }
       out.className = 'small bad';
       out.textContent = err.message;
       btn.disabled = false;
