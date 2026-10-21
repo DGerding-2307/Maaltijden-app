@@ -2,6 +2,19 @@ import { api, meta } from '../api.js';
 import { $, esc, toast, confirmDialog } from '../util.js';
 import { updateStatus, startUpdate, shortVersion } from '../update.js';
 
+// Voorbeeld van de Home Assistant-kaart (dezelfde Markdown die de kaart laat zien, eenvoudig weergegeven)
+function haPreview(md) {
+  return esc(md)
+    .replace(/&lt;span[^&]*&gt;(.*?)&lt;\/span&gt;/g, '<span class="muted">$1</span>')
+    .replace(/&lt;br&gt;/g, '<br>')
+    .replace(/^### (.*)$/gm, '<strong class="ha-h">$1</strong>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (m, t, u) => (/^https?:/.test(u.replace(/&amp;/g, '&')) ? `<a href="${u}" target="_blank" rel="noopener">${t}</a>` : t))
+    .replace(/ {2}\n/g, '<br>')
+    .replace(/\n\n/g, '<br><br>')
+    .replace(/\n/g, '<br>');
+}
+
 const GOALS = [['afvallen', 'Afvallen (−500 kcal per dag)'], ['onderhoud', 'Gewicht behouden'], ['aankomen', 'Aankomen (+300 kcal per dag)']];
 
 function personForm(p, activity) {
@@ -34,7 +47,8 @@ const costLabel = (usd) => (usd >= 0.01 ? usd.toFixed(2) : usd.toFixed(3)).repla
 
 export async function render(root) {
   const m = await meta(true);
-  const [{ people, activity }, cal] = await Promise.all([api.get('/people'), api.get('/calendar').catch(() => null)]);
+  const [{ people, activity }, cal, ha] = await Promise.all([api.get('/people'), api.get('/calendar').catch(() => null),
+    api.get('/homeassistant').catch(() => null)]);
   root.innerHTML = `<div class="view settings">
     <div class="page-head"><h1>Instellingen</h1></div>
     <form class="card form" data-form>
@@ -103,6 +117,36 @@ export async function render(root) {
       </details>
       <p class="muted small">Iedereen met deze link kan je agenda lezen. Gedeeld met iemand die hem niet meer mag hebben?
         <button class="btn btn-ghost small" type="button" data-new-cal>Nieuwe link maken</button> (de oude stopt dan).</p>
+    </section>` : ''}
+
+    ${ha ? `<section class="card" data-ha-card>
+      <h2>🏠 Home Assistant</h2>
+      <p class="muted">Zet een overzicht van vandaag op het dashboard van Home Assistant: ontbijt, lunch en diner met kcal,
+        de kosten van vandaag, hoeveel boodschappen er nog te halen zijn en wat je morgen eet.</p>
+      <ol class="small ha-steps">
+        <li>Open in Home Assistant je <code>configuration.yaml</code> (bv. met de add-on <em>File editor</em> of <em>Studio Code Server</em>),
+          plak deze regels onderaan en herstart Home Assistant (Instellingen → Systeem → Herstarten).
+          <pre class="code-block" data-ha-sensor>${esc(ha.sensor)}</pre>
+          <button class="btn small" type="button" data-copy-ha="sensor">📋 Kopiëren</button></li>
+        <li>Ga naar je dashboard → ✏️ Bewerken → <em>Kaart toevoegen</em> → <em>Handmatig</em>, plak dit en sla op:
+          <pre class="code-block" data-ha-cardcode>${esc(ha.card)}</pre>
+          <button class="btn small" type="button" data-copy-ha="card">📋 Kopiëren</button></li>
+      </ol>
+      <details class="small help-list"><summary>Voorbeeld van vandaag en meer mogelijkheden</summary>
+        <div class="ha-preview">${haPreview(ha.preview.markdown)}</div>
+        <ul>
+          <li>De sensor <code>sensor.maaltijden_vandaag</code> heeft het diner van vandaag als waarde, en als attributen o.a.
+            <code>ontbijt</code>, <code>lunch</code>, <code>diner</code>, <code>kcal_pp</code>, <code>kosten</code>, <code>morgen_diner</code>
+            en <code>afbeelding</code> (foto van het diner, voor een <em>Picture</em>-kaart).</li>
+          <li><code>sensor.maaltijden_boodschappen_open</code> telt wat er nog te halen is – handig voor een automatisering
+            (bv. een melding als je bij de supermarkt bent).</li>
+          <li>Wil je de hele week als agenda in Home Assistant? Voeg de integratie <em>Remote calendar</em> toe met de agenda-link hierboven.</li>
+          <li>Home Assistant moet de server kunnen bereiken op <code>${esc(ha.url.split('/ha/')[0])}</code>. Draait Home Assistant op een ander
+            apparaat, gebruik dan het IP-adres van je server in plaats van <code>localhost</code>.</li>
+        </ul>
+      </details>
+      <p class="muted small">De link bevat een geheime code; met de link kan iemand je planning van vandaag lezen.
+        <button class="btn btn-ghost small" type="button" data-new-ha>Nieuwe code maken</button> (daarna de regels in Home Assistant vervangen).</p>
     </section>` : ''}
 
     <section class="card">
@@ -252,6 +296,18 @@ export async function render(root) {
         const input = $('[data-cal-url]', root);
         try { await navigator.clipboard.writeText(input.value); } catch { input.select(); document.execCommand('copy'); }
         return toast('Link gekopieerd', 'success');
+      }
+      const copyHa = e.target.closest('[data-copy-ha]');
+      if (copyHa) {
+        const text = $(copyHa.dataset.copyHa === 'sensor' ? '[data-ha-sensor]' : '[data-ha-cardcode]', root).textContent;
+        try { await navigator.clipboard.writeText(text); } catch { /* geen klembord: tekst is te selecteren */ }
+        return toast('Gekopieerd – plak het in Home Assistant', 'success');
+      }
+      if (e.target.closest('[data-new-ha]')) {
+        if (!(await confirmDialog('Een nieuwe code maken? Home Assistant met de oude link krijgt dan geen gegevens meer.', 'Nieuwe code'))) return;
+        const fresh = await api.post('/homeassistant/new-link');
+        $('[data-ha-sensor]', root).textContent = fresh.sensor;
+        return toast('Nieuwe code gemaakt – vervang de regels in configuration.yaml', 'success');
       }
       if (e.target.closest('[data-new-cal]')) {
         if (!(await confirmDialog('Een nieuwe link maken? Agenda\'s met de oude link worden niet meer bijgewerkt.', 'Nieuwe link'))) return;

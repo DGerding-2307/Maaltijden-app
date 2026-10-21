@@ -46,3 +46,12 @@ test('Basic Auth werkt nog voor scripts', async () => {
   const auth = `Basic ${Buffer.from('x:geheim wachtwoord').toString('base64')}`;
   assert.equal((await fetch(`${base}/api/meta`, { headers: { authorization: auth } })).status, 200);
 });
+
+test('Home Assistant-link werkt zonder inloggen, alleen met de juiste code', async () => {
+  const { haToken } = await import('../server/homeassistant.js');
+  const ok = await fetch(`${base}/ha/${haToken()}/vandaag.json`);
+  assert.equal(ok.status, 200);
+  assert.ok('markdown' in (await ok.json()));
+  assert.equal((await fetch(`${base}/ha/verkeerd/vandaag.json`)).status, 404);
+  assert.equal((await fetch(`${base}/api/homeassistant`)).status, 401, 'instellingen alleen na inloggen');
+});

@@ -230,3 +230,40 @@ test('boodschappen: alles wat is afgevinkt in één keer naar ‘Al in huis’',
   // Nog een keer: niets meer te doen
   assert.deepEqual(await send('POST', '/shopping/checked-to-have', { week: date }), { moved: 0, extras_removed: 0 });
 });
+
+test('Home Assistant: overzicht van vandaag en kant-en-klare YAML', async () => {
+  const { todayISO } = await import('../server/homeassistant.js');
+  const today = todayISO();
+  const recipes = await get('/recipes');
+  const r = recipes.find((x) => x.title === 'Nasi goreng');
+  const { id } = await send('POST', '/plan', { date: today, meal: 'diner', recipe_id: r.id, servings: 2 });
+  await send('POST', '/plan', { date: today, meal: 'lunch', title: 'Broodje kaas', servings: 1 });
+
+  const cfg = await get('/homeassistant');
+  assert.match(cfg.url, /\/ha\/[\w-]+\/vandaag\.json$/);
+  assert.match(cfg.sensor, /resource: http:\/\/localhost:\d+\/ha\//);
+  assert.match(cfg.sensor, /json_attributes:/);
+  assert.match(cfg.card, /type: markdown/);
+
+  const path = new URL(cfg.url).pathname;
+  const data = await fetch(base.replace(/\/api$/, '') + path).then((x) => x.json());
+  assert.equal(data.datum, today);
+  // (een nieuwe database heeft al een paar voorbeeldmaaltijden deze week)
+  const nasi = data.diner.find((x) => x.titel === 'Nasi goreng');
+  assert.ok(nasi, JSON.stringify(data.diner));
+  assert.equal(data.state, data.diner[0].titel);
+  assert.equal(nasi.personen, 2);
+  assert.ok(nasi.kcal_pp > 0);
+  assert.match(nasi.recept_url, new RegExp(`/#/recept/${r.id}\\?personen=2$`));
+  assert.ok(data.lunch.some((x) => x.titel === 'Broodje kaas'));
+  assert.ok(Array.isArray(data.ontbijt));
+  assert.ok(data.boodschappen_open > 0);
+  assert.match(data.markdown, /\*\*Diner\*\*/);
+  assert.match(data.markdown, /\[Nasi goreng\]\(/);
+  assert.match(data.markdown, /Nog \d+ boodschappen te halen/);
+  // Nieuwe code: oude link werkt niet meer
+  const fresh = await send('POST', '/homeassistant/new-link');
+  assert.notEqual(fresh.url, cfg.url);
+  assert.equal((await fetch(base.replace(/\/api$/, '') + path)).status, 404);
+  await send('DELETE', `/plan/${id}`);
+});

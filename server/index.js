@@ -12,6 +12,7 @@ import { enqueuePrices, priceQueueStatus, clearPriceQueue } from './pricequeue.j
 import { lookupBarcode, applyBarcode } from './scan.js';
 import * as tracker from './tracker.js';
 import { buildIcs, calendarToken } from './calendar.js';
+import { haToken, todayOverview, haConfig } from './homeassistant.js';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { UNITS } from './calc.js';
@@ -57,6 +58,14 @@ export function createApp() {
   });
 
   // Agenda-abonnement: beveiligd met de geheime sleutel in de link (agenda-apps kunnen niet inloggen)
+  // Adres van de app voor links (achter een reverse proxy eventueel APP_URL zetten)
+  const baseUrl = (req) => (process.env.APP_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+  // Home Assistant: overzicht van vandaag (geheime code in de link, werkt ook met APP_PASSWORD)
+  app.get('/ha/:token/vandaag.json', (req, res) => {
+    if (req.params.token !== haToken()) return res.status(404).json({ error: 'Onbekende link' });
+    res.set('Cache-Control', 'no-store');
+    res.json(todayOverview(baseUrl(req)));
+  });
   app.get('/agenda/:token.ics', (req, res) => {
     if (req.params.token !== calendarToken()) return res.status(404).send('Onbekende agenda');
     res.set('Content-Type', 'text/calendar; charset=utf-8');
@@ -347,6 +356,8 @@ export function createApp() {
   api.put('/weight', wrap((req) => tracker.logWeight(req.body)));
   api.delete('/weight/:id', wrap((req) => tracker.deleteWeight(Number(req.params.id))));
   api.get('/calendar', wrap((req) => ({ url: `${req.protocol}://${req.get('host')}/agenda/${calendarToken()}.ics` })));
+  api.get('/homeassistant', wrap((req) => ({ ...haConfig(baseUrl(req)), preview: todayOverview(baseUrl(req)) })));
+  api.post('/homeassistant/new-link', wrap((req) => { haToken(true); return haConfig(baseUrl(req)); }));
   api.post('/calendar/new-link', wrap((req) => ({ url: `${req.protocol}://${req.get('host')}/agenda/${calendarToken(true)}.ics` })));
 
   // ---- Barcode scannen ----

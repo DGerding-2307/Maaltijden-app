@@ -174,7 +174,7 @@ await scenario('UAT-12', '‘Wat kan ik maken?’ met ingrediënten in huis', as
   await page.goto(B + '#/recepten');
   await page.fill('#have-input', 'kip, paprika, rijst, ui');
   await page.click('[data-have-form] button');
-  await page.waitForTimeout(500);
+  await page.waitForSelector('.recipe-card .pantry-match'); // wachten op het resultaat, niet op een vaste tijd
   const first = await page.locator('.recipe-card .recipe-title').first().textContent();
   const match = await page.locator('.pantry-match').first().textContent();
   await page.screenshot({ path: `${OUT}/12-wat-kan-ik-maken.png` });
@@ -630,6 +630,21 @@ await scenario('UAT-38', 'Boodschappen: alles wat is afgevinkt in één keer naa
   const inHouse = (await mob.textContent('.in-house summary')).replace(/\s+/g, ' ');
   expect(/Al in huis \(\d+\)/.test(inHouse), 'geen sectie ‘Al in huis’');
   return `${question} → lijst leeg van afgevinkte artikelen; ${inHouse.trim()}`;
+});
+
+await scenario('UAT-39', 'Home Assistant: overzicht van vandaag op het dashboard', async () => {
+  await mob.goto(B + '#/instellingen'); await mob.waitForSelector('[data-ha-card]');
+  const yaml = await mob.textContent('[data-ha-sensor]');
+  const url = yaml.match(/resource: (\S+)/)?.[1];
+  expect(url && /\/ha\/[\w-]+\/vandaag\.json$/.test(url), 'geen link in de YAML');
+  expect(/type: markdown/.test(await mob.textContent('[data-ha-cardcode]')), 'geen kaart-YAML');
+  // Zoals Home Assistant de link ophaalt: zonder inloggen of cookies
+  const data = await (await fetch(url)).json();
+  expect(typeof data.state === 'string' && /\*\*Diner\*\*/.test(data.markdown), 'geen overzicht');
+  const width = await mob.evaluate(() => document.documentElement.scrollWidth);
+  expect(width <= 391, `pagina te breed (${width}px)`);
+  await mob.locator('[data-ha-card]').screenshot({ path: `${OUT}/39-home-assistant.png` });
+  return `sensor: ‘${data.state}’, ${data.boodschappen_open} boodschappen open, ${data.kcal_pp} kcal p.p.`;
 });
 
 await browser.close();

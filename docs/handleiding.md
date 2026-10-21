@@ -179,6 +179,19 @@ en receptenapps verwachten. Zie het [UAT-rapport](UAT-rapport.md).
 Verder: werkt op telefoon en tablet (onderbalk-navigatie, grote tikdoelen, Android-app of installeerbaar als web-app), licht/donker thema, optioneel wachtwoord,
 back-up, offline inzien, live bijwerken tussen huisgenoten, agenda-abonnement. Geen account, advertenties of abonnement.
 
+## Home Assistant
+
+Bij **Instellingen → Home Assistant** staan twee blokjes YAML met jouw adres en een geheime code al ingevuld:
+
+1. Een REST-sensor voor `configuration.yaml`: `sensor.maaltijden_vandaag` (waarde: het diner van vandaag; attributen o.a. `ontbijt`, `lunch`,
+   `diner`, `kcal_pp`, `kosten`, `boodschappen_open`, `boodschappen`, `morgen_diner`, `afbeelding` en `markdown`) en
+   `sensor.maaltijden_boodschappen_open`. Ververst elke 5 minuten.
+2. Een Markdown-kaart voor je dashboard die het overzicht van vandaag toont, met links naar de recepten.
+
+De link (`/ha/<code>/vandaag.json`) werkt zonder inloggen, ook met `APP_PASSWORD`; de geheime code beschermt hem en is opnieuw aan te maken.
+‘Vandaag’ volgt de tijdzone `TZ` (standaard Europe/Amsterdam). Achter een reverse proxy kun je met `APP_URL` het adres voor de links instellen.
+Wil je de hele week als agenda in Home Assistant, voeg dan de integratie *Remote calendar* toe met de agenda-link.
+
 ## Mobiele app
 
 ### Android

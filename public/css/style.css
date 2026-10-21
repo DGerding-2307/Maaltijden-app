@@ -780,3 +780,10 @@ label.check.jumbo-opt { display: grid; grid-template-columns: auto 1fr; gap: .1r
 /* Blijft onderaan in beeld terwijl je door de lijst scrolt (op de telefoon boven de onderbalk) */
 .done-bar { position: sticky; bottom: .8rem; z-index: 20; box-shadow: var(--shadow); }
 @media (max-width: 720px) { .done-bar { bottom: calc(var(--nav-h) + var(--sab) + .5rem); } }
+
+/* Home Assistant in Instellingen */
+.ha-steps { padding-left: 1.2rem; display: grid; grid-template-columns: minmax(0, 1fr); gap: .8rem; }
+.ha-steps li, [data-ha-card] { min-width: 0; overflow-wrap: anywhere; }
+.ha-steps .code-block { margin: .4rem 0; max-height: 18rem; }
+.ha-preview { border: 1px solid var(--border); border-radius: 12px; padding: .8rem 1rem; margin: .5rem 0; background: var(--surface); line-height: 1.5; }
+.ha-preview .ha-h { font-size: 1.05rem; }
