@@ -183,17 +183,26 @@ back-up, offline inzien, live bijwerken tussen huisgenoten, agenda-abonnement. G
 
 **Koppelen (aanbevolen).** Ga naar **Instellingen → Home Assistant**, vul het adres van Home Assistant in
 (bv. `192.168.1.10:8123` of je Nabu Casa-adres) en een *langlevend toegangstoken* (Home Assistant → je profiel → Beveiliging →
-Token aanmaken) en tik op **🔗 Koppelen**. De app maakt dan de sensoren `sensor.maaltijden_vandaag` (waarde: het diner van vandaag;
-attributen o.a. `ontbijt`, `lunch`, `diner`, `kcal_pp`, `kosten`, `boodschappen_open`, `boodschappen`, `morgen_diner`, `afbeelding`
-en `markdown`) en `sensor.maaltijden_boodschappen_open`, en werkt ze bij na elke wijziging en elke 5 minuten.
+Token aanmaken) en tik op **🔗 Koppelen**. De app maakt deze sensoren en werkt ze bij na elke wijziging en elke 5 minuten:
 
-De app past **geen dashboards** aan. Na het koppelen staat de code van de kaart klaar: in Home Assistant Dashboard → ✏️ Bewerken →
-*Kaart toevoegen* → *Handmatig*, plakken en opslaan.
+| Sensor | Waarde | Belangrijkste attributen |
+|---|---|---|
+| `sensor.maaltijden_vandaag` | diner van vandaag | `ontbijt`, `lunch`, `diner` (met `titel`, `kcal_pp`, `kosten`, `recept_url`), `kcal_pp`, `kosten`, `morgen_diner`, `afbeelding`, `markdown` |
+| `sensor.maaltijden_morgen` | diner van morgen | `ontbijt`, `lunch`, `diner`, `kcal_pp`, `kosten` |
+| `sensor.maaltijden_week` | kosten deze week (€) | `dagen` (per dag de maaltijden, kcal en kosten), `budget`, `over_budget`, `markdown` (tabel) |
+| `sensor.maaltijden_boodschappen_open` | aantal nog te halen | `boodschappen`, `per_categorie`, `kosten`, `afgevinkt`, `totaal` |
+| `sensor.maaltijden_<naam>_kcal` | gegeten vandaag (dagboek) | `doel`, `over`, `procent`, `eiwit`, `koolhydraten`, `vet`, `per_maaltijd`, `gegeten` |
+| `sensor.maaltijden_<naam>_gewicht` | laatste gewicht (kg) | `trend`, `doel`, `nog_te_gaan`, `per_week`, `bmi` |
+
+De app past **geen dashboards** aan. In de instellingen staan voorbeelden om te kopiëren en aan te passen: het overzicht van vandaag,
+een eigen kaart waarin je zelf kiest wat je ziet, de week, de foto van het diner, de boodschappen per afdeling, een kcal-meter,
+een gewichtsgrafiek, alle sensoren op een rij en een automatisering die om 16:30 meldt wat je eet.
+Plakken doe je in Home Assistant via Dashboard → ✏️ Bewerken → *Kaart toevoegen* → *Handmatig*. Daar staat ook de lijst met alle sensoren en attributen.
 
 Het token wordt alleen op je eigen server bewaard en zit niet in back-ups. *Ontkoppelen* stopt het bijwerken; verwijder dan ook het token in Home Assistant.
 
-**Handmatig met YAML.** Onder *Liever zelf instellen met YAML* staan een REST-sensor voor `configuration.yaml` en een kaart om te plakken.
-Die link (`/ha/<code>/vandaag.json`) werkt zonder inloggen, ook met `APP_PASSWORD`; de geheime code beschermt hem en is opnieuw aan te maken.
+**Zonder token, met YAML.** Onder *Liever zonder token, met YAML* staat een blok voor `configuration.yaml` dat dezelfde sensoren maakt.
+Die link (`/ha/<code>/sensoren.json`) werkt zonder inloggen, ook met `APP_PASSWORD`; de geheime code beschermt hem en is opnieuw aan te maken.
 
 ‘Vandaag’ volgt de tijdzone `TZ` (standaard Europe/Amsterdam). Achter een reverse proxy kun je met `APP_URL` het adres voor de links instellen.
 Wil je de hele week als agenda in Home Assistant, voeg dan de integratie *Remote calendar* toe met de agenda-link.

@@ -4,11 +4,11 @@ Weekplanner, receptenboek en calorieëndagboek voor op je eigen server. Plan je 
 boodschappenlijst met prijzen en voedingswaarden. Er zijn 50 Nederlandse recepten om mee te beginnen. Werkt op computer, telefoon en als Android-app.
 Geen account, geen abonnement, geen advertenties.
 
-## Laatste wijziging (v3.9.0)
+## Laatste wijziging (v3.10.0)
 
-- 🏡 **Home Assistant koppelen**: vul bij **Instellingen → Home Assistant** het adres en een toegangstoken in. De app maakt de sensoren
-  met het overzicht van vandaag (ontbijt, lunch, diner, kcal, kosten, boodschappen, morgen) en houdt ze bij.
-  De app past je dashboards niet aan: de kaart staat klaar om zelf te plakken. Zelf met YAML instellen kan nog steeds
+- 🏡 **Home Assistant**: koppel bij **Instellingen → Home Assistant** met het adres en een toegangstoken. De app stuurt alles als sensoren:
+  vandaag, morgen, de week met kosten en budget, de boodschappen per afdeling, en per persoon de calorieën van vandaag en het gewicht.
+  In de instellingen staan voorbeeld-YAML voor kaarten (en een automatisering) om zelf aan te passen. De app past je dashboards niet aan
 - 🏠 **Boodschappen: afgevinkte in huis zetten** – na het boodschappen doen met één knop alles wat je hebt afgevinkt naar ‘Al in huis’; de lijst is weer leeg
 - Opgelost: vensters sloten soms vanzelf. Naast een formulier tikken, ‘Ga’/Enter op het toetsenbord en het terug-gebaar sluiten
   een venster met ingevulde gegevens niet meer zonder te vragen

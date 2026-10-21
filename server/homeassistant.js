@@ -3,7 +3,8 @@
 import crypto from 'node:crypto';
 import { getSetting, setSetting } from './db.js';
 import * as repo from './repo.js';
-import { mondayOf } from './seed.js';
+import * as tracker from './tracker.js';
+import { mondayOf, addDays } from './seed.js';
 
 export function haToken(regenerate = false) {
   let token = getSetting('ha_token', null);
@@ -24,6 +25,7 @@ export function todayISO(now = new Date()) {
 const euro = (c) => (c == null ? null : `€ ${(c / 100).toFixed(2).replace('.', ',')}`);
 const kcal = (n) => (n == null ? null : `${Math.round(n).toLocaleString('nl-NL')} kcal`);
 const dayName = (iso) => new Intl.DateTimeFormat('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${iso}T12:00:00Z`));
+const eur = (c) => (c == null ? null : Math.round(c) / 100);
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
 function entryTitle(e) {
@@ -92,6 +94,8 @@ export function todayOverview(baseUrl = '') {
     boodschappen_open: open.length + openExtras.length,
     boodschappen_kosten: euro(openCost),
     boodschappen: [...open.map((i) => i.name), ...openExtras.map((x) => x.name)].slice(0, 60),
+    kosten_eur: eur(day.cost_cents),
+    boodschappen_kosten_eur: eur(openCost),
     morgen_diner: tomorrowDinner ? entryTitle(tomorrowDinner) : null,
     afbeelding: dinner?.afbeelding || null,
     planner_url: `${baseUrl}/#/planner`,
@@ -99,45 +103,241 @@ export function todayOverview(baseUrl = '') {
   };
 }
 
-/** Kant-en-klare YAML voor configuration.yaml en de dashboardkaart. */
+/** Korte naam voor een entiteit: "Anne-Marie" → "anne_marie". */
+export function slug(name, id) {
+  const base = String(name || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  return base || `persoon_${id}`;
+}
+
+function personSlugs() {
+  const used = new Set();
+  return tracker.listPeople().map((p) => {
+    let k = slug(p.name, p.id);
+    if (used.has(k)) k = `${k}_${p.id}`;
+    used.add(k);
+    return { person: p, key: k };
+  });
+}
+
+/** Maaltijden van één dag als korte lijst per moment (voor morgen en de week). */
+function dayMeals(day, meals) {
+  const titles = (m) => day.entries.filter((e) => e.meal === m).map(entryTitle);
+  return {
+    ...Object.fromEntries(meals.map((m) => [m, titles(m)])),
+    extra: day.entries.filter((e) => !meals.includes(e.meal)).map(entryTitle),
+    kcal_pp: Math.round(day.nutrition_per_person.kcal || 0),
+    kosten: euro(day.cost_cents),
+    kosten_eur: eur(day.cost_cents),
+  };
+}
+
+/**
+ * Alle sensoren voor Home Assistant: vandaag, morgen, de week, boodschappen en per persoon calorieën en gewicht.
+ * Elke sensor: { key, entity_id, state, attributes }.
+ */
+export function haSensors(baseUrl = '') {
+  const today = todayISO();
+  const meals = getSetting('meals', ['ontbijt', 'lunch', 'diner']);
+  const { state, ...vandaag } = todayOverview(baseUrl);
+  const out = [];
+  const add = (key, stateValue, attributes) => out.push({ key, entity_id: `sensor.maaltijden_${key}`, state: String(stateValue ?? 'onbekend').slice(0, 250), attributes });
+
+  add('vandaag', state, {
+    ...vandaag, friendly_name: 'Maaltijden vandaag', icon: 'mdi:silverware-fork-knife', entity_picture: vandaag.afbeelding || undefined,
+  });
+
+  // Morgen
+  const tomorrow = repo.getPlan(addDays(today, 1), 1).days[0];
+  const m = dayMeals(tomorrow, meals);
+  add('morgen', m.diner?.[0] || (tomorrow.entries.length ? tomorrow.entries.map(entryTitle).join(', ') : 'Niets gepland'), {
+    datum: tomorrow.date, dag: dayName(tomorrow.date), ...m, friendly_name: 'Maaltijden morgen', icon: 'mdi:calendar-arrow-right',
+  });
+
+  // Deze week (maandag t/m zondag)
+  const monday = mondayOf(new Date(`${today}T12:00:00`));
+  const week = repo.getPlan(monday, 7);
+  const budget = getSetting('weekly_budget_cents', null);
+  const days = week.days.map((d) => ({ datum: d.date, dag: dayName(d.date), ...dayMeals(d, meals) }));
+  const weekLines = ['| Dag | ' + meals.map(cap).join(' | ') + ' |', '|---|' + meals.map(() => '---').join('|') + '|'];
+  for (const d of days) weekLines.push(`| ${d.datum === today ? '**' : ''}${cap(d.dag.split(' ')[0])}${d.datum === today ? '**' : ''} | ${meals.map((x) => d[x].join(', ') || '–').join(' | ')} |`);
+  weekLines.push('', `Totaal ${euro(week.total_cost_cents)}${budget ? ` van ${euro(budget)} budget` : ''}`);
+  add('week', eur(week.total_cost_cents), {
+    van: week.start, tot: week.end, dagen: days,
+    maaltijden: week.days.reduce((n, d) => n + d.entries.length, 0),
+    budget: euro(budget), budget_eur: eur(budget),
+    over_budget: budget ? week.total_cost_cents > budget : false,
+    markdown: weekLines.join('\n'),
+    friendly_name: 'Maaltijden kosten deze week', icon: 'mdi:calendar-week', unit_of_measurement: '€', state_class: 'measurement',
+  });
+
+  // Boodschappen
+  const shop = repo.getShoppingList(monday, 7);
+  const open = shop.items.filter((i) => !i.checked && !i.have && !i.pantry);
+  const openExtras = shop.extras.filter((x) => !x.checked);
+  const perCat = {};
+  for (const i of open) (perCat[i.category] ||= []).push(i.name);
+  if (openExtras.length) perCat['Eigen artikelen'] = openExtras.map((x) => x.name);
+  add('boodschappen_open', open.length + openExtras.length, {
+    boodschappen: vandaag.boodschappen, per_categorie: perCat,
+    kosten: vandaag.boodschappen_kosten, kosten_eur: vandaag.boodschappen_kosten_eur,
+    afgevinkt: shop.items.filter((i) => i.checked).length + shop.extras.filter((x) => x.checked).length,
+    totaal: shop.items.length + shop.extras.length,
+    friendly_name: 'Maaltijden boodschappen open', icon: 'mdi:cart-outline', unit_of_measurement: 'artikelen',
+  });
+
+  // Per persoon: gegeten vandaag (dagboek) en gewicht
+  for (const { person, key } of personSlugs()) {
+    const d = tracker.getDay(person.id, today);
+    const t = d.totals;
+    add(`${key}_kcal`, Math.round(t.kcal || 0), {
+      naam: person.name, doel: d.targets.kcal, over: Math.max(0, d.targets.kcal - Math.round(t.kcal || 0)),
+      procent: d.targets.kcal ? Math.round(((t.kcal || 0) / d.targets.kcal) * 100) : null,
+      eiwit: t.protein, koolhydraten: t.carbs, vet: t.fat, vezels: t.fiber, suiker: t.sugar, zout: t.salt,
+      doel_eiwit: d.targets.protein,
+      per_maaltijd: Object.fromEntries(d.meals.map((x) => [x.meal, Math.round(x.totals.kcal || 0)])),
+      gegeten: d.meals.flatMap((x) => x.entries.map((e) => e.name)).filter(Boolean),
+      friendly_name: `${person.name} kcal vandaag`, icon: 'mdi:fire', unit_of_measurement: 'kcal', state_class: 'measurement',
+    });
+    const w = tracker.weightHistory(person.id, 90);
+    const last = w.entries.at(-1);
+    add(`${key}_gewicht`, last ? last.weight_kg : (person.current_weight_kg ?? 'onbekend'), {
+      naam: person.name, datum: last?.date || null, trend: last?.trend_kg ?? null,
+      doel: person.target_weight_kg ?? null, nog_te_gaan: w.to_goal_kg, per_week: w.per_week_kg, bmi: person.bmi,
+      friendly_name: `${person.name} gewicht`, icon: 'mdi:scale-bathroom', unit_of_measurement: 'kg', device_class: 'weight', state_class: 'measurement',
+    });
+  }
+  return out;
+}
+
+/** Alle sensoren als JSON voor de YAML-route (één link, één sensor per onderdeel). */
+export function haSensorsJson(baseUrl) {
+  return Object.fromEntries(haSensors(baseUrl).map((x) => [x.key, { state: x.state, ...x.attributes }]));
+}
+
+const HA_META = new Set(['friendly_name', 'icon', 'unit_of_measurement', 'device_class', 'state_class', 'entity_picture']);
+const yamlList = (items, indent) => items.map((i) => `${' '.repeat(indent)}- ${i}`).join('\n');
+
+/** Voorbeelden om zelf een kaart (of automatisering) te maken. */
+function haExamples(sensors) {
+  const people = sensors.filter((x) => x.key.endsWith('_kcal'));
+  const first = people[0];
+  const p = first ? first.key.replace(/_kcal$/, '') : 'ik';
+  const doel = first?.attributes.doel || 2000;
+  const ex = [
+    { title: 'Overzicht van vandaag', yaml: `type: markdown
+title: Maaltijden
+content: "{{ state_attr('sensor.maaltijden_vandaag', 'markdown') }}"` },
+    { title: 'Eigen kaart: kies zelf wat je ziet', description: 'Haal regels weg of zet ze in een andere volgorde. Alle attributen staan hieronder bij de sensoren.', yaml: `type: markdown
+title: Eten
+content: |
+  {% set v = states.sensor.maaltijden_vandaag.attributes %}
+  {% set m = states.sensor.maaltijden_morgen.attributes %}
+  **Vandaag:** {{ states('sensor.maaltijden_vandaag') }}
+  {% for x in v.lunch %}Lunch: {{ x.titel }}{% if x.kcal_pp %} ({{ x.kcal_pp }} kcal){% endif %}
+  {% endfor %}
+  {{ v.kcal_pp }} kcal p.p. · {{ v.kosten or '–' }}
+
+  **Morgen:** {{ states('sensor.maaltijden_morgen') }}
+
+  🛒 {{ states('sensor.maaltijden_boodschappen_open') }} boodschappen te halen
+  ({{ state_attr('sensor.maaltijden_boodschappen_open', 'kosten') or '–' }})` },
+    { title: 'De hele week', yaml: `type: markdown
+title: Deze week
+content: "{{ state_attr('sensor.maaltijden_week', 'markdown') }}"` },
+    { title: 'Week zelf opmaken (alleen het diner)', yaml: `type: markdown
+title: Diners deze week
+content: |
+  {% for d in state_attr('sensor.maaltijden_week', 'dagen') %}
+  **{{ d.dag.split(' ')[0] | capitalize }}:** {{ d.diner | join(', ') or '–' }}
+  {% endfor %}` },
+    { title: 'Foto van het diner', yaml: `type: picture-entity
+entity: sensor.maaltijden_vandaag
+show_name: false
+show_state: true` },
+    { title: 'Boodschappenlijst per afdeling', yaml: `type: markdown
+title: Boodschappen
+content: |
+  {% set c = state_attr('sensor.maaltijden_boodschappen_open', 'per_categorie') %}
+  {% if not c %}Alles is gehaald 🎉{% endif %}
+  {% for cat, items in (c or {}).items() %}
+  **{{ cat }}**: {{ items | join(', ') }}
+  {% endfor %}` },
+    { title: `Calorieën vandaag (${first?.attributes.naam || 'persoon'})`, yaml: `type: gauge
+entity: sensor.maaltijden_${p}_kcal
+name: Gegeten vandaag
+min: 0
+max: ${doel}
+needle: true
+segments:
+  - from: 0
+    color: "#43a047"
+  - from: ${Math.round(doel * 0.9)}
+    color: "#ffa600"
+  - from: ${Math.round(doel * 1.05)}
+    color: "#db4437"` },
+    { title: 'Gewicht over tijd', yaml: `type: history-graph
+title: Gewicht
+hours_to_show: 720
+entities:
+${yamlList(sensors.filter((x) => x.key.endsWith('_gewicht')).map((x) => `entity: ${x.entity_id}`), 2) || '  - entity: sensor.maaltijden_ik_gewicht'}` },
+    { title: 'Alles op een rij', yaml: `type: entities
+title: Maaltijden
+entities:
+${yamlList(sensors.map((x) => x.entity_id), 2)}` },
+    { title: 'Automatisering: om 16:30 een melding met het diner', description: 'Instellingen → Automatiseringen → Nieuw → ⋮ → Bewerken in YAML. Vervang notify.notify door je telefoon (bv. notify.mobile_app_…).', yaml: `alias: Wat eten we vandaag?
+triggers:
+  - trigger: time
+    at: "16:30:00"
+conditions:
+  - condition: not
+    conditions:
+      - condition: state
+        entity_id: sensor.maaltijden_vandaag
+        state: Niets gepland
+actions:
+  - action: notify.notify
+    data:
+      title: Vanavond eten we
+      message: >-
+        {{ states('sensor.maaltijden_vandaag') }}
+        ({{ state_attr('sensor.maaltijden_boodschappen_open', 'boodschappen') | count }} boodschappen nog te halen)` },
+  ];
+  return ex;
+}
+
+/** Kant-en-klare YAML voor configuration.yaml, de sensoren en voorbeelden voor kaarten. */
 export function haConfig(baseUrl) {
-  const url = `${baseUrl}/ha/${haToken()}/vandaag.json`;
+  const url = `${baseUrl}/ha/${haToken()}/sensoren.json`;
+  const sensors = haSensors(baseUrl);
+  const restSensors = sensors.map((x) => {
+    const attrs = Object.keys(x.attributes).filter((k) => !HA_META.has(k) && x.attributes[k] !== undefined);
+    const a = x.attributes;
+    return [`      - name: "${a.friendly_name}"`,
+      `        unique_id: maaltijden_${x.key}`,
+      `        icon: ${a.icon}`,
+      ...(a.unit_of_measurement ? [`        unit_of_measurement: "${a.unit_of_measurement}"`] : []),
+      ...(a.device_class ? [`        device_class: ${a.device_class}`] : []),
+      ...(a.state_class ? [`        state_class: ${a.state_class}`] : []),
+      `        value_template: "{{ value_json.${x.key}.state }}"`,
+      `        json_attributes_path: "$.${x.key}"`,
+      '        json_attributes:',
+      yamlList(attrs, 10)].join('\n');
+  });
   const sensor = `# In configuration.yaml (daarna Home Assistant herstarten)
 rest:
   - resource: ${url}
     scan_interval: 300
     sensor:
-      - name: "Maaltijden vandaag"
-        unique_id: maaltijden_vandaag
-        icon: mdi:silverware-fork-knife
-        value_template: "{{ value_json.state }}"
-        json_attributes:
-          - datum
-          - dag
-          - ontbijt
-          - lunch
-          - diner
-          - extra
-          - kcal_pp
-          - kosten
-          - boodschappen_open
-          - boodschappen_kosten
-          - boodschappen
-          - morgen_diner
-          - afbeelding
-          - planner_url
-          - markdown
-      - name: "Maaltijden boodschappen open"
-        unique_id: maaltijden_boodschappen_open
-        icon: mdi:cart-outline
-        unit_of_measurement: "artikelen"
-        value_template: "{{ value_json.boodschappen_open }}"`;
-  const card = `type: markdown
-title: Maaltijden
-content: "{{ state_attr('sensor.maaltijden_vandaag', 'markdown') }}"`;
-  return { url, sensor, card };
+${restSensors.join('\n')}`;
+  const examples = haExamples(sensors);
+  return {
+    url, sensor, card: examples[0].yaml, examples,
+    sensors: sensors.map((x) => ({
+      entity_id: x.entity_id, name: x.attributes.friendly_name, state: x.state, unit: x.attributes.unit_of_measurement || null,
+      attributes: Object.keys(x.attributes).filter((k) => !HA_META.has(k) && x.attributes[k] !== undefined),
+    })),
+  };
 }
-
 
 // ---------- Automatisch koppelen: de app stuurt zelf gegevens naar Home Assistant ----------
 // Met het adres van Home Assistant en een ‘langlevend toegangstoken’ (profiel → Beveiliging in Home Assistant):
@@ -181,15 +381,9 @@ async function haFetch({ url, token }, path, options = {}) {
 /** Sensoren bijwerken (maakt ze aan als ze nog niet bestaan). */
 export async function pushStates(link = haLink()) {
   if (!link) return false;
-  const { state, ...attributes } = todayOverview(link.app_url);
-  await haFetch(link, '/api/states/sensor.maaltijden_vandaag', {
-    method: 'POST',
-    body: JSON.stringify({ state, attributes: { ...attributes, friendly_name: 'Maaltijden vandaag', icon: 'mdi:silverware-fork-knife', entity_picture: attributes.afbeelding || undefined } }),
-  });
-  await haFetch(link, '/api/states/sensor.maaltijden_boodschappen_open', {
-    method: 'POST',
-    body: JSON.stringify({ state: String(attributes.boodschappen_open), attributes: { friendly_name: 'Maaltijden boodschappen open', icon: 'mdi:cart-outline', unit_of_measurement: 'artikelen', boodschappen: attributes.boodschappen } }),
-  });
+  for (const x of haSensors(link.app_url)) {
+    await haFetch(link, `/api/states/${x.entity_id}`, { method: 'POST', body: JSON.stringify({ state: x.state, attributes: x.attributes }) });
+  }
   return true;
 }
 

@@ -121,19 +121,15 @@ export async function render(root) {
 
     ${ha ? `<section class="card" data-ha-card>
       <h2>🏠 Home Assistant</h2>
-      <p class="muted">Een overzicht van vandaag op het hoofdscherm van Home Assistant: ontbijt, lunch en diner met kcal,
-        de kosten van vandaag, hoeveel boodschappen er nog te halen zijn en wat je morgen eet. Na het koppelen stuurt de app
-        dit als sensor naar Home Assistant (na elke wijziging en elke 5 minuten). De app past je dashboards niet aan:
-        de kaart zet je er zelf op.</p>
+      <p class="muted">Na het koppelen stuurt de app alles als sensoren naar Home Assistant: vandaag, morgen, de week met kosten,
+        de boodschappen en per persoon de calorieën van vandaag en het gewicht (na elke wijziging en elke 5 minuten).
+        Daarmee maak je zelf de kaarten die je wilt; voorbeelden staan hieronder. De app past je dashboards niet aan.</p>
       ${ha.link ? `<p class="ha-status good">✔ Gekoppeld met <a href="${esc(ha.link.url)}" target="_blank" rel="noopener">${esc(ha.link.url)}</a></p>
         ${ha.link.error ? `<p class="small bad">Laatste keer bijwerken mislukt: ${esc(ha.link.error)}</p>` : ''}
         <div class="row wrap">
           <button class="btn" type="button" data-ha-sync>🔄 Nu bijwerken</button>
           <button class="btn btn-ghost" type="button" data-ha-disconnect>Ontkoppelen</button>
-        </div>
-        <p class="small">Kaart op je dashboard: Dashboard → ✏️ Bewerken → <em>Kaart toevoegen</em> → <em>Handmatig</em>, plak dit en sla op.</p>
-        <pre class="code-block" data-ha-cardcode>${esc(ha.card)}</pre>
-        <button class="btn small" type="button" data-copy-ha="card">📋 Kopiëren</button>` : `<form class="form ha-connect" data-ha-connect>
+        </div>` : `<form class="form ha-connect" data-ha-connect>
         <label>Adres van Home Assistant
           <input class="input" name="url" inputmode="url" autocomplete="off" placeholder="bv. http://192.168.1.10:8123 of http://homeassistant.local:8123" required></label>
         <label>Langlevend toegangstoken
@@ -148,28 +144,34 @@ export async function render(root) {
         <div class="row end"><button class="btn btn-primary" type="submit">🔗 Koppelen</button></div>
         <p class="small" data-ha-result></p>
       </form>`}
-      <details class="small help-list"><summary>Voorbeeld van vandaag en meer mogelijkheden</summary>
-        <div class="ha-preview">${haPreview(ha.preview.markdown)}</div>
-        <ul>
-          <li>De sensor <code>sensor.maaltijden_vandaag</code> heeft het diner van vandaag als waarde, en als attributen o.a.
-            <code>ontbijt</code>, <code>lunch</code>, <code>diner</code>, <code>kcal_pp</code>, <code>kosten</code>, <code>morgen_diner</code>
-            en <code>afbeelding</code> (foto van het diner, voor een <em>Picture</em>-kaart).</li>
-          <li><code>sensor.maaltijden_boodschappen_open</code> telt wat er nog te halen is – handig voor een automatisering
-            (bv. een melding als je bij de supermarkt bent).</li>
-          <li>Wil je de hele week als agenda in Home Assistant? Voeg de integratie <em>Remote calendar</em> toe met de agenda-link hierboven.</li>
+      <h3 class="ha-sub">Kaarten voor je dashboard</h3>
+      <p class="small muted">Dashboard → ✏️ Bewerken → <em>Kaart toevoegen</em> → <em>Handmatig</em>, plak een voorbeeld en pas het aan zoals je wilt.</p>
+      <div class="ha-examples" data-ha-examples>
+        ${ha.examples.map((x, i) => `<details class="ha-example"${i === 0 ? ' open' : ''}>
+          <summary>${esc(x.title)}</summary>
+          ${x.description ? `<p class="small muted">${esc(x.description)}</p>` : ''}
+          <pre class="code-block" data-ha-example="${i}">${esc(x.yaml)}</pre>
+          <button class="btn small" type="button" data-copy-ha>📋 Kopiëren</button>
+        </details>`).join('')}
+      </div>
+      <details class="small help-list" data-ha-sensors><summary>Alle sensoren en attributen (${ha.sensors.length})</summary>
+        <ul class="ha-sensor-list">
+          ${ha.sensors.map((x) => `<li><code>${esc(x.entity_id)}</code> <span class="muted">${esc(x.name)}</span>
+            – nu: <strong>${esc(x.state)}${x.unit ? ` ${esc(x.unit)}` : ''}</strong>
+            <div class="muted">Attributen: ${x.attributes.map((a) => `<code>${esc(a)}</code>`).join(' ')}</div></li>`).join('')}
         </ul>
+        <p class="muted">Een attribuut gebruik je met <code>{{ state_attr('sensor.maaltijden_vandaag', 'kosten') }}</code>.
+          Wil je de hele week als agenda in Home Assistant? Voeg de integratie <em>Remote calendar</em> toe met de agenda-link hierboven.</p>
       </details>
-      <details class="small help-list"><summary>Liever zelf instellen met YAML (zonder token)</summary>
-        <ol class="ha-steps">
-          <li>Open in Home Assistant je <code>configuration.yaml</code> (bv. met de add-on <em>File editor</em>),
-            plak deze regels onderaan en herstart Home Assistant. Gebruik in de link het IP-adres van je server als daar nu <code>localhost</code> staat.
-            <pre class="code-block" data-ha-sensor>${esc(ha.sensor)}</pre>
-            <button class="btn small" type="button" data-copy-ha="sensor">📋 Kopiëren</button></li>
-          ${ha.link ? '<li>Zet daarna de kaart hierboven op je dashboard.</li>' : `<li>Dashboard → ✏️ Bewerken → <em>Kaart toevoegen</em> → <em>Handmatig</em>, plak dit en sla op:
-            <pre class="code-block" data-ha-cardcode>${esc(ha.card)}</pre>
-            <button class="btn small" type="button" data-copy-ha="card">📋 Kopiëren</button></li>`}
-        </ol>
-        <p class="muted">De link bevat een geheime code; met de link kan iemand je planning van vandaag lezen.
+      <details class="small help-list"><summary>Voorbeeld van vandaag</summary>
+        <div class="ha-preview">${haPreview(ha.preview.markdown)}</div>
+      </details>
+      <details class="small help-list"><summary>Liever zonder token, met YAML in configuration.yaml</summary>
+        <p>Open in Home Assistant je <code>configuration.yaml</code> (bv. met de add-on <em>File editor</em>),
+          plak deze regels onderaan en herstart Home Assistant. Je krijgt dezelfde sensoren. Gebruik in de link het IP-adres van je server als daar nu <code>localhost</code> staat.</p>
+        <pre class="code-block" data-ha-sensor>${esc(ha.sensor)}</pre>
+        <button class="btn small" type="button" data-copy-ha>📋 Kopiëren</button>
+        <p class="muted">De link bevat een geheime code; met de link kan iemand je planning lezen.
           <button class="btn btn-ghost small" type="button" data-new-ha>Nieuwe code maken</button></p>
       </details>
     </section>` : ''}
@@ -333,7 +335,7 @@ export async function render(root) {
       }
       const copyHa = e.target.closest('[data-copy-ha]');
       if (copyHa) {
-        const text = $(copyHa.dataset.copyHa === 'sensor' ? '[data-ha-sensor]' : '[data-ha-cardcode]', root).textContent;
+        const text = copyHa.parentElement.querySelector('pre').textContent;
         try { await navigator.clipboard.writeText(text); } catch { /* geen klembord: tekst is te selecteren */ }
         return toast('Gekopieerd – plak het in Home Assistant', 'success');
       }
@@ -364,7 +366,7 @@ export async function render(root) {
       await api.post('/homeassistant/connect', { url: fd.get('url'), token: fd.get('token') });
       toast('Gekoppeld – de sensoren staan in Home Assistant. Zet nu de kaart op je dashboard.', 'success');
       await render(root);
-      $('[data-ha-card] [data-ha-cardcode]', root)?.scrollIntoView({ block: 'center' });
+      $('[data-ha-examples]', root)?.scrollIntoView({ block: 'start' });
     } catch (err) {
       out.className = 'small bad';
       out.textContent = err.message;

@@ -240,14 +240,18 @@ test('Home Assistant: overzicht van vandaag en kant-en-klare YAML', async () => 
   await send('POST', '/plan', { date: today, meal: 'lunch', title: 'Broodje kaas', servings: 1 });
 
   const cfg = await get('/homeassistant');
-  assert.match(cfg.url, /\/ha\/[\w-]+\/vandaag\.json$/);
+  assert.match(cfg.url, /\/ha\/[\w-]+\/sensoren\.json$/);
   assert.match(cfg.sensor, /resource: http:\/\/localhost:\d+\/ha\//);
   assert.match(cfg.sensor, /json_attributes:/);
   assert.match(cfg.card, /type: markdown/);
 
   const path = new URL(cfg.url).pathname;
-  const data = await fetch(base.replace(/\/api$/, '') + path).then((x) => x.json());
+  const all = await fetch(base.replace(/\/api$/, '') + path).then((x) => x.json());
+  const data = all.vandaag;
   assert.equal(data.datum, today);
+  assert.equal(all.morgen.dag.length > 0, true);
+  assert.equal(all.week.dagen.length, 7);
+  assert.ok(all.week.dagen.find((d) => d.datum === today).diner.includes('Nasi goreng'));
   // (een nieuwe database heeft al een paar voorbeeldmaaltijden deze week)
   const nasi = data.diner.find((x) => x.titel === 'Nasi goreng');
   assert.ok(nasi, JSON.stringify(data.diner));

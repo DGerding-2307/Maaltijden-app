@@ -632,19 +632,25 @@ await scenario('UAT-38', 'Boodschappen: alles wat is afgevinkt in één keer naa
   return `${question} → lijst leeg van afgevinkte artikelen; ${inHouse.trim()}`;
 });
 
-await scenario('UAT-39', 'Home Assistant: overzicht van vandaag op het dashboard', async () => {
+await scenario('UAT-39', 'Home Assistant: alle gegevens als sensoren, voorbeeldkaarten in de instellingen', async () => {
   await mob.goto(B + '#/instellingen'); await mob.waitForSelector('[data-ha-card]');
   const yaml = await mob.textContent('[data-ha-sensor]');
   const url = yaml.match(/resource: (\S+)/)?.[1];
-  expect(url && /\/ha\/[\w-]+\/vandaag\.json$/.test(url), 'geen link in de YAML');
-  expect(/type: markdown/.test(await mob.textContent('[data-ha-cardcode]')), 'geen kaart-YAML');
+  expect(url && /\/ha\/[\w-]+\/sensoren\.json$/.test(url), 'geen link in de YAML');
+  expect(/type: markdown/.test(await mob.textContent('[data-ha-example="0"]')), 'geen voorbeeldkaart');
+  const examples = await mob.$$eval('[data-ha-example]', (els) => els.length);
+  expect(examples >= 8, `te weinig voorbeelden (${examples})`);
   // Zoals Home Assistant de link ophaalt: zonder inloggen of cookies
   const data = await (await fetch(url)).json();
-  expect(typeof data.state === 'string' && /\*\*Diner\*\*/.test(data.markdown), 'geen overzicht');
+  for (const k of ['vandaag', 'morgen', 'week', 'boodschappen_open']) expect(data[k], `sensor ${k} ontbreekt`);
+  expect(Object.keys(data).some((k) => k.endsWith('_kcal')) && Object.keys(data).some((k) => k.endsWith('_gewicht')), 'geen sensoren per persoon');
+  expect(/\*\*Diner\*\*/.test(data.vandaag.markdown) && /\| Dag \|/.test(data.week.markdown), 'geen overzicht');
+  for (const k of Object.keys(data)) expect(yaml.includes(`value_json.${k}.state`), `sensor ${k} niet in de YAML`);
+  await mob.click('[data-ha-sensors] summary');
   const width = await mob.evaluate(() => document.documentElement.scrollWidth);
   expect(width <= 391, `pagina te breed (${width}px)`);
   await mob.locator('[data-ha-card]').screenshot({ path: `${OUT}/39-home-assistant.png` });
-  return `sensor: ‘${data.state}’, ${data.boodschappen_open} boodschappen open, ${data.kcal_pp} kcal p.p.`;
+  return `${Object.keys(data).length} sensoren, ${examples} voorbeelden; vandaag ‘${data.vandaag.state}’, week € ${data.week.state}`;
 });
 
 await scenario('UAT-40', 'Home Assistant koppelen: sensoren automatisch, kaart zelf plakken', async () => {
@@ -660,7 +666,7 @@ await scenario('UAT-40', 'Home Assistant koppelen: sensoren automatisch, kaart z
   await mob.waitForSelector('[data-ha-card] .ha-status');
   const text = await mob.textContent('[data-ha-card]');
   expect(/Gekoppeld met/.test(text), 'geen bevestiging');
-  expect(await mob.isVisible('[data-ha-card] [data-ha-cardcode]'), 'kaartcode niet zichtbaar na koppelen');
+  expect(await mob.isVisible('[data-ha-example="0"]'), 'voorbeeldkaart niet zichtbaar na koppelen');
   expect(!(await mob.$('[data-ha-card-again]')), 'knop om de kaart te plaatsen hoort weg');
   const width = await mob.evaluate(() => document.documentElement.scrollWidth);
   expect(width <= 391, `pagina te breed (${width}px)`);

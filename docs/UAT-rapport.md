@@ -2,7 +2,7 @@
 
 **Datum:** 8 oktober 2026
 **Getest:** v1.0 (eerste versie), v2.0, v2.2 (barcode scannen; Jumbo-koppeling verwijderd), v2.3 (prijzen uit Open Prices), v2.6 (dagboek) en **v3.0**
-**Uitslag v3.9:** 40 van de 40 scenario's geslaagd ✅ (zie [§8](#8-v3-recensies-opnieuw-bekeken-en-9-nieuwe-scenarios))
+**Uitslag v3.10:** 40 van de 40 scenario's geslaagd ✅ (zie [§8](#8-v3-recensies-opnieuw-bekeken-en-9-nieuwe-scenarios))
 
 ## 1. Aanpak
 
@@ -168,7 +168,7 @@ Daarnaast is gekeken naar wat er bij het eigen gebruik in de Android-app misging
 | UAT-36 | Een gerecht plannen dat nog geen recept is, en er later een recept van maken *(v3.4, na feedback)* | V2, V6 | ⚠️ alleen vrije tekst, zonder weg naar een recept | ✅ titel ingevuld, na opslaan gekoppeld aan de planning |
 | UAT-37 | Een venster met ingevulde gegevens sluit niet per ongeluk *(v3.5.1, na feedback)* | V19 | ❌ naast tikken, Enter en terug-gebaar sloten het formulier | ✅ blijft open; bij terug eerst een vraag |
 | UAT-38 | Boodschappen: alles wat is afgevinkt in één keer naar ‘Al in huis’ *(v3.6, na feedback)* | V3, V4 | ❌ per artikel 🏠 tikken | ✅ één knop, met bevestiging; lijst weer leeg |
-| UAT-39 | Home Assistant: overzicht van vandaag op het dashboard *(v3.7, na feedback)* | V5 | ❌ | ✅ REST-sensor + Markdown-kaart, YAML in de app |
+| UAT-39 | Home Assistant: alle gegevens als sensoren, voorbeeldkaarten in de instellingen *(v3.10, na feedback)* | V5 | ❌ | ✅ 6 sensoren (vandaag, morgen, week, boodschappen, per persoon kcal en gewicht), 10 voorbeelden |
 | UAT-40 | Home Assistant koppelen met adres + token: sensoren automatisch, kaart zelf plakken *(v3.9, na feedback)* | V5 | ❌ | ✅ fout token geeft uitleg; geen dashboard aangepast; kaartcode klaar |
 
 UAT-01 t/m UAT-24 zijn in dezelfde ronde opnieuw uitgevoerd en blijven geslaagd. **v3.0: 33 van 33 geslaagd; v3.1: 34 van 34; v3.2: 35 van 35; v3.4: 36 van 36; v3.5.1: 37 van 37; v3.6: 38 van 38; v3.7: 39 van 39.**

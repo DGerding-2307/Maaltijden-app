@@ -32,6 +32,10 @@ test('koppelen: sensoren aangemaakt, dashboards niet aangeraakt', async () => {
   assert.ok(ha.states['sensor.maaltijden_vandaag'].attributes.markdown);
   assert.equal(ha.states['sensor.maaltijden_vandaag'].attributes.friendly_name, 'Maaltijden vandaag');
   assert.ok('sensor.maaltijden_boodschappen_open' in ha.states);
+  for (const id of ['sensor.maaltijden_morgen', 'sensor.maaltijden_week', 'sensor.maaltijden_ik_kcal', 'sensor.maaltijden_ik_gewicht']) assert.ok(id in ha.states, id);
+  assert.equal(ha.states['sensor.maaltijden_week'].attributes.dagen.length, 7);
+  assert.equal(ha.states['sensor.maaltijden_ik_kcal'].attributes.unit_of_measurement, 'kcal');
+  assert.match(ha.states['sensor.maaltijden_week'].attributes.markdown, /\| Dag \|/);
   assert.ok(!ha.calls.some((c) => c.startsWith('WS ')), `geen dashboard-commando's: ${ha.calls}`);
   assert.equal(ha.configs.main.views[0].cards.length, 1);
   assert.equal(ha.dashboards.length, 0);
@@ -41,6 +45,9 @@ test('koppelen: sensoren aangemaakt, dashboards niet aangeraakt', async () => {
   const s = await (await fetch(`${base}/api/homeassistant`)).json();
   assert.equal(s.link.url, haUrl);
   assert.match(s.card, /sensor\.maaltijden_vandaag/);
+  assert.ok(s.examples.length >= 8);
+  assert.ok(s.examples.some((x) => /sensor\.maaltijden_ik_kcal/.test(x.yaml)), 'voorbeeld met de calorieën van een persoon');
+  assert.deepEqual(s.sensors.map((x) => x.entity_id).sort(), Object.keys(ha.states).sort());
   assert.ok(!JSON.stringify(s).includes(TOKEN));
 
   // Token staat niet in een back-up

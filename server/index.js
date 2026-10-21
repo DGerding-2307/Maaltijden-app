@@ -12,7 +12,7 @@ import { enqueuePrices, priceQueueStatus, clearPriceQueue } from './pricequeue.j
 import { lookupBarcode, applyBarcode } from './scan.js';
 import * as tracker from './tracker.js';
 import { buildIcs, calendarToken } from './calendar.js';
-import { haToken, todayOverview, haConfig, haLink, connectHomeAssistant, disconnectHomeAssistant, pushStates, schedulePush, lastPushError } from './homeassistant.js';
+import { haToken, todayOverview, haSensorsJson, haConfig, haLink, connectHomeAssistant, disconnectHomeAssistant, pushStates, schedulePush, lastPushError } from './homeassistant.js';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { UNITS } from './calc.js';
@@ -65,6 +65,11 @@ export function createApp() {
     if (req.params.token !== haToken()) return res.status(404).json({ error: 'Onbekende link' });
     res.set('Cache-Control', 'no-store');
     res.json(todayOverview(baseUrl(req)));
+  });
+  app.get('/ha/:token/sensoren.json', (req, res) => {
+    if (req.params.token !== haToken()) return res.status(404).json({ error: 'Onbekende link' });
+    res.set('Cache-Control', 'no-store');
+    res.json(haSensorsJson(baseUrl(req)));
   });
   app.get('/agenda/:token.ics', (req, res) => {
     if (req.params.token !== calendarToken()) return res.status(404).send('Onbekende agenda');

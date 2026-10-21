@@ -789,3 +789,10 @@ label.check.jumbo-opt { display: grid; grid-template-columns: auto 1fr; gap: .1r
 .ha-preview .ha-h { font-size: 1.05rem; }
 .ha-status { font-weight: 600; margin-bottom: .25rem; overflow-wrap: anywhere; }
 .ha-connect .row.end { margin-top: .25rem; }
+.ha-sub { margin: 1rem 0 .25rem; font-size: 1rem; }
+.ha-examples { display: grid; gap: .4rem; margin-bottom: .75rem; min-width: 0; }
+.ha-example { border: 1px solid var(--border); border-radius: 10px; padding: .5rem .75rem; min-width: 0; }
+.ha-example summary { cursor: pointer; font-weight: 600; }
+.ha-example .code-block { margin: .5rem 0; }
+.ha-sensor-list { padding-left: 1rem; display: grid; gap: .5rem; }
+.ha-sensor-list li { overflow-wrap: anywhere; }
