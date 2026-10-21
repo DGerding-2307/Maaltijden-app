@@ -188,9 +188,9 @@ Token aanmaken) en tik op **🔗 Koppelen**. De app maakt deze sensoren en werkt
 | Sensor | Waarde | Belangrijkste attributen |
 |---|---|---|
 | `sensor.maaltijden_vandaag` | diner van vandaag | `ontbijt`, `lunch`, `diner` (met `titel`, `kcal_pp`, `kosten`, `recept_url`), `kcal_pp`, `kosten`, `morgen_diner`, `afbeelding`, `markdown` |
-| `sensor.maaltijden_morgen` | diner van morgen | `ontbijt`, `lunch`, `diner`, `kcal_pp`, `kosten` |
-| `sensor.maaltijden_week` | kosten deze week (€) | `dagen` (per dag de maaltijden, kcal en kosten), `budget`, `over_budget`, `markdown` (tabel) |
-| `sensor.maaltijden_boodschappen_open` | aantal nog te halen | `boodschappen`, `per_categorie`, `kosten`, `afgevinkt`, `totaal` |
+| `sensor.maaltijden_morgen` | diner van morgen | `ontbijt`, `lunch`, `diner` (zoals bij vandaag), `kcal_pp`, `kosten`, `afbeelding` |
+| `sensor.maaltijden_week` | kosten deze week (€) | `dagen` (per dag de maaltijden met foto, kcal, kosten en `afbeelding` van het diner), `budget`, `over_budget`, `markdown` (tabel) |
+| `sensor.maaltijden_boodschappen_open` | aantal nog te halen | `artikelen` (naam, afdeling, hoeveelheid, `afbeelding`), `boodschappen`, `per_categorie`, `kosten`, `afgevinkt`, `totaal` |
 | `sensor.maaltijden_<naam>_kcal` | gegeten vandaag (dagboek) | `doel`, `over`, `procent`, `eiwit`, `koolhydraten`, `vet`, `per_maaltijd`, `gegeten` |
 | `sensor.maaltijden_<naam>_gewicht` | laatste gewicht (kg) | `trend`, `doel`, `nog_te_gaan`, `per_week`, `bmi` |
 
@@ -199,8 +199,12 @@ een eigen kaart waarin je zelf kiest wat je ziet, de week, de foto van het diner
 een gewichtsgrafiek, alle sensoren op een rij en een automatisering die om 16:30 meldt wat je eet.
 Plakken doe je in Home Assistant via Dashboard → ✏️ Bewerken → *Kaart toevoegen* → *Handmatig*. Daar staat ook de lijst met alle sensoren en attributen.
 
+**Foto's bij alles.** Elke maaltijd (vandaag, morgen, de week) en elk boodschappen-artikel heeft een `afbeelding`: de foto van het recept,
+anders van een ingrediënt erbij of met dezelfde naam (bv. *Broodje kaas* → kaas), anders het app-icoon. De sensoren voor vandaag, morgen en de week
+hebben ook een `entity_picture` (foto van het diner), voor een *Picture entity*-kaart.
+
 **Foto's.** Home Assistant via https (bv. Nabu Casa) kan geen foto's van een http-adres tonen. Bij koppelen zet de app de foto van het
-diner daarom in Home Assistant zelf (zoals een profielfoto) en verwijst naar `/api/image/serve/…` op je Home Assistant; zo komt hij via https.
+foto's daarom in Home Assistant zelf (zoals een profielfoto) en verwijst naar `/api/image/serve/…` op je Home Assistant; zo komt hij via https.
 Elke foto wordt maar één keer geüpload. Foto's met een https-adres blijven zoals ze zijn. Bij de YAML-route komen foto's van het adres van de app;
 gebruik dan een https-adres voor de app (`APP_URL`).
 

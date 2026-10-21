@@ -48,6 +48,13 @@ test('koppelen: sensoren aangemaakt, dashboards niet aangeraakt', async () => {
   assert.ok(v.diner.every((x) => !x.afbeelding || x.afbeelding.startsWith('/api/image/serve/')), JSON.stringify(v.diner));
   const uploads = ha.uploads.length;
   assert.ok(uploads > 0);
+  // Alle foto's, op elke plek in alle sensoren
+  const found = [];
+  const walk = (o) => { if (o && typeof o === 'object') for (const [k, x] of Object.entries(o)) (k === 'afbeelding' || k === 'entity_picture') && typeof x === 'string' ? found.push(x) : walk(x); };
+  walk(ha.states);
+  assert.ok(found.length > 10, `${found.length} foto's`);
+  assert.ok(found.every((u) => u.startsWith('/api/image/serve/')), found.filter((u) => !u.startsWith('/api/image/serve/')).join(' '));
+  assert.equal(ha.uploads.length, new Set(found).size, 'elke foto één keer geüpload');
   assert.ok(!ha.calls.some((c) => c.startsWith('WS ')), `geen dashboard-commando's: ${ha.calls}`);
   assert.equal(ha.configs.main.views[0].cards.length, 1);
   assert.equal(ha.dashboards.length, 0);

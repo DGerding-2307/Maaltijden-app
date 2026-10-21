@@ -4,9 +4,10 @@ Weekplanner, receptenboek en calorieëndagboek voor op je eigen server. Plan je 
 boodschappenlijst met prijzen en voedingswaarden. Er zijn 50 Nederlandse recepten om mee te beginnen. Werkt op computer, telefoon en als Android-app.
 Geen account, geen abonnement, geen advertenties.
 
-## Laatste wijziging (v3.10.1)
+## Laatste wijziging (v3.11.0)
 
-- Home Assistant: foto's komen via Home Assistant zelf (https), zodat ze ook via Nabu Casa te zien zijn
+- Home Assistant: een foto bij alles – elke maaltijd van vandaag, morgen en de week en elk boodschappen-artikel, met voorbeeldkaarten met foto's.
+  De foto's komen via Home Assistant zelf (https), zodat ze ook via Nabu Casa te zien zijn
 - 🏡 **Home Assistant**: koppel bij **Instellingen → Home Assistant** met het adres en een toegangstoken. De app stuurt alles als sensoren:
   vandaag, morgen, de week met kosten en budget, de boodschappen per afdeling, en per persoon de calorieën van vandaag en het gewicht.
   In de instellingen staan voorbeeld-YAML voor kaarten (en een automatisering) om zelf aan te passen. De app past je dashboards niet aan

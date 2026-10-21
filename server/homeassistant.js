@@ -40,22 +40,39 @@ function entryTitle(e) {
  * Overzicht van vandaag (en het diner van morgen) voor Home Assistant.
  * @param baseUrl adres van de app, voor links in de kaart
  */
-export function todayOverview(baseUrl = '') {
-  const today = todayISO();
-  const meals = getSetting('meals', ['ontbijt', 'lunch', 'diner']);
-  const plan = repo.getPlan(today, 2);
-  const [day, tomorrow] = plan.days;
-  const absolute = (u) => (!u ? null : /^https?:/.test(u) ? u : `${baseUrl}/${u.replace(/^\//, '')}`);
+const FALLBACK_IMAGE = 'icons/icon-512.png';
+const absoluteUrl = (u, baseUrl) => (!u ? null : /^https?:/.test(u) ? u : `${baseUrl}/${u.replace(/^\//, '')}`);
 
-  const toItem = (e) => ({
+/** Foto bij een geplande maaltijd: van het recept, anders van een ingrediënt erbij of met dezelfde naam, anders het app-icoon. */
+function entryImage(e) {
+  return e.image_url
+    || e.extras?.find((x) => x.image_url)?.image_url
+    || (e.title ? repo.matchIngredient(e.title)?.image_url : null)
+    || FALLBACK_IMAGE;
+}
+
+/** Foto bij een artikel op de boodschappenlijst. */
+const shopImage = (name, image) => image || repo.matchIngredient(name)?.image_url || FALLBACK_IMAGE;
+
+/** Eén geplande maaltijd voor Home Assistant (vandaag, morgen en de week). */
+function itemOf(e, baseUrl) {
+  return {
     titel: entryTitle(e),
     personen: e.servings,
     kcal_pp: e.kcal_per_serving != null ? Math.round(e.kcal_per_serving) : null,
     kosten: e.leftover_of ? null : euro(e.cost_cents),
     restjes: !!e.leftover_of,
     recept_url: e.recipe_id ? `${baseUrl}/#/recept/${e.recipe_id}?personen=${e.servings}` : null,
-    afbeelding: e.recipe_id ? absolute(e.image_url || null) : null,
-  });
+    afbeelding: absoluteUrl(entryImage(e), baseUrl),
+  };
+}
+
+export function todayOverview(baseUrl = '') {
+  const today = todayISO();
+  const meals = getSetting('meals', ['ontbijt', 'lunch', 'diner']);
+  const plan = repo.getPlan(today, 2);
+  const [day, tomorrow] = plan.days;
+  const toItem = (e) => itemOf(e, baseUrl);
   const byMeal = Object.fromEntries(meals.map((m) => [m, day.entries.filter((e) => e.meal === m).map(toItem)]));
   const extra = day.entries.filter((e) => !meals.includes(e.meal)).map(toItem);
 
@@ -123,11 +140,13 @@ function personSlugs() {
 }
 
 /** Maaltijden van één dag als korte lijst per moment (voor morgen en de week). */
-function dayMeals(day, meals) {
-  const titles = (m) => day.entries.filter((e) => e.meal === m).map(entryTitle);
+function dayMeals(day, meals, baseUrl) {
+  const items = (m) => day.entries.filter((e) => e.meal === m).map((e) => itemOf(e, baseUrl));
+  const dinner = day.entries.find((e) => e.meal === 'diner') || day.entries[0];
   return {
-    ...Object.fromEntries(meals.map((m) => [m, titles(m)])),
-    extra: day.entries.filter((e) => !meals.includes(e.meal)).map(entryTitle),
+    ...Object.fromEntries(meals.map((m) => [m, items(m)])),
+    extra: day.entries.filter((e) => !meals.includes(e.meal)).map((e) => itemOf(e, baseUrl)),
+    afbeelding: absoluteUrl(dinner ? entryImage(dinner) : FALLBACK_IMAGE, baseUrl),
     kcal_pp: Math.round(day.nutrition_per_person.kcal || 0),
     kosten: euro(day.cost_cents),
     kosten_eur: eur(day.cost_cents),
@@ -151,18 +170,19 @@ export function haSensors(baseUrl = '') {
 
   // Morgen
   const tomorrow = repo.getPlan(addDays(today, 1), 1).days[0];
-  const m = dayMeals(tomorrow, meals);
-  add('morgen', m.diner?.[0] || (tomorrow.entries.length ? tomorrow.entries.map(entryTitle).join(', ') : 'Niets gepland'), {
-    datum: tomorrow.date, dag: dayName(tomorrow.date), ...m, friendly_name: 'Maaltijden morgen', icon: 'mdi:calendar-arrow-right',
+  const m = dayMeals(tomorrow, meals, baseUrl);
+  add('morgen', m.diner?.[0]?.titel || (tomorrow.entries.length ? tomorrow.entries.map(entryTitle).join(', ') : 'Niets gepland'), {
+    datum: tomorrow.date, dag: dayName(tomorrow.date), ...m,
+    friendly_name: 'Maaltijden morgen', icon: 'mdi:calendar-arrow-right', entity_picture: m.afbeelding || undefined,
   });
 
   // Deze week (maandag t/m zondag)
   const monday = mondayOf(new Date(`${today}T12:00:00`));
   const week = repo.getPlan(monday, 7);
   const budget = getSetting('weekly_budget_cents', null);
-  const days = week.days.map((d) => ({ datum: d.date, dag: dayName(d.date), ...dayMeals(d, meals) }));
+  const days = week.days.map((d) => ({ datum: d.date, dag: dayName(d.date), ...dayMeals(d, meals, baseUrl) }));
   const weekLines = ['| Dag | ' + meals.map(cap).join(' | ') + ' |', '|---|' + meals.map(() => '---').join('|') + '|'];
-  for (const d of days) weekLines.push(`| ${d.datum === today ? '**' : ''}${cap(d.dag.split(' ')[0])}${d.datum === today ? '**' : ''} | ${meals.map((x) => d[x].join(', ') || '–').join(' | ')} |`);
+  for (const d of days) weekLines.push(`| ${d.datum === today ? '**' : ''}${cap(d.dag.split(' ')[0])}${d.datum === today ? '**' : ''} | ${meals.map((x) => d[x].map((i) => i.titel).join(', ') || '–').join(' | ')} |`);
   weekLines.push('', `Totaal ${euro(week.total_cost_cents)}${budget ? ` van ${euro(budget)} budget` : ''}`);
   add('week', eur(week.total_cost_cents), {
     van: week.start, tot: week.end, dagen: days,
@@ -171,6 +191,7 @@ export function haSensors(baseUrl = '') {
     over_budget: budget ? week.total_cost_cents > budget : false,
     markdown: weekLines.join('\n'),
     friendly_name: 'Maaltijden kosten deze week', icon: 'mdi:calendar-week', unit_of_measurement: '€', state_class: 'measurement',
+    entity_picture: days.find((d) => d.datum === today)?.afbeelding || undefined,
   });
 
   // Boodschappen
@@ -180,8 +201,14 @@ export function haSensors(baseUrl = '') {
   const perCat = {};
   for (const i of open) (perCat[i.category] ||= []).push(i.name);
   if (openExtras.length) perCat['Eigen artikelen'] = openExtras.map((x) => x.name);
+  const amount = (i) => (i.packages && i.package_label ? `${i.packages}× ${i.package_label}`
+    : i.unit === 'g' || !i.quantity ? `${Math.round(i.grams)} g` : `${i.quantity} ${i.unit}`);
+  const artikelen = [
+    ...open.map((i) => ({ naam: i.name, categorie: i.category, hoeveelheid: amount(i), kosten: euro(i.cost_cents), afbeelding: absoluteUrl(shopImage(i.name, i.image_url), baseUrl) })),
+    ...openExtras.map((x) => ({ naam: x.name, categorie: 'Eigen artikelen', hoeveelheid: null, kosten: null, afbeelding: absoluteUrl(shopImage(x.name), baseUrl) })),
+  ].slice(0, 60);
   add('boodschappen_open', open.length + openExtras.length, {
-    boodschappen: vandaag.boodschappen, per_categorie: perCat,
+    boodschappen: vandaag.boodschappen, per_categorie: perCat, artikelen,
     kosten: vandaag.boodschappen_kosten, kosten_eur: vandaag.boodschappen_kosten_eur,
     afgevinkt: shop.items.filter((i) => i.checked).length + shop.extras.filter((x) => x.checked).length,
     totaal: shop.items.length + shop.extras.length,
@@ -251,8 +278,32 @@ content: "{{ state_attr('sensor.maaltijden_week', 'markdown') }}"` },
 title: Diners deze week
 content: |
   {% for d in state_attr('sensor.maaltijden_week', 'dagen') %}
-  **{{ d.dag.split(' ')[0] | capitalize }}:** {{ d.diner | join(', ') or '–' }}
+  **{{ d.dag.split(' ')[0] | capitalize }}:** {{ d.diner | map(attribute='titel') | join(', ') or '–' }}
   {% endfor %}` },
+    { title: 'Vandaag met foto’s', yaml: `type: markdown
+title: Vandaag
+content: |
+  {% set v = states.sensor.maaltijden_vandaag.attributes %}
+  {% for moment in ['ontbijt', 'lunch', 'diner'] %}
+  **{{ moment | capitalize }}**
+  {% for x in v.get(moment) or [] %}
+  <img src="{{ x.afbeelding }}" width="72"> {{ x.titel }}{% if x.kcal_pp %} · {{ x.kcal_pp }} kcal{% endif %}
+  {% else %}–
+  {% endfor %}
+  {% endfor %}` },
+    { title: 'Week met foto’s (diner)', yaml: `type: markdown
+title: Deze week
+content: |
+  <table>
+  {% for d in state_attr('sensor.maaltijden_week', 'dagen') %}
+  <tr><td><img src="{{ d.afbeelding }}" width="56"></td>
+  <td><b>{{ d.dag.split(' ')[0] | capitalize }}</b><br>{{ d.diner | map(attribute='titel') | join(', ') or '–' }}</td></tr>
+  {% endfor %}
+  </table>` },
+    { title: 'Morgen met foto', yaml: `type: picture-entity
+entity: sensor.maaltijden_morgen
+name: Morgen
+show_state: true` },
     { title: 'Foto van het diner', yaml: `type: picture-entity
 entity: sensor.maaltijden_vandaag
 show_name: false
@@ -264,6 +315,13 @@ content: |
   {% if not c %}Alles is gehaald 🎉{% endif %}
   {% for cat, items in (c or {}).items() %}
   **{{ cat }}**: {{ items | join(', ') }}
+  {% endfor %}` },
+    { title: 'Boodschappen met foto’s', yaml: `type: markdown
+title: Boodschappen
+content: |
+  {% for x in state_attr('sensor.maaltijden_boodschappen_open', 'artikelen') or [] %}
+  <img src="{{ x.afbeelding }}" width="40"> {{ x.naam }}{% if x.hoeveelheid %} – {{ x.hoeveelheid }}{% endif %}
+  {% else %}Alles is gehaald 🎉
   {% endfor %}` },
     { title: `Calorieën vandaag (${first?.attributes.naam || 'persoon'})`, yaml: `type: gauge
 entity: sensor.maaltijden_${p}_kcal
@@ -424,7 +482,8 @@ async function haImage(link, src) {
     if (!id) return src;
     const url = `/api/image/serve/${id}/512x512`;
     // Oudste vergeten als het er veel worden (de foto's blijven in Home Assistant staan)
-    const entries = Object.entries({ ...cache, [img.key]: url }).slice(-200);
+    // Opnieuw lezen: er lopen een paar uploads tegelijk
+    const entries = Object.entries({ ...getSetting('homeassistant_images', {}), [img.key]: url }).slice(-2000);
     setSetting('homeassistant_images', Object.fromEntries(entries));
     return url;
   } catch {
@@ -432,25 +491,38 @@ async function haImage(link, src) {
   }
 }
 
-/** Foto's in de sensor van vandaag vervangen door adressen die Home Assistant kan tonen. */
-async function withHaImages(link, sensor) {
-  const a = sensor.attributes;
-  const fix = async (u) => (u ? haImage(link, u) : u);
-  for (const meal of Object.keys(a)) {
-    if (Array.isArray(a[meal]) && a[meal].some((x) => x && typeof x === 'object' && 'afbeelding' in x)) {
-      for (const item of a[meal]) item.afbeelding = await fix(item.afbeelding);
+/** Alle foto's (attribuut ‘afbeelding’, op elke diepte, en entity_picture) vervangen door adressen die Home Assistant kan tonen. */
+async function withHaImages(link, sensors) {
+  const spots = [];
+  const walk = (o) => {
+    if (Array.isArray(o)) o.forEach(walk);
+    else if (o && typeof o === 'object') {
+      for (const [k, v] of Object.entries(o)) {
+        if ((k === 'afbeelding' || k === 'entity_picture') && typeof v === 'string') spots.push([o, k, v]);
+        else walk(v);
+      }
     }
-  }
-  a.afbeelding = await fix(a.afbeelding);
-  a.entity_picture = a.afbeelding || undefined;
-  return sensor;
+  };
+  sensors.forEach((x) => walk(x.attributes));
+  // Elke foto één keer, met een paar tegelijk
+  const unique = [...new Set(spots.map(([, , v]) => v))];
+  const done = new Map();
+  const queue = [...unique];
+  await Promise.all(Array.from({ length: 4 }, async () => {
+    while (queue.length) {
+      const src = queue.shift();
+      done.set(src, await haImage(link, src));
+    }
+  }));
+  for (const [o, k, v] of spots) o[k] = done.get(v) ?? v;
+  return sensors;
 }
 
 /** Sensoren bijwerken (maakt ze aan als ze nog niet bestaan). */
 export async function pushStates(link = haLink()) {
   if (!link) return false;
-  for (const x of haSensors(link.app_url)) {
-    if (x.key === 'vandaag') await withHaImages(link, x);
+  const sensors = await withHaImages(link, haSensors(link.app_url));
+  for (const x of sensors) {
     await haFetch(link, `/api/states/${x.entity_id}`, { method: 'POST', body: JSON.stringify({ state: x.state, attributes: x.attributes }) });
   }
   return true;

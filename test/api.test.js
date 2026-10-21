@@ -251,7 +251,14 @@ test('Home Assistant: overzicht van vandaag en kant-en-klare YAML', async () => 
   assert.equal(data.datum, today);
   assert.equal(all.morgen.dag.length > 0, true);
   assert.equal(all.week.dagen.length, 7);
-  assert.ok(all.week.dagen.find((d) => d.datum === today).diner.includes('Nasi goreng'));
+  assert.ok(all.week.dagen.find((d) => d.datum === today).diner.some((x) => x.titel === 'Nasi goreng'));
+  // Voor alles een foto: maaltijden (ook zonder recept), morgen, de week en elk boodschappen-artikel
+  const photos = [...Object.values(data).flat(), ...all.week.dagen.flatMap((d) => [...d.ontbijt, ...d.lunch, ...d.diner, ...d.extra])]
+    .filter((x) => x && typeof x === 'object' && 'titel' in x);
+  assert.ok(photos.length > 2 && photos.every((x) => /^http:\/\/localhost:\d+\/\S+\.(jpe?g|png|webp)/.test(x.afbeelding)), JSON.stringify(photos.map((x) => x.afbeelding)));
+  assert.ok(data.lunch.find((x) => x.titel === 'Broodje kaas').afbeelding, 'ook zonder recept');
+  assert.ok(all.week.dagen.every((d) => !d.diner.length || d.afbeelding));
+  assert.ok(all.boodschappen_open.artikelen.length > 0 && all.boodschappen_open.artikelen.every((x) => x.afbeelding && x.naam));
   // (een nieuwe database heeft al een paar voorbeeldmaaltijden deze week)
   const nasi = data.diner.find((x) => x.titel === 'Nasi goreng');
   assert.ok(nasi, JSON.stringify(data.diner));
