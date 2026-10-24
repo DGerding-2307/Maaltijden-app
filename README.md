@@ -56,6 +56,12 @@ geeft hij een tip, maar boos wordt hij nooit. Geef hem zelf een naam: Bolletje, 
 - **Nederlands.** Nederlandse recepten, Nederlandse supermarktprijzen en voedingswaarden uit NEVO en Open Food Facts.
 - **Voor het hele huishouden.** Samen plannen en boodschappen doen, en ieder een eigen dagboek en maatje.
 
+## Nieuw in versie 4.0.1
+
+- 🔔 **Meldingen in de Android-app werken**: ‘Aanzetten in de app’ plant de herinneringen nu echt in (installeer de nieuwe APK).
+  Lukt het niet, dan zie je waarom, met ‘Opnieuw proberen’; met een oude app krijg je een link naar de nieuwe
+- 🥕 **Ingrediënten aanpassen op de telefoon**: kaartjes in plaats van een brede tabel; tik op een ingrediënt om het te bewerken
+
 ## Nieuw in versie 4.0
 
 - 🐶 Het maatje: een geanimeerd hondje met zes stemmingen, hartjes, een reeks en aanmoediging na elke maaltijd

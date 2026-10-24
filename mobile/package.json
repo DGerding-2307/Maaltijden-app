@@ -1,6 +1,6 @@
 {
   "name": "maaltijden-mobile",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "private": true,
   "description": "Android-app (Capacitor) die je eigen Maaltijden-server opent",
   "scripts": {
