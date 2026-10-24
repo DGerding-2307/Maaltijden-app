@@ -4,7 +4,10 @@ Weekplanner, receptenboek en calorieëndagboek voor op je eigen server. Plan je 
 boodschappenlijst met prijzen en voedingswaarden. Er zijn 50 Nederlandse recepten om mee te beginnen. Werkt op computer, telefoon en als Android-app.
 Geen account, geen abonnement, geen advertenties.
 
-## Laatste wijziging (v3.11.0)
+## Laatste wijziging (v3.12.0)
+
+- Home Assistant: nieuwe sensor **Maaltijden komende 7 dagen** (`sensor.maaltijden_komende_7_dagen`). Altijd vandaag t/m over 6 dagen, ongeacht de kalenderweek,
+  met per dag de maaltijden, het aantal personen, de foto en de kosten. De sensor van de kalenderweek blijft bestaan
 
 - Home Assistant: een foto bij alles – elke maaltijd van vandaag, morgen en de week en elk boodschappen-artikel, met voorbeeldkaarten met foto's.
   De foto's komen via Home Assistant zelf (https), zodat ze ook via Nabu Casa te zien zijn
