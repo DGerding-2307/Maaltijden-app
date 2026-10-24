@@ -324,7 +324,7 @@ export function getPlan(start, days = 7) {
         kcal_per_serving: c.nutrition_per_serving.kcal,
         nutrition_per_serving: c.nutrition_per_serving,
         // Restjes zijn al betaald bij de oorspronkelijke maaltijd
-        cost_cents: row.leftover_of ? 0 : c.cost_total_cents,
+        cost_cents: row.leftover_of || row.no_shopping ? 0 : c.cost_total_cents,
         cost_per_serving_cents: c.cost_per_serving_cents,
         // Zit er al vlees, vis of een vleesvervanger in? Anders biedt de planner '+ vlees' aan.
         has_meat: c.lines.some((l) => l.ingredient?.category === 'Vlees, vis & vega'),
@@ -335,7 +335,7 @@ export function getPlan(start, days = 7) {
       // Vlees/vis erbij: per persoon optellen bij de voedingswaarden, kosten voor alle personen
       const n = { ...(info?.nutrition_per_serving || Object.fromEntries(NUTRIENTS.map((k) => [k, 0]))) };
       for (const x of extras) for (const k of NUTRIENTS) n[k] = Math.round(((n[k] || 0) + x.nutrition[k]) * 10) / 10;
-      const extraCost = row.leftover_of ? 0 : Math.round(extras.reduce((s, x) => s + (x.cost_cents || 0), 0) * row.servings);
+      const extraCost = row.leftover_of || row.no_shopping ? 0 : Math.round(extras.reduce((s, x) => s + (x.cost_cents || 0), 0) * row.servings);
       info = {
         ...info,
         kcal_per_serving: n.kcal,
@@ -457,8 +457,8 @@ export function updatePlanEntry(id, data) {
   const existing = db.prepare('SELECT * FROM meal_plan WHERE id = ?').get(id);
   if (!existing) return false;
   const merged = { ...existing, ...data };
-  db.prepare('UPDATE meal_plan SET date = ?, meal = ?, recipe_id = ?, title = ?, servings = ?, note = ? WHERE id = ?')
-    .run(merged.date, merged.meal, merged.recipe_id || null, merged.title || null, Number(merged.servings) || 1, merged.note || '', id);
+  db.prepare('UPDATE meal_plan SET date = ?, meal = ?, recipe_id = ?, title = ?, servings = ?, note = ?, no_shopping = ? WHERE id = ?')
+    .run(merged.date, merged.meal, merged.recipe_id || null, merged.title || null, Number(merged.servings) || 1, merged.note || '', merged.no_shopping ? 1 : 0, id);
   return true;
 }
 
@@ -473,10 +473,10 @@ export function deletePlanEntry(id) {
 export function copyWeek(fromStart, toStart) {
   return tx((db) => {
     const rows = db.prepare('SELECT * FROM meal_plan WHERE date BETWEEN ? AND ?').all(fromStart, addDays(fromStart, 6));
-    const ins = db.prepare('INSERT INTO meal_plan (date, meal, recipe_id, title, servings, note, position, leftover_of) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    const ins = db.prepare('INSERT INTO meal_plan (date, meal, recipe_id, title, servings, note, position, leftover_of, no_shopping) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
     const offset = Math.round((new Date(toStart) - new Date(fromStart)) / 86400000);
     for (const r of rows) {
-      const { lastInsertRowid } = ins.run(addDays(r.date, offset), r.meal, r.recipe_id, r.title, r.servings, r.note, r.position, r.leftover_of ? 1 : null);
+      const { lastInsertRowid } = ins.run(addDays(r.date, offset), r.meal, r.recipe_id, r.title, r.servings, r.note, r.position, r.leftover_of ? 1 : null, r.no_shopping ? 1 : 0);
       copyExtras(db, r.id, Number(lastInsertRowid));
     }
     return rows.length;
@@ -492,7 +492,7 @@ export function clearWeek(start) {
 export function getShoppingList(start, days = 7) {
   const db = getDb();
   const end = addDays(start, days - 1);
-  const plan = db.prepare('SELECT * FROM meal_plan WHERE date BETWEEN ? AND ? AND recipe_id IS NOT NULL AND leftover_of IS NULL').all(start, end);
+  const plan = db.prepare('SELECT * FROM meal_plan WHERE date BETWEEN ? AND ? AND recipe_id IS NOT NULL AND leftover_of IS NULL AND no_shopping = 0').all(start, end);
   const entries = plan.map((p) => {
     const recipe = parseRecipe(db.prepare('SELECT * FROM recipes WHERE id = ?').get(p.recipe_id));
     return { servings: p.servings, recipe, rows: rowsFor(p.recipe_id) };
@@ -500,7 +500,7 @@ export function getShoppingList(start, days = 7) {
   // Vlees/vis bij een maaltijd: hoeveelheid per persoon × aantal personen
   const ingStmt = db.prepare('SELECT * FROM ingredients WHERE id = ?');
   const withExtras = db.prepare(`SELECT p.id, p.servings, COALESCE(r.title, p.title) AS title FROM meal_plan p LEFT JOIN recipes r ON r.id = p.recipe_id
-    WHERE p.date BETWEEN ? AND ? AND p.leftover_of IS NULL AND EXISTS (SELECT 1 FROM plan_extras x WHERE x.plan_entry_id = p.id)`).all(start, end);
+    WHERE p.date BETWEEN ? AND ? AND p.leftover_of IS NULL AND p.no_shopping = 0 AND EXISTS (SELECT 1 FROM plan_extras x WHERE x.plan_entry_id = p.id)`).all(start, end);
   for (const p of withExtras) {
     const extras = db.prepare('SELECT * FROM plan_extras WHERE plan_entry_id = ?').all(p.id);
     const rows = extras.filter((x) => !x.recipe_id).map((x) => ({ ...x, ingredient: x.ingredient_id ? ingStmt.get(x.ingredient_id) || null : null }));

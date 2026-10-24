@@ -92,6 +92,21 @@ test('standaardrecepten hebben een foto met bronvermelding; een eigen foto verva
   assert.equal(after.image_credit, null);
 });
 
+test('maaltijd als restjes markeren: niet op de boodschappenlijst en geen kosten', async () => {
+  const recipes = await get('/recipes');
+  const pannenkoek = recipes.find((r) => r.title === 'Hollandse pannenkoeken');
+  const date = '2031-04-07'; // een maandag zonder andere planning
+  const { id } = await send('POST', '/plan', { date, meal: 'diner', recipe_id: pannenkoek.id, servings: 2 });
+  assert.ok((await get(`/shopping?week=${date}`)).items.length > 0, 'eerst wel boodschappen');
+  await send('PUT', `/plan/${id}`, { no_shopping: 1 });
+  assert.equal((await get(`/shopping?week=${date}`)).items.length, 0, 'als restjes: geen boodschappen');
+  const entry = (await get(`/plan?week=${date}`)).days[0].entries.find((e) => e.id === id);
+  assert.equal(entry.cost_cents, 0);
+  await send('PUT', `/plan/${id}`, { no_shopping: 0 });
+  assert.ok((await get(`/shopping?week=${date}`)).items.length > 0, 'weer terug op de lijst');
+  await send('DELETE', `/plan/${id}`);
+});
+
 test('vlees of vis bij een geplande maaltijd: boodschappen, kosten, voeding, kopiëren en restjes', async () => {
   const recipes = await get('/recipes');
   const pannenkoek = recipes.find((r) => r.title === 'Hollandse pannenkoeken');

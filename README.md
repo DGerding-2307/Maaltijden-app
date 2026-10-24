@@ -4,7 +4,13 @@ Weekplanner, receptenboek en calorieëndagboek voor op je eigen server. Plan je 
 boodschappenlijst met prijzen en voedingswaarden. Er zijn 50 Nederlandse recepten om mee te beginnen. Werkt op computer, telefoon en als Android-app.
 Geen account, geen abonnement, geen advertenties.
 
-## Laatste wijziging (v3.12.0)
+## Laatste wijziging (v3.13.0)
+
+- ♻️ **Maaltijd als restjes markeren** – bij een geplande maaltijd (⋯ → *Restjes: niet op de boodschappenlijst*) kies je dat de ingrediënten niet op de
+  boodschappenlijst komen en dat de maaltijd geen kosten telt. Voedingswaarden blijven meetellen. In Home Assistant staat zo'n maaltijd als `restjes`
+- Home Assistant: nieuwe sensor **Maaltijden komende 7 dagen** (`sensor.maaltijden_komende_7_dagen`)
+
+## Eerder (v3.12.0)
 
 - Home Assistant: nieuwe sensor **Maaltijden komende 7 dagen** (`sensor.maaltijden_komende_7_dagen`). Altijd vandaag t/m over 6 dagen, ongeacht de kalenderweek,
   met per dag de maaltijden, het aantal personen, de foto en de kosten. De sensor van de kalenderweek blijft bestaan

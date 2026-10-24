@@ -60,8 +60,8 @@ function itemOf(e, baseUrl) {
     titel: entryTitle(e),
     personen: e.servings,
     kcal_pp: e.kcal_per_serving != null ? Math.round(e.kcal_per_serving) : null,
-    kosten: e.leftover_of ? null : euro(e.cost_cents),
-    restjes: !!e.leftover_of,
+    kosten: e.leftover_of || e.no_shopping ? null : euro(e.cost_cents),
+    restjes: !!(e.leftover_of || e.no_shopping),
     recept_url: e.recipe_id ? `${baseUrl}/#/recept/${e.recipe_id}?personen=${e.servings}` : null,
     afbeelding: absoluteUrl(entryImage(e), baseUrl),
   };

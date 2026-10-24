@@ -198,6 +198,7 @@ const MIGRATIONS = [
   ['ingredients', 'nutriscore', 'TEXT'],
   ['ingredients', 'nutrition_updated_at', 'TEXT'],
   ['meal_plan', 'leftover_of', 'INTEGER'],
+  ['meal_plan', 'no_shopping', 'INTEGER NOT NULL DEFAULT 0'],
   ['shopping_state', 'have', 'INTEGER NOT NULL DEFAULT 0'],
   ['ingredients', 'off_category', 'TEXT'],
   ['ingredients', 'price_count', 'INTEGER'],

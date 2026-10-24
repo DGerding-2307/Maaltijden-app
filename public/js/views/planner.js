@@ -25,24 +25,25 @@ export async function render(root, params) {
   const canBecomeRecipe = (e) => !e.recipe_id && !e.leftover_of && !e.extras?.length && e.title && !NOT_A_RECIPE.test(e.title.trim());
 
   function entryCard(e) {
+    const rest = e.leftover_of || e.no_shopping;
     const title = e.recipe_id ? e.recipe_title : (e.title || (e.extras?.length ? e.extras.map((x) => x.name).join(', ') : 'Losse ingrediënten'));
-    return `<div class="plan-entry ${e.recipe_id ? '' : 'free'} ${e.leftover_of ? 'leftover' : ''}" draggable="true" data-entry="${e.id}">
-      <a class="plan-entry-title" ${e.recipe_id ? `href="#/recept/${e.recipe_id}?personen=${e.servings}"` : canBecomeRecipe(e) ? 'href="#" data-make-recipe role="button"' : ''}>${e.leftover_of ? '♻️ ' : ''}${esc(title)}</a>
+    return `<div class="plan-entry ${e.recipe_id ? '' : 'free'} ${rest ? 'leftover' : ''}" draggable="true" data-entry="${e.id}">
+      <a class="plan-entry-title" ${e.recipe_id ? `href="#/recept/${e.recipe_id}?personen=${e.servings}"` : canBecomeRecipe(e) ? 'href="#" data-make-recipe role="button"' : ''}>${rest ? '♻️ ' : ''}${esc(title)}</a>
       ${canBecomeRecipe(e) ? '<button class="plan-extras add" data-make-recipe title="Er een recept van maken of een bestaand recept kiezen">📖 Recept maken</button>' : ''}
-      ${e.leftover_of ? '<span class="muted small">restjes – geen boodschappen</span>' : ''}
+      ${rest ? '<span class="muted small">restjes – geen boodschappen</span>' : ''}
       ${!e.recipe_id && e.extras?.length ? '<button class="plan-extras" data-ingredients title="Ingrediënten en hoeveelheden wijzigen">🥕 ingrediënten wijzigen</button>'
         : e.extras?.length ? `<button class="plan-extras" data-meat title="Vlees of vis wijzigen">🥩 + ${e.extras.map((x) => esc(x.name)).join(', ')}</button>`
-        : e.recipe_id && !e.has_meat && !e.leftover_of && meatOffered(e.meal) ? '<button class="plan-extras add" data-meat title="Vlees of vis bij dit gerecht kiezen">🥩 + Vlees of vis</button>' : ''}
-      ${e.note && !e.leftover_of ? `<span class="muted small">${esc(e.note)}</span>` : ''}
+        : e.recipe_id && !e.has_meat && !rest && meatOffered(e.meal) ? '<button class="plan-extras add" data-meat title="Vlees of vis bij dit gerecht kiezen">🥩 + Vlees of vis</button>' : ''}
+      ${e.note && !rest ? `<span class="muted small">${esc(e.note)}</span>` : ''}
       <div class="plan-entry-meta">
         <span class="servings-ctl">
           <button class="mini" data-serv="-1" aria-label="Minder personen">−</button>
           <span title="personen">👤 ${e.servings}</span>
           <button class="mini" data-serv="1" aria-label="Meer personen">+</button>
         </span>
-        ${e.kcal_per_serving != null || ((e.recipe_id || e.extras?.length) && !e.leftover_of) ? `<span class="muted entry-figures">${[
+        ${e.kcal_per_serving != null || ((e.recipe_id || e.extras?.length) && !rest) ? `<span class="muted entry-figures">${[
           e.kcal_per_serving != null ? `<span title="per persoon">${num(e.kcal_per_serving, 0)} kcal</span>` : '',
-          (e.recipe_id || e.extras?.length) && !e.leftover_of ? `<span>${euro(e.cost_cents)}</span>` : '',
+          (e.recipe_id || e.extras?.length) && !rest ? `<span>${euro(e.cost_cents)}</span>` : '',
         ].filter(Boolean).join(' · ')}</span>` : ''}
         ${e.recipe_id && e.date <= todayISO() ? `<button class="eat-toggle ${e.eaten ? 'on' : ''}" data-eat aria-pressed="${!!e.eaten}"
           title="${e.eaten ? `Staat in het dagboek van ${esc(person.name)}` : `Als gegeten in het dagboek van ${esc(person.name)} zetten`}">${e.eaten ? '✓ gegeten' : 'gegeten?'}</button>` : ''}
@@ -268,6 +269,7 @@ export async function render(root, params) {
           <label>Personen <input type="number" class="input" min="1" name="servings" value="${entry.servings}"></label>
           ${entry.recipe_id ? '' : `<label>Titel <input class="input" name="title" value="${esc(entry.title || '')}"></label>`}
           <label class="span-2">Notitie <input class="input" name="note" value="${esc(entry.note || '')}" placeholder="bv. ‘dubbele portie koken’"></label>
+          ${entry.recipe_id && !entry.leftover_of ? `<label class="check span-2"><input type="checkbox" name="no_shopping" ${entry.no_shopping ? 'checked' : ''}> ♻️ Restjes: niet op de boodschappenlijst</label>` : ''}
         </div>
         <div class="row end"><button class="btn btn-primary">Opslaan</button></div>
       </form>
@@ -306,6 +308,7 @@ export async function render(root, params) {
       await api.put(`/plan/${entry.id}`, {
         date: f.date.value, meal: f.meal.value, servings: Number(f.servings.value) || 1, note: f.note.value,
         ...(f.title ? { title: f.title.value } : {}),
+        ...(f.no_shopping ? { no_shopping: f.no_shopping.checked ? 1 : 0 } : {}),
       });
       md.close();
       load();
