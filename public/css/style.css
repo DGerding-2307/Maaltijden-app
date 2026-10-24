@@ -1244,3 +1244,27 @@ body.auth-only main { padding-bottom: 1.25rem; }
   .head-row .actions > .btn, .head-row .actions > a.btn { flex: 1; padding: .45rem .6rem; font-size: .9rem; }
   .head-row .actions .plan-person select { max-width: 7rem; }
 }
+
+/* Ingrediënten: hele regel aantikbaar; op de telefoon kaartjes in plaats van een brede tabel */
+.ingredients .data-table tbody tr { cursor: pointer; }
+.ing-sum { display: none; }
+@media (max-width: 720px) {
+  .ingredients .table-wrap { overflow: visible; background: none; box-shadow: none; }
+  .ingredients .data-table, .ingredients .data-table tbody { display: block; }
+  .ingredients .data-table thead { display: none; }
+  .ingredients .data-table tr { display: flex; align-items: center; gap: .4rem; background: var(--surface); border-radius: 18px; box-shadow: var(--shadow); padding: .55rem .6rem; margin-bottom: .5rem; }
+  .ingredients .data-table td { display: none; border: 0; padding: 0; }
+  .ingredients .data-table td:first-child { display: block; flex: 1; min-width: 0; }
+  .ingredients .data-table td.row-actions { display: flex; flex: none; }
+  .ingredients .data-table td.row-actions .mini { min-width: 2.4rem; min-height: 2.4rem; }
+  .ingredients .data-table tr:hover td { background: none; }
+  .ingredients .ing-cell { gap: .6rem; }
+  .ingredients .ing-thumb { width: 2.8rem; height: 2.8rem; border-radius: 12px; }
+  .ing-sum { display: block; color: var(--muted); font-size: .78rem; font-weight: 700; }
+  .ingredients .page-head .actions { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+  .ingredients .page-head .actions .btn { white-space: normal; font-size: .85rem; }
+}
+@media (max-width: 720px) { .ingredients td.row-actions [data-off], .ingredients td.row-actions [data-prices] { display: none; } }
+.sources-info { margin: .2rem 0 .9rem; }
+.sources-info summary { cursor: pointer; color: var(--primary-text); font-weight: 800; }
+.sources-info p { margin: .5rem 0 0; }
