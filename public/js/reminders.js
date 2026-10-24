@@ -23,10 +23,41 @@ export async function enablePush(personId, publicKey) {
   await api.post('/push/subscribe', { person_id: personId, subscription: sub.toJSON() });
 }
 
-/** Android-app: het lokale beginscherm van de app plant de meldingen in (daar werkt de meldingen-plug-in). */
-function enableInApp(scheduleUrl) {
-  const back = location.href;
-  location.href = `http://localhost/?meldingen=${encodeURIComponent(scheduleUrl)}&terug=${encodeURIComponent(back)}`;
+const APK_URL = 'https://github.com/DGerding-2307/Maaltijden-app/releases/tag/android-latest';
+/** Versie van de Android-app (uit de user-agent), of 0 buiten de app. */
+export const appVersion = () => Number(navigator.userAgent.match(/MaaltijdenApp\/(\d+)/)?.[1] || 0);
+
+/**
+ * Android-app: het lokale beginscherm van de app plant de meldingen in (daar werkt de meldingen-plug-in).
+ * Het komt daarna terug met ?meldingen=ok of ?meldingen=fout (zie app.js).
+ */
+export async function enableInApp(personId, scheduleUrl) {
+  if (appVersion() < 4) {
+    throw Object.assign(new Error('Je hebt nog de oude Android-app. Installeer eerst de nieuwe app (4.0) en zet de meldingen dan opnieuw aan.'), { apk: APK_URL });
+  }
+  await api.put('/reminders', { person_id: personId, enabled: true });
+  location.href = `http://localhost/?meldingen=${encodeURIComponent(scheduleUrl)}&terug=${encodeURIComponent(location.href)}`;
+}
+
+/** Na terugkomen uit het beginscherm van de app: laten zien of het gelukt is. */
+export function reminderResultFromHash() {
+  const [path, query = ''] = location.hash.split('?');
+  const q = new URLSearchParams(query);
+  const result = q.get('meldingen');
+  if (!result) return null;
+  const n = q.get('aantal');
+  const reason = q.get('reden');
+  for (const k of ['meldingen', 'aantal', 'reden']) q.delete(k);
+  history.replaceState(null, '', `${path}${q.toString() ? `?${q}` : ''}`);
+  return result === 'ok'
+    ? { ok: true, text: `🐶 Herinneringen staan aan op deze telefoon${n ? ` (${n} ingepland voor de komende week)` : ''}` }
+    : { ok: false, text: `Meldingen aanzetten lukte niet: ${reason || 'onbekende fout'}` };
+}
+
+/** Foutmelding, met een link naar de nieuwe app als die te oud is. */
+export function appError(err) {
+  toast(err.message, 'error');
+  if (err.apk) setTimeout(() => { if (confirm(`${err.message}\n\nNu de nieuwe app downloaden?`)) location.href = err.apk; }, 300);
 }
 
 /** Kaart met herinneringen; past in Vandaag (zijkant) en in Account. */
@@ -60,8 +91,11 @@ export async function reminderCard(el, personId, { compact = false } = {}) {
   $$('[data-on]', card).forEach((i) => i.addEventListener('change', () => save({ [i.dataset.on]: { on: i.checked } })));
   $('[data-ha]', card)?.addEventListener('change', (e) => save({ ha_service: e.target.value }));
   $('[data-push]', card)?.addEventListener('click', async (e) => {
-    if (inApp()) return enableInApp(r.schedule_url);
     e.target.disabled = true;
+    if (inApp()) {
+      try { await enableInApp(personId, r.schedule_url); } catch (err) { appError(err); e.target.disabled = false; }
+      return;
+    }
     try {
       await enablePush(personId, r.push_public_key);
       toast('Meldingen staan aan op dit apparaat', 'success');
