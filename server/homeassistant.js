@@ -194,6 +194,25 @@ export function haSensors(baseUrl = '') {
     entity_picture: days.find((d) => d.datum === today)?.afbeelding || undefined,
   });
 
+  // Komende 7 dagen (rollend: vandaag t/m over 6 dagen, ongeacht de kalenderweek)
+  const next = repo.getPlan(today, 7);
+  const nextDays = next.days.map((d) => ({ datum: d.date, dag: dayName(d.date), ...dayMeals(d, meals, baseUrl) }));
+  const nextCost = next.days.reduce((s, d) => s + (d.cost_cents || 0), 0);
+  const nextLines = ['| Dag | Diner | Personen |', '|---|---|---|'];
+  for (const d of nextDays) {
+    const dn = d.diner || [];
+    nextLines.push(`| ${d.datum === today ? '**' : ''}${cap(d.dag.split(' ')[0])}${d.datum === today ? '**' : ''} | ${dn.map((i) => i.titel).join(', ') || '–'} | ${dn.length ? Math.max(...dn.map((i) => i.personen || 0)) : '–'} |`);
+  }
+  nextLines.push('', `Totaal ${euro(nextCost)}`);
+  add('komende_7_dagen', eur(nextCost), {
+    van: next.start, tot: next.end, dagen: nextDays,
+    maaltijden: next.days.reduce((n, d) => n + d.entries.length, 0),
+    budget: euro(budget), budget_eur: eur(budget),
+    markdown: nextLines.join('\n'),
+    friendly_name: 'Maaltijden komende 7 dagen', icon: 'mdi:calendar-range', unit_of_measurement: '€', state_class: 'measurement',
+    entity_picture: nextDays[0]?.afbeelding || undefined,
+  });
+
   // Boodschappen
   const shop = repo.getShoppingList(monday, 7);
   const open = shop.items.filter((i) => !i.checked && !i.have && !i.pantry);

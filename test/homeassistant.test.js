@@ -36,7 +36,7 @@ test('koppelen: sensoren aangemaakt, dashboards niet aangeraakt', async () => {
   assert.ok(ha.states['sensor.maaltijden_vandaag'].attributes.markdown);
   assert.equal(ha.states['sensor.maaltijden_vandaag'].attributes.friendly_name, 'Maaltijden vandaag');
   assert.ok('sensor.maaltijden_boodschappen_open' in ha.states);
-  for (const id of ['sensor.maaltijden_morgen', 'sensor.maaltijden_week', 'sensor.maaltijden_ik_kcal', 'sensor.maaltijden_ik_gewicht']) assert.ok(id in ha.states, id);
+  for (const id of ['sensor.maaltijden_morgen', 'sensor.maaltijden_week', 'sensor.maaltijden_komende_7_dagen', 'sensor.maaltijden_ik_kcal', 'sensor.maaltijden_ik_gewicht']) assert.ok(id in ha.states, id);
   assert.equal(ha.states['sensor.maaltijden_week'].attributes.dagen.length, 7);
   assert.equal(ha.states['sensor.maaltijden_ik_kcal'].attributes.unit_of_measurement, 'kcal');
   assert.match(ha.states['sensor.maaltijden_week'].attributes.markdown, /\| Dag \|/);

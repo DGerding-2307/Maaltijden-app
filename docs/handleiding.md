@@ -190,6 +190,7 @@ Token aanmaken) en tik op **🔗 Koppelen**. De app maakt deze sensoren en werkt
 | `sensor.maaltijden_vandaag` | diner van vandaag | `ontbijt`, `lunch`, `diner` (met `titel`, `kcal_pp`, `kosten`, `recept_url`), `kcal_pp`, `kosten`, `morgen_diner`, `afbeelding`, `markdown` |
 | `sensor.maaltijden_morgen` | diner van morgen | `ontbijt`, `lunch`, `diner` (zoals bij vandaag), `kcal_pp`, `kosten`, `afbeelding` |
 | `sensor.maaltijden_week` | kosten deze week (€) | `dagen` (per dag de maaltijden met foto, kcal, kosten en `afbeelding` van het diner), `budget`, `over_budget`, `markdown` (tabel) |
+| `sensor.maaltijden_komende_7_dagen` | kosten van vandaag t/m over 6 dagen (€) | `dagen` (7 dagen vanaf vandaag, zelfde opbouw als de week, met `personen` per maaltijd), `budget`, `markdown` |
 | `sensor.maaltijden_boodschappen_open` | aantal nog te halen | `artikelen` (naam, afdeling, hoeveelheid, `afbeelding`), `boodschappen`, `per_categorie`, `kosten`, `afgevinkt`, `totaal` |
 | `sensor.maaltijden_<naam>_kcal` | gegeten vandaag (dagboek) | `doel`, `over`, `procent`, `eiwit`, `koolhydraten`, `vet`, `per_maaltijd`, `gegeten` |
 | `sensor.maaltijden_<naam>_gewicht` | laatste gewicht (kg) | `trend`, `doel`, `nog_te_gaan`, `per_week`, `bmi` |
