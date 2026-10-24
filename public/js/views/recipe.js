@@ -7,6 +7,15 @@ import { recipeThumb } from './recipes.js';
 import { linkIngredientDialog } from '../link-ingredient.js';
 import { ingThumb } from '../ingredient-form.js';
 import { meatOptions, defaultPortion } from '../meat.js';
+import { buddySvg } from '../buddy.js';
+
+// Wat het maatje zegt over één portie
+const HEALTH_LINES = {
+  super: 'Lekker én gezond: veel goeds in één bord! 🐾',
+  goed: 'Een prima keuze! Met wat extra groente is het helemaal top 🥬',
+  oke: 'Lekker! Doe er een salade bij voor wat extra vitamines 🥗',
+  letop: 'Smullen! Dit is meer iets voor af en toe 💛',
+};
 
 /** Bronvermelding bij een meegeleverde foto (vrije licentie). */
 function photoCredit(r) {
@@ -58,39 +67,41 @@ export async function render(root, params) {
     const factor = persons / r.servings;
     const n = nutritionMode === 'pp' ? s.nutrition_per_serving : s.nutrition_total;
     view.innerHTML = `
-      <div class="recipe-hero">
-        <figure class="hero-fig">
-          <div class="hero-img">${recipeThumb(r)}</div>
-          ${photoCredit(r)}
-        </figure>
-        <div class="hero-info">
-          <div class="crumbs"><a href="#/recepten">← Receptenboek</a></div>
-          <h1>${esc(r.title)} <button class="fav-big ${r.favorite ? 'on' : ''}" data-fav aria-label="Favoriet">${r.favorite ? '★' : '☆'}</button></h1>
-          ${r.description ? `<p class="lead">${esc(r.description)}</p>` : ''}
-          <div class="recipe-meta big">
-            ${r.prep_minutes ? `<span>🔪 ${minutes(r.prep_minutes)} voorbereiden</span>` : ''}
-            ${r.cook_minutes ? `<span>🔥 ${minutes(r.cook_minutes)} koken</span>` : ''}
-            <span>🍽️ ${esc(r.category)}</span>
-            <span>🌍 ${esc(r.cuisine)}</span>
+      <div class="recipe-c-hero">
+        <div class="hero-img">${recipeThumb(r)}</div>
+        <a class="round-btn back" href="#/recepten" aria-label="Terug naar recepten">‹</a>
+        <div class="hero-buddy">${buddySvg({ mood: r.health?.mood || 'blij' })}</div>
+      </div>
+      ${photoCredit(r).replace('<figcaption', '<p').replace('</figcaption>', '</p>')}
+      <div class="recipe-c-head">
+        <h1>${esc(r.title)} <button class="fav-big ${r.favorite ? 'on' : ''}" data-fav aria-label="Favoriet">${r.favorite ? '★' : '☆'}</button></h1>
+        ${r.description ? `<p class="lead">${esc(r.description)}</p>` : ''}
+      </div>
+      ${r.health ? `<div class="recipe-say"><div class="bubble">${HEALTH_LINES[r.health.level]} <span class="score s-${esc(r.health.level)}">🐾 ${esc(r.health.label)} · ${r.health.score}</span></div></div>` : ''}
+      <div class="stat-pills">
+        <div><b>${num(s.nutrition_per_serving.kcal, 0)}</b><small>kcal p.p.</small></div>
+        <div><b>${num(s.nutrition_per_serving.protein, 0)}g</b><small>eiwit</small></div>
+        <div><b>${(r.prep_minutes || 0) + (r.cook_minutes || 0) || '–'}</b><small>minuten</small></div>
+        <div><b>${euro(s.cost_per_serving_cents)}</b><small>p.p.</small></div>
+      </div>
+      <div class="recipe-actions">
+        <a class="btn btn-primary" href="#/recept/${r.id}/koken?personen=${persons}">👩‍🍳 Kookmodus</a>
+        <button class="btn" data-plan>📅 Inplannen</button>
+        <a class="btn" href="#/recept/${r.id}/bewerken">✏️ Bewerken</a>
+        <details class="menu">
+          <summary class="btn btn-ghost" aria-label="Meer">⋯</summary>
+          <div class="menu-items">
+            <button data-dup>Dupliceren</button>
+            <button data-print>Afdrukken</button>
+            ${r.source_url ? `<a href="${esc(r.source_url)}" target="_blank" rel="noopener">Originele bron ↗</a>` : ''}
+            <button data-delete class="danger">🗑️ Verwijderen</button>
           </div>
-          <div class="recipe-tags">${r.tags.map((t) => `<a class="tag" href="#/recepten?tag=${encodeURIComponent(t)}">${esc(t)}</a>`).join('')}</div>
-          <div class="rating" aria-label="Waardering">
-            ${[1, 2, 3, 4, 5].map((i) => `<button data-rate="${i}" class="${(r.rating || 0) >= i ? 'on' : ''}" aria-label="${i} sterren">★</button>`).join('')}
-          </div>
-          <div class="actions">
-            <a class="btn btn-primary" href="#/recept/${r.id}/koken?personen=${persons}">👩‍🍳 Kookmodus</a>
-            <button class="btn" data-plan>📅 Inplannen</button>
-            <a class="btn" href="#/recept/${r.id}/bewerken">✏️ Bewerken</a>
-            <button class="btn btn-ghost danger-text" data-delete>🗑️ Verwijderen</button>
-            <details class="menu">
-              <summary class="btn btn-ghost" aria-label="Meer">⋯</summary>
-              <div class="menu-items">
-                <button data-dup>Dupliceren</button>
-                <button data-print>Afdrukken</button>
-                ${r.source_url ? `<a href="${esc(r.source_url)}" target="_blank" rel="noopener">Originele bron ↗</a>` : ''}
-              </div>
-            </details>
-          </div>
+        </details>
+      </div>
+      <div class="row wrap" style="margin-bottom:1rem">
+        <div class="recipe-tags">${[r.category, r.cuisine].filter(Boolean).map((t) => `<span class="tag small">${esc(t)}</span>`).join('')}${r.tags.map((t) => `<a class="tag" href="#/recepten?tag=${encodeURIComponent(t)}">${esc(t)}</a>`).join('')}</div>
+        <div class="rating" aria-label="Waardering" style="margin:0 0 0 auto">
+          ${[1, 2, 3, 4, 5].map((i) => `<button data-rate="${i}" class="${(r.rating || 0) >= i ? 'on' : ''}" aria-label="${i} sterren">★</button>`).join('')}
         </div>
       </div>
 
@@ -106,14 +117,15 @@ export async function render(root, params) {
           </div>
           <div class="quick-persons">${[1, 2, 3, 4, 6, 8, 10].map((p) => `<button class="tag ${p === persons ? 'active' : ''}" data-setpersons="${p}">${p}</button>`).join('')}</div>
           ${persons !== r.servings ? `<p class="muted small">Origineel recept voor ${r.servings} personen – hoeveelheden ×${num(factor, 2)}.</p>` : ''}
-          <ul class="ingredient-list">
+          <ul class="ingredient-list ing-tiles">
             ${s.ingredients.map((row) => `
               <li class="${row.optional ? 'optional' : ''}">
-                <label>
-                  <input type="checkbox">
-                  <span class="amount">${scaledLine(row)}</span>
-                  <span class="name">${ingThumb(row.ingredient, 'sm')}${esc(row.name)}${row.note ? ` <span class="muted">– ${esc(row.note)}</span>` : ''}${row.optional ? ' <span class="badge">optioneel</span>' : ''}${ruleBadge(row)}
+                <label title="Afvinken wat je klaar hebt staan">
+                  <input type="checkbox" aria-label="${esc(row.name)} klaar">
+                  ${row.ingredient?.image_url ? ingThumb(row.ingredient) : '<span class="noimg">🥕</span>'}
+                  <span class="name">${esc(row.name)}${row.note ? ` <span class="muted">– ${esc(row.note)}</span>` : ''}${row.optional ? ' <span class="badge">optioneel</span>' : ''}${ruleBadge(row)}
                   ${!row.ingredient_id ? ` <button type="button" class="link-btn strong" data-link-row="${row.id}" title="Niet gekoppeld aan de ingrediëntendatabase: geen voedingswaarden en prijs">🔗 koppelen</button>` : ''}</span>
+                  <span class="amount">${scaledLine(row)}</span>
                   <span class="line-cost muted">${row.cost_cents != null ? euro(row.cost_cents) : ''}</span>
                 </label>
               </li>`).join('')}

@@ -57,6 +57,8 @@ export const haServer = http.createServer((req, res) => {
       ha.uploads.push(body.length);
       return res.end(JSON.stringify({ id: `img${ha.uploads.length}`, filesize: body.length }));
     }
+    const n = req.url.match(/^\/api\/services\/notify\/(\w+)$/);
+    if (n && req.method === 'POST') { ha.notifications = [...(ha.notifications || []), { service: n[1], ...JSON.parse(body) }]; return res.end('[]'); }
     const m = req.url.match(/^\/api\/states\/(.+)$/);
     if (m && req.method === 'POST') { ha.states[m[1]] = JSON.parse(body); res.statusCode = 201; return res.end(body); }
     res.statusCode = 404;

@@ -1,8 +1,14 @@
 // Eenvoudige hash-router.
-import { $, $$, esc, closeAllModals, hasDirtyModal } from './util.js';
+import { $, $$, esc, closeAllModals, hasDirtyModal, savedPerson } from './util.js';
 import { checkForUpdateBanner } from './update.js';
+import { api } from './api.js';
+import { buddySvg } from './buddy.js';
+import { pageSay } from './say.js';
 
 const routes = [
+  [/^\/vandaag$/, () => import('./views/vandaag.js')],
+  [/^\/meer$/, () => import('./views/meer.js')],
+  [/^\/account$/, () => import('./views/account.js')],
   [/^\/planner$/, () => import('./views/planner.js')],
   [/^\/recepten$/, () => import('./views/recipes.js')],
   [/^\/recept\/nieuw$/, () => import('./views/editor.js')],
@@ -27,7 +33,7 @@ async function router() {
     return;
   }
   currentHash = location.hash;
-  const hash = location.hash.slice(1) || '/planner';
+  const hash = location.hash.slice(1) || '/vandaag';
   const [path, query = ''] = hash.split('?');
   const params = Object.fromEntries(new URLSearchParams(query));
   const main = $('#app');
@@ -43,6 +49,7 @@ async function router() {
     main.innerHTML = '<div class="loading">Laden…</div>';
     try {
       const view = await load();
+      $('#page-say').innerHTML = pageSay(section);
       cleanup = await view.render(main, { id: m[1] ? Number(m[1]) : null, ...params });
     } catch (err) {
       console.error(err);
@@ -52,11 +59,45 @@ async function router() {
     window.scrollTo(0, 0);
     return;
   }
-  location.hash = '#/planner';
+  location.hash = '#/vandaag';
 }
 
-window.addEventListener('hashchange', router);
-router();
+// ---------- Opstarten (v4): eerst kijken of je moet inloggen ----------
+$('[data-brand-buddy]').innerHTML = buddySvg({ mood: 'rust', label: 'Maaltijden' });
+
+function drawAccountChip(me) {
+  const chip = $('[data-account]');
+  const u = me.user;
+  chip.hidden = false;
+  chip.innerHTML = u ? `<span class="av">${esc(u.name.charAt(0).toUpperCase())}</span><span class="nm">${esc(u.name)}</span>` : '<span class="av">👤</span><span class="nm">Account</span>';
+  chip.title = u ? `Ingelogd als ${u.name}` : 'Account maken';
+}
+
+// ‘Eten loggen’: de grote + op de telefoon en de knop bovenin op de computer
+$$('[data-log-open]').forEach((b) => b.addEventListener('click', async () => {
+  const { openLog } = await import('./log.js');
+  let personId = savedPerson();
+  if (!personId) personId = (await api.get('/people')).people[0].id;
+  // Schermen die het dagboek tonen verversen zelf (de router zou ook de reactie van het maatje sluiten)
+  openLog({ personId, onDone: () => window.dispatchEvent(new Event('maaltijden-logged')) });
+}));
+
+async function start() {
+  let me = { accounts_enabled: false, user: null };
+  try { me = await api.get('/auth/me'); } catch { /* offline: verder zonder */ }
+  window.__maaltijdenUser = me.user;
+  drawAccountChip(me);
+  if (me.accounts_enabled && !me.user) {
+    const { renderLogin } = await import('./views/account.js');
+    renderLogin($('#app'), { onLoggedIn: () => location.reload() });
+    return;
+  }
+  window.addEventListener('hashchange', router);
+  router();
+}
+// Sessie verlopen of uitgelogd op een ander apparaat
+window.addEventListener('login-required', () => { if (!document.body.classList.contains('auth-only')) location.reload(); });
+start();
 
 // Na een automatische update draait de server een nieuwe versie: vraag om de pagina te vernieuwen.
 let loadedVersion = null;
@@ -75,11 +116,13 @@ async function checkVersion() {
     }
   } catch { /* offline */ }
 }
-checkVersion();
-setInterval(() => !document.hidden && checkVersion(), 60000);
+// Pas na het inloggen (op het inlogscherm geeft de server toch geen antwoord)
+const loggedOut = () => document.body.classList.contains('auth-only');
+setTimeout(() => !loggedOut() && checkVersion(), 1500);
+setInterval(() => !document.hidden && !loggedOut() && checkVersion(), 60000);
 // Nieuwe versie beschikbaar? Dan een melding met ‘Nu updaten’ (kort na het openen en daarna elke 6 uur)
-setTimeout(checkForUpdateBanner, 4000);
-setInterval(() => !document.hidden && checkForUpdateBanner(), 6 * 60 * 60 * 1000);
+setTimeout(() => !loggedOut() && checkForUpdateBanner(), 4000);
+setInterval(() => !document.hidden && !loggedOut() && checkForUpdateBanner(), 6 * 60 * 60 * 1000);
 document.addEventListener('visibilitychange', () => !document.hidden && checkVersion());
 
 // Offline-melding

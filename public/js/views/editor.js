@@ -1,6 +1,7 @@
 // Recept toevoegen/bewerken. Wordt ook gebruikt om een door Claude gemaakt concept na te kijken.
 import { api, meta } from '../api.js';
 import { scanBarcode } from '../scanner.js';
+import { productDialog } from '../scan-flow.js';
 import { linkIngredientDialog } from '../link-ingredient.js';
 import { $, $$, esc, toast, readImageFile, modal, num, fmtDate, pendingPlanLink, clearPlanLink } from '../util.js';
 
@@ -251,10 +252,17 @@ export async function render(root, params) {
     const p = info.product;
     const existing = info.ingredient || info.match;
     if (!p && !info.ingredient) {
-      body.innerHTML = `<p>Dit product is niet gevonden in Open Food Facts.</p>
-        ${info.warnings.map((w) => `<p class="muted small">${esc(w)}</p>`).join('')}
-        <p class="muted small">Je kunt het product toevoegen aan <a href="https://nl.openfoodfacts.org/cgi/product.pl?code=${esc(code)}" target="_blank" rel="noopener">Open Food Facts</a>
-        of het ingrediënt hieronder met de hand invoeren.</p>`;
+      // Onbekend product: toevoegen aan Open Food Facts, of zelf/met een foto van het etiket in je lijst zetten
+      md.close();
+      const ing = await productDialog(code, { purpose: 'recipe' });
+      if (!ing) return;
+      ingById.set(ing.id, ing);
+      ingByName.set(ing.name.toLowerCase(), ing);
+      const empty = rows.findIndex((r) => !r.name);
+      const row = { ...emptyRow(), name: ing.name, ingredient_id: ing.id, quantity: ing.package_grams || 100, unit: 'g' };
+      if (empty >= 0) rows[empty] = row;
+      else rows.push(row);
+      drawRows();
       return;
     }
     const grams = p?.grams || 100;

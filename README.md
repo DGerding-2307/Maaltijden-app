@@ -1,42 +1,71 @@
-# 🍲 Maaltijden
+<p align="center">
+  <img src="docs/img/icoon.png" width="120" alt="Bolletje, het maatje van Maaltijden">
+</p>
 
-Weekplanner, receptenboek en calorieëndagboek voor op je eigen server. Plan je maaltijden en krijg vanzelf een
-boodschappenlijst met prijzen en voedingswaarden. Er zijn 50 Nederlandse recepten om mee te beginnen. Werkt op computer, telefoon en als Android-app.
-Geen account, geen abonnement, geen advertenties.
+<h1 align="center">Maaltijden</h1>
 
-## Laatste wijziging (v3.13.0)
+<p align="center">
+  <b>Gezond eten wordt leuk, met een schattig hondje dat je aanmoedigt.</b><br>
+  Maak een foto van je bord, en de AI rekent de calorieën uit. Plan je week, krijg vanzelf een boodschappenlijst,<br>
+  en laat je maatje je herinneren om te loggen. Op je eigen server: geen abonnement, geen advertenties, jouw gegevens blijven thuis.
+</p>
 
-- ♻️ **Maaltijd als restjes markeren** – bij een geplande maaltijd (⋯ → *Restjes: niet op de boodschappenlijst*) kies je dat de ingrediënten niet op de
-  boodschappenlijst komen en dat de maaltijd geen kosten telt. Voedingswaarden blijven meetellen. In Home Assistant staat zo'n maaltijd als `restjes`
-- Home Assistant: nieuwe sensor **Maaltijden komende 7 dagen** (`sensor.maaltijden_komende_7_dagen`)
+<p align="center">
+  <a href="#installeren"><b>Installeren in 5 minuten</b></a> ·
+  <a href="https://github.com/DGerding-2307/Maaltijden-app/releases/tag/android-latest">Android-app</a> ·
+  <a href="docs/handleiding.md">Handleiding</a>
+</p>
 
-## Eerder (v3.12.0)
+![Maaltijden 4.0 op je telefoon en computer](docs/img/schermen.png)
 
-- Home Assistant: nieuwe sensor **Maaltijden komende 7 dagen** (`sensor.maaltijden_komende_7_dagen`). Altijd vandaag t/m over 6 dagen, ongeacht de kalenderweek,
-  met per dag de maaltijden, het aantal personen, de foto en de kosten. De sensor van de kalenderweek blijft bestaan
+## 🐶 Maak kennis met Bolletje
 
-- Home Assistant: een foto bij alles – elke maaltijd van vandaag, morgen en de week en elk boodschappen-artikel, met voorbeeldkaarten met foto's.
-  De foto's komen via Home Assistant zelf (https), zodat ze ook via Nabu Casa te zien zijn
-- 🏡 **Home Assistant**: koppel bij **Instellingen → Home Assistant** met het adres en een toegangstoken. De app stuurt alles als sensoren:
-  vandaag, morgen, de week met kosten en budget, de boodschappen per afdeling, en per persoon de calorieën van vandaag en het gewicht.
-  In de instellingen staan voorbeeld-YAML voor kaarten (en een automatisering) om zelf aan te passen. De app past je dashboards niet aan
-- 🏠 **Boodschappen: afgevinkte in huis zetten** – na het boodschappen doen met één knop alles wat je hebt afgevinkt naar ‘Al in huis’; de lijst is weer leeg
-- Opgelost: vensters sloten soms vanzelf. Naast een formulier tikken, ‘Ga’/Enter op het toetsenbord en het terug-gebaar sluiten
-  een venster met ingevulde gegevens niet meer zonder te vragen
-- 🛒 **Claude zoekt ingrediënten op bij Jumbo**: laat Claude een recept bedenken (of importeer er een) en onbekende ingrediënten worden
-  op jumbo.com opgezocht en toegevoegd, met echte prijs, voedingswaarden, foto en productlink. Bij een ingrediënt kan het ook los: *🛒 Zoek bij Jumbo*
-- 📝 **Gerechten plannen die nog geen recept zijn**: typ de naam bij het plannen en kies *‘…’ plannen*. Tik later op de maaltijd
-  om er een recept van te maken (zelf of met Claude) of een bestaand recept te kiezen; het nieuwe recept wordt meteen gekoppeld
-- ⬇️ **Direct updaten** vanuit de app en de website (Instellingen → Versie en updates), met een melding als er een nieuwe versie is.
-  Eenmalig de stack bijwerken, zie [Updates](#updates)
-- Calorieën per maaltijd in de planner, naast de prijs
-- Wat je in het dagboek zet, staat ook in de planner
-- 🍴 *Uit eten* met één tik bij het plannen
-- Maaltijden van losse ingrediënten tonen hun prijs
-- Vlees of vis toevoegen kan alleen nog bij het diner (niet bij ontbijt en lunch)
-- Opgelost: bij losse ingrediënten met de regel ‘hele verpakking’ rekende de planner per persoon een hele verpakking (veel te veel kcal en een te hoge prijs)
-- Gewichtsgrafiek: ligt je doelgewicht ver van je metingen, dan staat er een pijl met het doel aan de rand (de legenda toonde ‘Doel’ zonder lijn)
-- Gewichtsgrafiek: een lijn door je metingen; de trend (gemiddelde van 7 dagen) is een stippellijn ernaast
+Je nieuwe maatje is een getekend hondje dat met je meeleeft. Hij ademt, knippert en kwispelt. Na elke maaltijd die je logt, krijg je een
+lief berichtje dat past bij hoe gezond je at. Super gezond? Dan springt hij van blijdschap. Een frietje? Dan kijkt hij een beetje bezorgd en
+geeft hij een tip, maar boos wordt hij nooit. Geef hem zelf een naam: Bolletje, Koekje, Pip of iets heel anders.
+
+![De stemmingen van het maatje](docs/img/stemmingen.png)
+
+- ❤️ **Hartjes** laten zien hoe gezond je vandaag eet, 🔥 je **reeks** hoeveel dagen je al op rij logt
+- 🏅 Dagdoel gehaald of 7 dagen op rij? Dan krijgt hij een medaille
+- ✨ Optioneel schrijft Claude (AI) elke keer een persoonlijk berichtje
+
+## ✨ Wat kan het?
+
+| | |
+|---|---|
+| 📷 **Foto → calorieën** | Geen idee wat er in je eten zit? Maak een foto. De AI herkent het gerecht, schat de ingrediënten en rekent kcal, eiwit, koolhydraten en vet uit. |
+| 🥕 **Ingrediënten aanpassen** | Iets meer pasta, geen kaas? Pas per ingrediënt de hoeveelheid aan met – en +. De calorieën rekenen live mee, en je kunt het bewaren als je eigen recept. |
+| 🔔 **Herinneringen** | Rond ontbijt, lunch en diner stuurt je maatje een seintje, maar alleen als je nog niets gelogd hebt. Via de Android-app, als pushmelding of via Home Assistant. |
+| ➕ **Loggen in 3 tikken** | Eén grote knop: foto, zoeken, barcode scannen, of met één tik wat gepland stond of wat je vaak eet. |
+| ▦ **Barcode scannen** | Producten uit Open Food Facts staan met één tik in je lijst. Onbekend product? Voeg het toe aan Open Food Facts, of laat de AI het etiket lezen. |
+| 📅 **Weekplanner** | Plan je maaltijden en kies uit 50+ Nederlandse recepten, of laat Claude een weekmenu maken binnen je budget. |
+| 🛒 **Boodschappenlijst** | Komt vanzelf uit je planning, per afdeling, met echte prijzen. Wat je al in huis hebt, vink je weg. |
+| 📖 **Receptenboek** | Importeer recepten van elke website of van een foto, met voedingswaarden en prijs per portie. |
+| ⚖️ **Dagboek & gewicht** | Je persoonlijke dagdoel, grafieken van je week en een gewichtstrend. |
+| 👨‍👩‍👧 **Accounts** | Iedereen in huis een eigen account, dagboek en maatje. Recepten, planner en boodschappen deel je samen. |
+| 🏡 **Home Assistant** | Het menu van vandaag, je boodschappen en je calorieën als sensoren op je dashboard. |
+| 🌙 **Licht en donker** | Fris, rond en rustig, ook in donkere modus. Werkt op computer, telefoon, als app op je beginscherm en als Android-app. |
+
+![Kennismaking, reactie van het maatje en een herinnering](docs/img/maatje-schermen.png)
+
+## 💛 Waarom Maaltijden?
+
+- **Van jou.** Draait op je eigen server (bijvoorbeeld Unraid of een Raspberry Pi). Geen account bij een bedrijf, geen tracking.
+- **Gratis.** Geen abonnement. Alleen voor de AI-functies gebruik je je eigen Claude-sleutel; een foto kost minder dan een cent.
+- **Nederlands.** Nederlandse recepten, Nederlandse supermarktprijzen en voedingswaarden uit NEVO en Open Food Facts.
+- **Voor het hele huishouden.** Samen plannen en boodschappen doen, en ieder een eigen dagboek en maatje.
+
+## Nieuw in versie 4.0
+
+- 🐶 Het maatje: een geanimeerd hondje met zes stemmingen, hartjes, een reeks en aanmoediging na elke maaltijd
+- 🏠 Nieuw startscherm **Vandaag** en een grote ＋ om te loggen; op de telefoon een rustige onderbalk met 5 knoppen
+- 📷 Foto van je eten → AI berekent de calorieën
+- 🥕 Ingrediënten aanpassen bij het loggen en achteraf, en opslaan als eigen recept
+- 🔔 Herinneringen op je telefoon (Android-app, pushmelding of Home Assistant), alleen als je nog niets gelogd hebt
+- 👨‍👩‍👧 Accounts met een eigen dagboek per persoon; het eerste account wordt beheerder
+- ▦ Scannen: onbekende producten toevoegen aan Open Food Facts, of het etiket laten lezen
+- 🎨 Nieuwe huisstijl ‘Perzik’ met het hondje als app-icoon
 
 ## Installeren
 
@@ -116,3 +145,20 @@ open het bestand en vul het adres van je server in (bijv. `192.168.1.20:3000`).
   ```
 
 Meer uitleg over alle functies staat in de [handleiding](docs/handleiding.md).
+
+### Herinneringen instellen
+
+Zet ze aan bij **Vandaag** (kaart *Herinneringen*) of bij **Account**, en kies hoe je ze wilt krijgen:
+
+- **Android-app:** tik op *Aanzetten in de app*; de app plant de meldingen zelf in (ook als hij dicht is). Hiervoor heb je de Android-app van versie 4.0 nodig.
+- **Pushmelding in de browser of webapp:** tik op *Aanzetten*. Dit werkt alleen als de app via **https** bereikbaar is (bijvoorbeeld via een reverse proxy of Nabu Casa); op een iPhone eerst *Zet op beginscherm*.
+- **Home Assistant:** vul de naam van de meldingsdienst van je telefoon in (bijvoorbeeld `mobile_app_pixel_8`). Home Assistant moet gekoppeld zijn bij Instellingen.
+
+### Accounts
+
+Ga naar **Account** (rechtsboven of via *Meer*) en maak je account. Het eerste account wordt beheerder en kan huisgenoten toevoegen.
+Daarna moet iedereen inloggen. Zonder accounts werkt de app zoals altijd, zonder inloggen.
+
+---
+
+<sub>Lettertypen: Nunito en Fredoka (SIL Open Font License). Voedingswaarden: NEVO (RIVM) en Open Food Facts (ODbL). Prijzen: Open Prices.</sub>

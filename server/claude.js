@@ -621,3 +621,136 @@ export async function askStream({ recipe, question, history = [] }, onText) {
   if (final.stop_reason === 'refusal') onText('\n\n_(Claude heeft deze vraag niet beantwoord.)_');
   return final;
 }
+
+// ---------- Foto van je eten: wat staat er op je bord? ----------
+
+const PER100_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['kcal', 'protein', 'carbs', 'sugar', 'fat', 'sat_fat', 'fiber', 'salt'],
+  properties: Object.fromEntries(['kcal', 'protein', 'carbs', 'sugar', 'fat', 'sat_fat', 'fiber', 'salt'].map((k) => [k, { type: 'number' }])),
+};
+
+const PHOTO_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['is_food', 'title', 'confidence', 'note', 'items'],
+  properties: {
+    is_food: { type: 'boolean' },
+    title: { type: 'string' },
+    confidence: { type: 'string', enum: ['hoog', 'gemiddeld', 'laag'] },
+    note: { type: 'string' },
+    items: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['name', 'grams', 'known', 'vegetable_or_fruit', 'per100'],
+        properties: {
+          name: { type: 'string' },
+          grams: { type: 'number' },
+          known: { type: 'boolean' },
+          vegetable_or_fruit: { type: 'boolean' },
+          per100: PER100_SCHEMA,
+        },
+      },
+    },
+  },
+};
+
+/**
+ * Bekijk een foto van een maaltijd en schat wat erop staat: naam, ingrediënten met gewicht en voedingswaarden per 100 g.
+ * De ingrediënten worden daarna aan de eigen ingrediëntenlijst gekoppeld (zie tracker.itemsFromPhoto).
+ */
+export async function analyzeMealPhoto({ image, meal }) {
+  if (!image?.data || !/^image\/(jpeg|png|webp|gif)$/.test(image.media_type || '')) {
+    throw Object.assign(new Error('Stuur een foto (JPG, PNG of WebP)'), { status: 400 });
+  }
+  const system = `${SYSTEM}
+
+Je bent ook een ervaren diëtist. Je krijgt een foto van een maaltijd en schat wat erop staat.
+Regels:
+- "title" is een korte Nederlandse naam van het gerecht (bv. "Pasta pesto met kip").
+- Splits het gerecht in de losse ingrediënten zoals ze op het bord liggen, met het geschatte gewicht in gram zoals gegeten (gekookt/gebakken).
+  Schat porties met behulp van het bord, bestek en de verhoudingen. Vergeet saus, olie en dressing niet.
+- Gebruik waar het past exact een naam uit de lijst bekende ingrediënten en zet dan "known": true.
+- Vul altijd "per100" met realistische voedingswaarden per 100 g (NEVO-achtig) voor de bereide vorm.
+- "vegetable_or_fruit" is true voor groente, fruit, peulvruchten en salade (niet voor aardappelen).
+- "confidence": hoe zeker je bent van gerecht en hoeveelheden. "note" is één korte zin over wat lastig te zien was (of leeg).
+- Staat er geen eten op de foto, zet dan "is_food": false en laat "items" leeg.
+
+Bekende ingrediënten: ${knownIngredientList()}`;
+  return structuredCall({
+    system,
+    content: [
+      { type: 'image', source: { type: 'base64', media_type: image.media_type, data: image.data } },
+      { type: 'text', text: `Wat staat er op deze foto${meal ? ` (gegeten als ${meal})` : ''}? Geef het gevraagde JSON.` },
+    ],
+    schema: PHOTO_SCHEMA,
+    effort: 'medium',
+  });
+}
+
+// ---------- Persoonlijk berichtje van het maatje ----------
+
+const BUDDY_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['title', 'text'],
+  properties: { title: { type: 'string' }, text: { type: 'string' } },
+};
+
+/** Kort, lief en eerlijk berichtje van het hondje na het loggen (optioneel, in Instellingen aan te zetten). */
+export async function buddyMessage({ name, food, meal, level, nutrition, kcalLeft }) {
+  const text = `Je bent ${name}, een schattig getekend hondje in een Nederlandse eet-app. Je moedigt de gebruiker aan na elke maaltijd.
+Toon: vrolijk, lief, kort, nooit belerend of streng, nooit over gewicht of uiterlijk. Je mag 'woef' zeggen en één emoji gebruiken.
+De gebruiker logde net: "${food}" als ${meal}. Gezondheidsniveau: ${level} (super/goed/oke/letop).
+Voedingswaarden: ${Math.round(nutrition.kcal)} kcal, eiwit ${Math.round(nutrition.protein)} g, vezels ${Math.round(nutrition.fiber)} g, suiker ${Math.round(nutrition.sugar)} g, verzadigd vet ${Math.round(nutrition.sat_fat)} g, zout ${nutrition.salt?.toFixed(1)} g.
+Nog ${kcalLeft} kcal over voor vandaag (negatief = erboven).
+Geef een titel van maximaal 5 woorden en een tekst van maximaal 20 woorden met één concrete, positieve tip als het niveau niet "super" is.`;
+  const result = await Promise.race([
+    structuredCall({ system: SYSTEM, content: [{ type: 'text', text }], schema: BUDDY_SCHEMA, effort: 'low', maxTokens: 2000 }),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('te traag')), 8000)),
+  ]);
+  return { title: String(result.title).slice(0, 60), text: String(result.text).slice(0, 200) };
+}
+
+// ---------- Foto van het etiket: product toevoegen dat Open Food Facts nog niet kent ----------
+
+const LABEL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['readable', 'name', 'brand', 'category', 'package_grams', 'unit_weight_g', 'per100', 'allergens'],
+  properties: {
+    readable: { type: 'boolean' },
+    name: { type: 'string' },
+    brand: { type: 'string' },
+    category: { type: 'string', enum: CATEGORIES },
+    package_grams: nullableNumber,
+    unit_weight_g: nullableNumber,
+    per100: PER100_SCHEMA,
+    allergens: { type: 'string' },
+  },
+};
+
+/** Lees naam, merk, verpakking en voedingswaarden per 100 g van een foto van een verpakking of voedingsetiket. */
+export async function readLabel({ image }) {
+  if (!image?.data || !/^image\/(jpeg|png|webp|gif)$/.test(image.media_type || '')) {
+    throw Object.assign(new Error('Stuur een foto (JPG, PNG of WebP)'), { status: 400 });
+  }
+  return structuredCall({
+    system: `${SYSTEM}
+
+Je leest verpakkingen en voedingsetiketten. Neem de waarden per 100 g (of 100 ml) letterlijk over van het etiket.
+Staat er alleen 'per portie', reken dan om naar 100 g. Energie in kcal (niet kJ). Zout in gram.
+"name" is de korte Nederlandse productnaam zonder merk en zonder gewicht, in kleine letters (bv. "griekse yoghurt 0%").
+Is een waarde niet leesbaar, schat dan realistisch. Is er geen etiket of product te zien, zet "readable": false.
+"allergens": de allergenen van het etiket, gescheiden door komma's (of leeg).`,
+    content: [
+      { type: 'image', source: { type: 'base64', media_type: image.media_type, data: image.data } },
+      { type: 'text', text: 'Lees dit product en zijn voedingswaarden. Geef het gevraagde JSON.' },
+    ],
+    schema: LABEL_SCHEMA,
+    effort: 'low',
+  });
+}

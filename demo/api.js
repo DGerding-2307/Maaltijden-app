@@ -5,6 +5,7 @@ import * as repo from './server/repo.js';
 import { getSetting, setSetting, getDb } from './server/db.js';
 import { CATEGORIES, mondayOf, addDays, missingBuiltinRecipes, restoreBuiltinRecipes } from './server/seed.js';
 import * as tracker from './server/tracker.js';
+import * as buddy from './server/buddy.js';
 import { UNITS } from './server/calc.js';
 
 const NOT_IN_DEMO = 'Dit werkt alleen als je de app op je eigen server draait (Claude, Open Food Facts en Open Prices zijn vanuit de demo niet bereikbaar).';
@@ -118,13 +119,37 @@ const ROUTES = [
   ['PUT', '/people/:id', (req) => tracker.savePerson(req.body, Number(req.params.id)) || Promise.reject(notFound())],
   ['DELETE', '/people/:id', (req) => tracker.deletePerson(Number(req.params.id))],
   ['GET', '/diary', (req) => tracker.getDay(Number(req.query.persoon), req.query.datum)],
-  ['POST', '/diary', (req) => ({ id: tracker.addLogEntry(req.body) })],
-  ['PUT', '/diary/:id', (req) => (tracker.updateLogEntry(Number(req.params.id), req.body) ? { ok: true } : Promise.reject(notFound()))],
+  ['POST', '/diary', (req) => {
+    const id = tracker.addLogEntry(req.body);
+    return { id, reaction: buddyReaction(id) };
+  }],
+  ['POST', '/diary/preview', (req) => tracker.previewItems(req.body)],
+  ['PUT', '/diary/:id', (req) => {
+    if (!tracker.updateLogEntry(Number(req.params.id), req.body)) throw notFound();
+    return { ok: true, reaction: Array.isArray(req.body.items) ? buddyReaction(Number(req.params.id)) : null };
+  }],
   ['DELETE', '/diary/:id', (req) => tracker.deleteLogEntry(Number(req.params.id))],
   ['POST', '/diary/from-plan', (req) => ({ added: tracker.logPlannedDay(Number(req.body.person_id), req.body.date, req.body.plan_entry_id) })],
   ['POST', '/diary/copy', (req) => ({ copied: tracker.copyDay(Number(req.body.person_id), req.body.from, req.body.to) })],
   ['GET', '/diary/recent', (req) => tracker.recentEntries(Number(req.query.persoon))],
   ['GET', '/diary/summary', (req) => tracker.summary(Number(req.query.persoon), req.query.van, req.query.tot)],
+  ['GET', '/diary/:id', (req) => tracker.getLogEntry(Number(req.params.id)) || Promise.reject(notFound())],
+  ['GET', '/recipes/:id/items', (req) => tracker.itemsFromRecipe(Number(req.params.id), Number(req.query.porties) || 1)],
+
+  // v4: het maatje (accounts en meldingen alleen op je eigen server)
+  ['GET', '/auth/me', () => ({ accounts_enabled: false, user: null, demo: true })],
+  ['GET', '/buddy', (req) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const day = tracker.getDay(Number(req.query.persoon), req.query.datum || today);
+    return buddy.buddyState(day, { streak: buddy.streakOf(Number(req.query.persoon), today), hour: new Date().getHours(), personId: Number(req.query.persoon) });
+  }],
+  ['PUT', '/buddy', (req) => {
+    buddy.saveBuddy(Number(req.body.person_id), req.body);
+    return buddy.buddyOf(tracker.getPerson(Number(req.body.person_id)));
+  }],
+  ['GET', '/reminders', () => ({ settings: { enabled: false, ...getSetting('demo_reminders', {}), ontbijt: { on: true, time: '09:00' }, lunch: { on: true, time: '13:00' }, diner: { on: true, time: '19:00' }, avond: { on: false, time: '21:00' }, ha_service: '' },
+    push_public_key: '', push_devices: 0, home_assistant: false, schedule_url: '', demo: true })],
+  ['PUT', '/reminders', (req) => { setSetting('demo_reminders', { enabled: !!req.body.enabled }); return { ok: true }; }],
   ['GET', '/foods', (req) => {
     const q = String(req.query.q || '').trim();
     if (q.length < 2) return { recipes: [], ingredients: [] };
@@ -150,6 +175,13 @@ const ROUTES = [
   ['GET', '/off/queue', idle],
   ['GET', '/prices/queue', idle],
 ];
+
+function buddyReaction(id) {
+  const entry = tracker.getLogEntry(id);
+  const day = tracker.getDay(entry.person_id, entry.date);
+  const scored = day.meals.flatMap((m) => m.entries).find((e) => e.id === id) || entry;
+  return buddy.reactionFor({ entry: scored, day, streak: buddy.streakOf(entry.person_id, entry.date), name: buddy.buddyOf(day.person).name, personId: entry.person_id });
+}
 
 function matchRoute(method, path) {
   for (const [m, pattern, handler] of ROUTES) {

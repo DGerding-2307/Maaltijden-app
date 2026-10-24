@@ -4,3 +4,6 @@ data/*.db-*
 .env
 !data/.gitkeep
 dist-demo/
+data/uploads/
+data/backups/
+.claude/

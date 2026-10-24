@@ -17,7 +17,7 @@ fs.cpSync(path.join(root, 'public', 'js'), path.join(out, 'js'), { recursive: tr
 fs.cpSync(path.join(root, 'public', 'img'), path.join(out, 'img'), { recursive: true });
 
 // Datalaag van de server, met node-imports vervangen door browser-shims
-for (const f of ['calc.js', 'repo.js', 'seed.js', 'db.js', 'tracker.js', 'photos.js', 'ingredient-photos.js', 'seed-bakeoff.js']) {
+for (const f of ['calc.js', 'repo.js', 'seed.js', 'db.js', 'tracker.js', 'buddy.js', 'photos.js', 'ingredient-photos.js', 'seed-bakeoff.js']) {
   let src = fs.readFileSync(path.join(root, 'server', f), 'utf8');
   src = src
     .replace("from 'node:sqlite'", "from './sqlite-shim.js'")
@@ -33,7 +33,10 @@ fs.writeFileSync(path.join(out, 'js', 'boot.js'), fs.readFileSync(path.join(root
 // api-demo.js importeert ./server/...; dat pad klopt vanuit js/
 
 // Pagina: titel, CSS inline, kop en navigatie uit public/index.html
-const css = fs.readFileSync(path.join(root, 'public', 'css', 'style.css'), 'utf8');
+// Stijl (v4: met het maatje); lettertypen relatief, zodat de demo ook in een submap werkt
+const css = `${fs.readFileSync(path.join(root, 'public', 'css', 'style.css'), 'utf8')}\n${fs.readFileSync(path.join(root, 'public', 'css', 'buddy.css'), 'utf8')}`
+  .replaceAll('url(/fonts/', 'url(fonts/');
+fs.cpSync(path.join(root, 'public', 'fonts'), path.join(out, 'fonts'), { recursive: true });
 const html = fs.readFileSync(path.join(root, 'public', 'index.html'), 'utf8');
 const bodyMarkup = html.slice(html.indexOf('<header'), html.indexOf('<script'));
 const page = `<title>Maaltijden</title>

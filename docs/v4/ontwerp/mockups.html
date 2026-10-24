@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<title>Maaltijden 4.0 – ontwerpen</title>
+<link rel="stylesheet" href="/public/css/buddy.css">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800;900&family=Fredoka:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ---------- Thema's ---------- */
+body.a { --bg:#f4fbf8; --surface:#fff; --ink:#1f2d29; --muted:#7a8a85; --line:#e3efea; --primary:#22b07d; --primary-ink:#fff; --soft:#ddf5ea;
+  --scene1:#c9f0de; --scene2:#a8e4c9; --hill:#8fd8b3; --ring:#ff8a6b; --p:#22b07d; --c:#ffc04d; --f:#ff8a6b; --font:'Nunito'; --head:'Nunito'; --r:26px; --collar:#ff8a6b; }
+body.b { --bg:#fff7ef; --surface:#fff; --ink:#3a2a22; --muted:#a08a7c; --line:#f3e6d8; --primary:#ff8a5c; --primary-ink:#fff; --soft:#ffe8da;
+  --scene1:#ffe3cf; --scene2:#ffd3b8; --hill:#ffc29f; --ring:#ff8a5c; --p:#7cc68d; --c:#ffc94d; --f:#ff8a5c; --font:'Nunito'; --head:'Fredoka'; --r:30px; --collar:#7cc68d; }
+body.c { --bg:#ffffff; --surface:#fff; --ink:#1b2033; --muted:#8a90a3; --line:#eceef4; --primary:#5b7cfa; --primary-ink:#fff; --soft:#eef1ff;
+  --scene1:#f3f5ff; --scene2:#e9edff; --hill:#dfe5ff; --ring:#5b7cfa; --p:#5b7cfa; --c:#b69cff; --f:#ff9fb8; --font:'Inter'; --head:'Inter'; --r:20px; --collar:#5b7cfa; }
+
+* { box-sizing: border-box; margin: 0; }
+html, body { background: #e9ebee; }
+body { font-family: var(--font), system-ui, sans-serif; color: var(--ink); padding: 48px 56px; width: 2440px; }
+.title { display: flex; align-items: baseline; gap: 18px; margin-bottom: 30px; font-family: 'Nunito'; color:#2a2f36 }
+.title h1 { font-size: 40px; font-weight: 900; }
+.title p { font-size: 22px; color: #6b7280; }
+.boards { display: flex; gap: 48px; align-items: flex-start; }
+.label { font: 700 18px 'Nunito'; color: #6b7280; margin: 0 0 12px 6px; }
+
+/* ---------- Telefoon ---------- */
+.phone { width: 390px; height: 844px; border-radius: 52px; background: var(--bg); position: relative; overflow: hidden;
+  box-shadow: 0 0 0 10px #1c1f24, 0 30px 60px rgba(0,0,0,.25); }
+.status { height: 46px; display: flex; justify-content: space-between; align-items: center; padding: 6px 30px 0; font: 700 15px 'Inter'; position: relative; z-index: 3; }
+.status::after { content:''; position:absolute; left:50%; top:10px; width:110px; height:30px; background:#1c1f24; border-radius:20px; transform:translateX(-50%) }
+.scroll { height: calc(844px - 46px - 84px); overflow: hidden; padding: 0 18px; }
+h2, h3, .head { font-family: var(--head), var(--font), sans-serif; }
+
+/* Maatje-gedeelte */
+.hero { position: relative; border-radius: var(--r); padding: 14px 16px 0; margin: 4px 0 14px; overflow: hidden; }
+.a .hero { background: linear-gradient(180deg, var(--scene1), var(--scene2)); height: 300px; }
+.a .hero::after { content:''; position:absolute; left:-20%; right:-20%; bottom:-120px; height:180px; background: var(--hill); border-radius: 50%; }
+.a .hero .buddy { position:absolute; left:50%; bottom:6px; width:170px; transform:translateX(-50%); z-index:2 }
+.hero-top { display:flex; justify-content:space-between; align-items:center; position:relative; z-index:2 }
+.name { font-weight: 900; font-size: 22px; }
+.c .name { font-weight: 700; }
+.hearts { color: #ff6b81; font-size: 16px; letter-spacing: 1px }
+.hearts i { color: rgba(0,0,0,.14); font-style: normal }
+.chip { display:inline-flex; align-items:center; gap:5px; background: rgba(255,255,255,.75); border-radius: 99px; padding: 5px 11px; font-weight: 800; font-size: 13px; }
+.c .chip { background: var(--soft); color: var(--primary); font-weight: 600 }
+.bubble { position: relative; background: #fff; border-radius: 18px; padding: 10px 13px; font-size: 14px; font-weight: 700; line-height: 1.35; box-shadow: 0 6px 18px rgba(0,0,0,.07); }
+.a .hero .bubble { position:absolute; left:14px; top:62px; width:150px; z-index:3; font-size:13px }
+.a .hero .bubble::after { content:''; position:absolute; right:-8px; bottom:18px; border:8px solid transparent; border-left-color:#fff; border-right:0 }
+
+.b .hero { background: none; padding: 0 2px; display:grid; grid-template-columns: 150px 1fr; gap: 10px; align-items: center; margin-top: 2px }
+.b .hero .blob { background: radial-gradient(circle at 50% 60%, var(--scene2), var(--scene1)); border-radius: 50%; width:150px; height:150px; display:grid; place-items:end center; padding-bottom: 8px }
+.b .hero .blob .buddy { width: 118px }
+.b .hero-top { grid-column: 1 / -1; padding-left: 4px }
+.b .hero .bubble { background: var(--surface); border-radius: 22px 22px 22px 6px; box-shadow: 0 6px 20px rgba(255,138,92,.15) }
+.b .hero .bubble::before { content:''; position:absolute; left:-7px; bottom:12px; border:8px solid transparent; border-right-color: var(--surface); border-left:0 }
+
+.c .hero { background: none; padding: 6px 0 0; display:flex; gap: 12px; align-items: center }
+.c .hero .buddy { width: 92px; flex: none; margin: 0 }
+.c .hero .bubble { box-shadow: none; background: var(--soft); border-radius: 16px 16px 16px 4px; font-weight: 500; color: var(--ink) }
+.c .greet { font-size: 28px; font-weight: 700; letter-spacing: -.02em; margin: 6px 0 2px }
+.c .sub { color: var(--muted); font-size: 14px }
+
+/* Kaarten */
+.card { background: var(--surface); border-radius: var(--r); padding: 16px; box-shadow: 0 4px 18px rgba(30,40,60,.05); margin-bottom: 12px }
+.c .card { box-shadow: none; border: 1px solid var(--line) }
+.day { display: grid; grid-template-columns: 112px 1fr; gap: 16px; align-items: center }
+.ring { position: relative; width: 112px; height: 112px }
+.ring svg { transform: rotate(-90deg) }
+.ring .v { position:absolute; inset:0; display:grid; place-content:center; text-align:center; line-height:1.05 }
+.ring b { font-size: 24px; font-weight: 900 }
+.c .ring b { font-weight: 700 }
+.ring small { font-size: 12px; color: var(--muted); font-weight: 700 }
+.macro { margin: 7px 0 }
+.macro .t { display:flex; justify-content:space-between; font-size: 13px; font-weight: 700 }
+.macro .t span { color: var(--muted) }
+.bar { height: 8px; border-radius: 9px; background: var(--line); margin-top: 4px; overflow:hidden }
+.bar i { display:block; height:100%; border-radius: 9px }
+.sec { display:flex; justify-content:space-between; align-items:center; margin: 18px 4px 8px; font-weight: 900; font-size: 17px }
+.c .sec { font-weight: 700 }
+.sec a { color: var(--primary); font-size: 14px; font-weight: 800 }
+.meal { display:flex; align-items:center; gap: 12px; padding: 10px 0 }
+.meal + .meal { border-top: 1px solid var(--line) }
+.thumb { width: 46px; height: 46px; border-radius: 15px; display:grid; place-items:center; font-size: 24px; background: var(--soft); flex: none }
+.meal .m { flex:1; min-width:0 }
+.meal .k { font-size: 12px; color: var(--muted); font-weight: 800; text-transform: uppercase; letter-spacing:.04em }
+.meal .n { font-weight: 800; font-size: 15px; white-space: nowrap; overflow:hidden; text-overflow: ellipsis }
+.c .meal .n { font-weight: 600 }
+.meal .kc { font-weight: 900; font-size: 15px; text-align:right }
+.c .meal .kc { font-weight: 600 }
+.score { display:inline-block; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 99px; margin-top: 3px }
+.s-super { background:#dcf5e7; color:#1f8a57 } .s-goed { background:#fff1cc; color:#a06b00 } .s-let { background:#ffe3dc; color:#c2553a }
+.addbtn { border: 2px dashed var(--line); border-radius: 14px; padding: 8px 12px; color: var(--primary); font-weight: 800; font-size: 14px }
+.planned { background: var(--soft); color: var(--primary); border-radius: 12px; padding: 7px 12px; font-weight: 800; font-size: 13px }
+
+/* Onderbalk */
+.tabbar { position:absolute; left:0; right:0; bottom:0; height:84px; background: var(--surface); display:grid; grid-template-columns: repeat(5,1fr); align-items:start; padding-top: 10px; border-top: 1px solid var(--line) }
+.tab { text-align:center; font-size: 11px; font-weight: 800; color: var(--muted) }
+.tab .i { font-size: 22px; display:block; filter: grayscale(1); opacity:.6 }
+.tab.on { color: var(--primary) } .tab.on .i { filter:none; opacity:1 }
+.plus { width: 58px; height: 58px; border-radius: 22px; background: var(--primary); color: var(--primary-ink); display:grid; place-items:center; font-size: 32px; font-weight: 600; margin: -26px auto 0; box-shadow: 0 10px 22px color-mix(in srgb, var(--primary) 45%, transparent) }
+.b .plus { border-radius: 50% }
+
+/* Foto-scherm */
+.topnav { display:flex; align-items:center; gap: 12px; padding: 4px 0 12px }
+.back { width: 38px; height: 38px; border-radius: 13px; background: var(--surface); display:grid; place-items:center; font-weight: 900; box-shadow: 0 2px 8px rgba(0,0,0,.06) }
+.topnav h2 { font-size: 20px; font-weight: 900 }
+.c .topnav h2 { font-weight: 700 }
+.photo { position: relative; height: 196px; border-radius: var(--r); overflow:hidden; background: linear-gradient(135deg,#d7c4ad,#b89c7d) }
+.photo svg { position:absolute; inset: 0; width:100%; height:100% }
+.ai { position:absolute; left:10px; bottom:10px; right:10px; background: rgba(255,255,255,.92); border-radius: 14px; padding: 8px 11px; font-size: 13px; font-weight: 800; display:flex; justify-content:space-between }
+.ai span { color: var(--primary) }
+.totals { display:grid; grid-template-columns: 1.3fr 1fr 1fr 1fr; gap: 6px; margin: 12px 0 }
+.tot { background: var(--surface); border-radius: 14px; padding: 8px 6px; text-align:center; box-shadow: 0 2px 10px rgba(0,0,0,.04) }
+.c .tot { box-shadow:none; border:1px solid var(--line) }
+.tot b { display:block; font-size: 17px; font-weight: 900 }
+.tot small { font-size: 11px; color: var(--muted); font-weight: 800 }
+.ing { display:flex; align-items:center; gap: 8px; padding: 8px 0 }
+.ing + .ing { border-top: 1px solid var(--line) }
+.ing .nm { flex:1; font-weight: 800; font-size: 14px; line-height:1.2 }
+.ing .nm small { display:block; color: var(--muted); font-weight: 700; font-size: 12px }
+.step { display:flex; align-items:center; background: var(--bg); border-radius: 12px; overflow:hidden }
+.step b { width: 30px; height: 32px; display:grid; place-items:center; color: var(--primary); font-size: 18px }
+.step span { min-width: 50px; text-align:center; font-weight: 900; font-size: 13px }
+.x { color: var(--muted); font-weight: 900; width: 18px; text-align:center }
+.mini { display:flex; gap: 10px; align-items:center; margin: 10px 0 }
+.mini .buddy { width: 64px; margin: 0; flex:none }
+.mini .bubble { flex:1; font-size: 13px }
+.cta { background: var(--primary); color: var(--primary-ink); border-radius: 18px; text-align:center; padding: 15px; font-weight: 900; font-size: 17px; box-shadow: 0 10px 20px color-mix(in srgb, var(--primary) 35%, transparent) }
+.b .cta { border-radius: 99px }
+.c .cta { font-weight: 600; box-shadow: none }
+.addline { color: var(--primary); font-weight: 800; font-size: 14px; padding: 8px 0 2px }
+
+/* Melding */
+.notif { position:absolute; left: 12px; right: 12px; top: 54px; z-index: 9; background: rgba(250,250,252,.96); border-radius: 22px; padding: 12px 14px; display:flex; gap: 10px; align-items:center; box-shadow: 0 12px 30px rgba(0,0,0,.18); font-family: 'Inter' }
+.notif .buddy { width: 42px; margin:0; flex: none }
+.notif b { font-size: 14px } .notif p { font-size: 13px; color:#444 } .notif small { color:#999; font-size: 11px; margin-left: auto; align-self:flex-start }
+
+/* ---------- Computer ---------- */
+.desk { width: 1440px; height: 844px; border-radius: 18px; background: var(--bg); overflow:hidden; box-shadow: 0 30px 60px rgba(0,0,0,.2); }
+.chrome { height: 38px; background: #e4e6ea; display:flex; align-items:center; gap: 8px; padding: 0 16px }
+.chrome i { width: 12px; height: 12px; border-radius: 50%; background:#ff5f57 } .chrome i:nth-child(2){background:#febc2e} .chrome i:nth-child(3){background:#28c840}
+.chrome span { margin-left: 20px; background:#fff; border-radius: 8px; padding: 4px 14px; font: 500 13px 'Inter'; color:#666; width: 420px }
+.dtop { height: 70px; display:flex; align-items:center; gap: 8px; padding: 0 32px; background: var(--surface); border-bottom: 1px solid var(--line) }
+.brand { display:flex; align-items:center; gap: 10px; font-weight: 900; font-size: 20px; margin-right: 26px }
+.brand .buddy { width: 40px; margin:0 }
+.dnav a { padding: 9px 14px; border-radius: 12px; font-weight: 800; font-size: 15px; color: var(--muted); margin-right: 2px }
+.dnav a.on { background: var(--soft); color: var(--primary) }
+.c .dnav a { font-weight: 500 }
+.dlog { margin-left:auto; background: var(--primary); color: var(--primary-ink); border-radius: 14px; padding: 11px 18px; font-weight: 900 }
+.b .dlog { border-radius: 99px }
+.dgrid { display:grid; grid-template-columns: 400px 1fr 340px; gap: 22px; padding: 26px 32px }
+.dgrid .hero { margin: 0 }
+.a .dgrid .hero { height: 420px }
+.a .dgrid .hero .buddy { width: 230px; bottom: 18px }
+.a .dgrid .hero .bubble { width: auto; left: 16px; right: 16px; top: 64px; font-size: 15px }
+.a .dgrid .hero .bubble::after { display:none }
+.b .dgrid .hero { grid-template-columns: 1fr; justify-items: center; text-align: center; background: var(--surface); border-radius: var(--r); padding: 20px; box-shadow: 0 4px 18px rgba(30,40,60,.05) }
+.b .dgrid .hero .blob { width: 230px; height: 230px } .b .dgrid .hero .blob .buddy { width: 180px }
+.b .dgrid .hero .bubble { border-radius: 22px; background: var(--soft); box-shadow:none } .b .dgrid .hero .bubble::before { display:none }
+.c .dgrid .hero { flex-direction: column; align-items: flex-start; border: 1px solid var(--line); border-radius: var(--r); padding: 22px }
+.c .dgrid .hero .buddy { width: 170px; margin: 0 auto }
+.dgrid .day { grid-template-columns: 150px 1fr } .dgrid .ring { width:150px; height:150px }
+.dgrid .ring b { font-size: 30px }
+.week { display:flex; align-items:flex-end; gap: 10px; height: 120px; padding-top: 10px }
+.week div { flex:1; text-align:center; font-size: 12px; font-weight: 800; color: var(--muted) }
+.week div i { display:block; border-radius: 8px 8px 4px 4px; background: var(--soft); margin-bottom: 6px }
+.week div.on i { background: var(--primary) }
+.rem { display:flex; justify-content:space-between; align-items:center; padding: 8px 0; font-weight: 800; font-size: 14px }
+.rem + .rem { border-top: 1px solid var(--line) }
+.tog { width: 40px; height: 24px; border-radius: 99px; background: var(--primary); position: relative }
+.tog::after { content:''; position:absolute; right: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff }
+.tog.off { background: var(--line) } .tog.off::after { right: auto; left: 3px }
+</style>
+</head>
+<body>
+<div class="title"><h1 id="t"></h1><p id="st"></p></div>
+<div class="boards" id="boards"></div>
+
+<script type="module">
+import { buddySvg } from '/public/js/buddy.js';
+const opt = new URLSearchParams(location.search).get('opt') || 'a';
+document.body.className = opt;
+const names = { a: ['Optie A – Munt', 'Fris mintgroen, het maatje in een eigen tuintje (zoals BitePal)'],
+  b: ['Optie B – Perzik', 'Warm en speels, ronde vormen, het maatje in een zacht rondje met tekstballon'],
+  c: ['Optie C – Wolk', 'Superminimalistisch wit met blauw, het maatje klein naast je begroeting'] };
+t.textContent = names[opt][0]; st.textContent = names[opt][1];
+
+const hearts = (n) => '♥'.repeat(n) + `<i>${'♥'.repeat(5 - n)}</i>`;
+const ring = (size, val, max) => { const r = size / 2 - 10, c = 2 * Math.PI * r, f = Math.min(val / max, 1);
+  return `<svg width="${size}" height="${size}"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--line)" stroke-width="12"/>
+  <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--ring)" stroke-width="12" stroke-linecap="round" stroke-dasharray="${c*f} ${c}"/></svg>`; };
+const macros = `
+  <div class="macro"><div class="t">Eiwit <span>62 / 90 g</span></div><div class="bar"><i style="width:69%;background:var(--p)"></i></div></div>
+  <div class="macro"><div class="t">Koolhydraten <span>140 / 230 g</span></div><div class="bar"><i style="width:61%;background:var(--c)"></i></div></div>
+  <div class="macro"><div class="t">Vet <span>38 / 70 g</span></div><div class="bar"><i style="width:54%;background:var(--f)"></i></div></div>`;
+const dayCard = (size) => `<div class="card day"><div class="ring">${ring(size, 1240, 2000)}<div class="v"><b>760</b><small>kcal over</small></div></div><div>${macros}</div></div>`;
+const meals = `<div class="card">
+  <div class="meal"><div class="thumb">🥣</div><div class="m"><div class="k">Ontbijt · 08:12</div><div class="n">Havermout met blauwe bessen</div><span class="score s-super">🐾 super</span></div><div class="kc">340</div></div>
+  <div class="meal"><div class="thumb">🌯</div><div class="m"><div class="k">Lunch · 12:40</div><div class="n">Volkoren wrap met kip</div><span class="score s-goed">🐾 goed</span></div><div class="kc">520</div></div>
+  <div class="meal"><div class="thumb">🍛</div><div class="m"><div class="k">Diner · gepland</div><div class="n">Kip kerrie met rijst</div></div><div class="planned">✓ Gegeten</div></div>
+  <div class="meal"><div class="thumb">🍎</div><div class="m"><div class="k">Tussendoor</div><div class="n">Appel</div></div><div class="kc">80</div></div>
+</div>`;
+const msg = 'Wauw, wat een kleurrijk ontbijt! Mijn staart kwispelt ervan 🐾';
+
+function hero(mood = 'blij', desk = false) {
+  const top = `<div class="hero-top"><div><div class="name">Koekje</div><div class="hearts">${hearts(4)}</div></div><span class="chip">🔥 12 dagen</span></div>`;
+  if (opt === 'a') return `<div class="hero">${top}<div class="bubble">${msg}</div>${buddySvg({ mood })}</div>`;
+  if (opt === 'b') return `<div class="hero">${top}<div class="blob">${buddySvg({ mood })}</div><div class="bubble">${msg}</div></div>`;
+  return `<div>${desk ? '' : '<div class="greet">Goedemiddag 👋</div><div class="sub">Vrijdag 24 oktober · <b style="color:var(--primary)">🔥 12 dagen</b></div>'}</div>
+    <div class="hero">${buddySvg({ mood })}<div class="bubble">${msg}</div></div>`;
+}
+const status = '<div class="status"><span>12:41</span><span>●●● 🔋</span></div>';
+const tabbar = `<div class="tabbar"><div class="tab on"><span class="i">🏠</span>Vandaag</div><div class="tab"><span class="i">📅</span>Planner</div>
+  <div><div class="plus">+</div></div><div class="tab"><span class="i">📖</span>Recepten</div><div class="tab"><span class="i">☰</span>Meer</div></div>`;
+
+const phone1 = `<div><div class="label">Vandaag (startscherm)</div><div class="phone">${status}<div class="scroll">
+  ${hero()}${dayCard(112)}<div class="sec">Vandaag gegeten <a>+ Loggen</a></div>${meals}</div>${tabbar}</div></div>`;
+
+const plate = `<svg viewBox="0 0 390 196" preserveAspectRatio="xMidYMid slice">
+  <rect width="390" height="196" fill="#cdb79c"/><rect y="0" width="390" height="196" fill="url(#wood)" opacity=".25"/>
+  <defs><pattern id="wood" width="40" height="8" patternUnits="userSpaceOnUse"><path d="M0 4 Q20 0 40 4" stroke="#8a6a4a" fill="none"/></pattern></defs>
+  <ellipse cx="195" cy="104" rx="130" ry="112" fill="#fff"/><ellipse cx="195" cy="104" rx="104" ry="90" fill="#f6f3ee"/>
+  <g stroke="#f0c76a" stroke-width="7" fill="none" stroke-linecap="round">
+    <path d="M120 90 q20 -30 40 0 t40 0 t40 0"/><path d="M125 110 q20 -26 40 0 t40 0 t40 0 t20 -6"/><path d="M135 130 q18 -24 36 0 t36 0 t36 0"/>
+    <path d="M140 70 q16 -20 32 0 t32 0 t32 0"/><path d="M150 150 q16 -18 32 0 t32 0"/></g>
+  <g fill="#6aa84f" opacity=".85"><circle cx="160" cy="96" r="8"/><circle cx="215" cy="120" r="9"/><circle cx="240" cy="86" r="7"/><circle cx="180" cy="134" r="6"/></g>
+  <g fill="#f3e3c8" stroke="#d9b98a" stroke-width="2"><rect x="196" y="74" width="26" height="18" rx="6"/><rect x="150" y="116" width="24" height="17" rx="6"/><rect x="228" y="122" width="26" height="18" rx="6"/></g>
+  <g fill="#e8463a"><circle cx="248" cy="104" r="11"/><circle cx="140" cy="76" r="10"/><circle cx="205" cy="148" r="10"/></g>
+  <g fill="#fff" opacity=".5"><circle cx="244" cy="100" r="3"/><circle cx="137" cy="72" r="3"/></g>
+  <rect x="58" y="28" width="274" height="152" rx="18" fill="none" stroke="#fff" stroke-width="3" stroke-dasharray="26 200" opacity=".9"/>
+</svg>`;
+const ing = (e, n, sub, g, kc) => `<div class="ing"><div class="thumb" style="width:38px;height:38px;border-radius:12px;font-size:19px">${e}</div><div class="nm">${n}<small>${sub}</small></div>
+  <div class="step"><b>−</b><span>${g}</span><b>+</b></div><div class="x">✕</div></div>`;
+const phone2 = `<div><div class="label">Foto → AI → ingrediënten aanpassen</div><div class="phone">${status}<div class="scroll" style="height:798px">
+  <div class="topnav"><div class="back">‹</div><h2>Wat heb je gegeten?</h2></div>
+  <div class="photo">${plate}<div class="ai">✨ Pasta pesto met kip <span>86% zeker</span></div></div>
+  <div class="totals"><div class="tot"><b>615</b><small>kcal</small></div><div class="tot"><b>38g</b><small>eiwit</small></div><div class="tot"><b>62g</b><small>koolh.</small></div><div class="tot"><b>24g</b><small>vet</small></div></div>
+  <div class="card" style="padding:6px 14px">
+    ${ing('🍝', 'Volkoren pasta', 'gekookt · 270 kcal', '180 g')}
+    ${ing('🍗', 'Kipfilet', 'gebakken · 150 kcal', '100 g')}
+    ${ing('🌿', 'Groene pesto', '140 kcal', '30 g')}
+    ${ing('🍅', 'Cherrytomaatjes', '15 kcal', '80 g')}
+    <div class="addline">+ Ingrediënt toevoegen</div>
+  </div>
+  <div class="mini">${buddySvg({ mood: 'blij' })}<div class="bubble">Lekker bezig! Nog een handje rucola erbij en het is perfect 🥬</div></div>
+  <div class="cta">Loggen als diner · 615 kcal</div></div></div></div>`;
+
+const notifPhone = `<div><div class="label">Herinnering op je telefoon</div><div class="phone" style="background:linear-gradient(160deg,var(--scene1),var(--scene2))">${status}
+  <div style="text-align:center;color:var(--ink);margin-top:40px;font-family:Inter"><div style="font-size:18px;font-weight:600">Vrijdag 24 oktober</div><div style="font-size:84px;font-weight:700;letter-spacing:-.03em">13:00</div></div>
+  <div class="notif" style="top:250px">${buddySvg({ mood: 'hongerig' })}<div><b>Koekje 🐶</b><p>Woef! Ik heb honger… wat heb jij als lunch gegeten? Tik om te loggen.</p></div><small>nu</small></div>
+  </div></div>`;
+
+const desk = `<div><div class="label">Computer / website</div><div class="desk"><div class="chrome"><i></i><i></i><i></i><span>maaltijden.thuis/#/vandaag</span></div>
+  <div class="dtop"><div class="brand">${buddySvg({ mood: 'rust' })}Maaltijden</div><nav class="dnav"><a class="on">🏠 Vandaag</a><a>📅 Planner</a><a>📖 Recepten</a><a>🛒 Boodschappen</a><a>🥕 Ingrediënten</a><a>⚙️ Instellingen</a></nav><div class="dlog">📷 Eten loggen</div></div>
+  <div class="dgrid">
+    <div>${hero('blij', true)}</div>
+    <div>${dayCard(150)}<div class="sec" style="margin-top:6px">Vandaag gegeten <a>+ Loggen</a></div>${meals}</div>
+    <div><div class="card"><div class="sec" style="margin:0 0 6px">Deze week</div><div class="week">
+      ${[72, 88, 64, 95, 62, 0, 0].map((h, i) => `<div class="${i === 4 ? 'on' : ''}"><i style="height:${h}px"></i>${'mdwdvzz'[i]}</div>`).join('')}</div></div>
+      <div class="card"><div class="sec" style="margin:0 0 4px">🔔 Herinneringen</div>
+        <div class="rem">Ontbijt · 09:00<div class="tog"></div></div><div class="rem">Lunch · 13:00<div class="tog"></div></div>
+        <div class="rem">Diner · 19:00<div class="tog"></div></div><div class="rem">Avondoverzicht · 21:00<div class="tog off"></div></div></div></div>
+  </div></div></div>`;
+
+// Kennismaking: naam kiezen
+const names2 = ['Koekje', 'Pip', 'Bolletje', 'Sjors', 'Dropje', 'Moppie', 'Pluk', 'Bikkel'];
+const onboard = `<div><div class="label">Kennismaking · stap 1 van 3</div><div class="phone">${status}<div class="scroll" style="height:798px;text-align:center">
+  <div style="display:flex;gap:6px;justify-content:center;margin:14px 0 22px"><i style="width:28px;height:6px;border-radius:9px;background:var(--primary)"></i><i style="width:28px;height:6px;border-radius:9px;background:var(--line)"></i><i style="width:28px;height:6px;border-radius:9px;background:var(--line)"></i></div>
+  <div class="blob" style="margin:0 auto;width:210px;height:210px;border-radius:50%;background:radial-gradient(circle at 50% 60%,var(--scene2),var(--scene1));display:grid;place-items:end center;padding-bottom:10px">${buddySvg({ mood: 'blij' })}</div>
+  <h2 style="font-size:28px;margin:22px 0 6px">Hoi! Ik ben je nieuwe maatje</h2>
+  <p style="color:var(--muted);font-weight:700;margin:0 10px 18px">Ik help je gezond te eten en juich voor elke maaltijd die je logt. Hoe zal ik heten?</p>
+  <div style="background:var(--surface);border-radius:18px;padding:14px 16px;text-align:left;font-weight:900;font-size:20px;border:2px solid var(--primary)">Pip<span style="color:var(--primary)">|</span></div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:14px 0 22px">${names2.map((n) => `<span class="chip" style="background:${n === 'Pip' ? 'var(--primary)' : 'var(--surface)'};color:${n === 'Pip' ? '#fff' : 'var(--ink)'};padding:8px 14px;font-size:14px">${n}</span>`).join('')}</div>
+  <div class="cta">Verder</div></div></div></div>`;
+
+// Reactie na het loggen (minder gezond: bezorgd, maar lief)
+const reactPhone = (mood, kcal, title, text, score, cls) => `<div class="phone">${status}<div class="scroll" style="height:798px;filter:blur(2px);opacity:.5">${hero('rust')}${dayCard(112)}</div>
+  <div style="position:absolute;inset:0;background:rgba(58,42,34,.28)"></div>
+  <div style="position:absolute;left:0;right:0;bottom:0;background:var(--surface);border-radius:34px 34px 0 0;padding:16px 22px 34px;text-align:center">
+    <div style="width:44px;height:5px;border-radius:9px;background:var(--line);margin:0 auto 6px"></div>
+    <div style="width:190px;margin:0 auto">${buddySvg({ mood })}</div>
+    <span class="score ${cls}" style="font-size:13px;padding:4px 12px">🐾 ${score}</span>
+    <h2 style="font-size:23px;margin:10px 0 6px">${title}</h2>
+    <p style="color:var(--muted);font-weight:700;margin:0 6px 6px">${text}</p>
+    <p style="font-weight:900;margin:8px 0 16px">+${kcal} kcal · nog ${Math.max(0, 1135 - kcal)} over vandaag</p>
+    <div class="cta">Top, dankjewel!</div></div></div>`;
+const react = `<div><div class="label">Na het loggen: gezond → blij</div>${reactPhone('blij', 615, 'Wauw, wat een kleurrijk bord!', 'Veel eiwit én groente. Mijn staart kwispelt ervan! 🐾', 'super · 82', 's-super')}</div>
+  <div><div class="label">Na het loggen: minder gezond → bezorgd (nooit boos)</div>${reactPhone('bezorgd', 890, 'Mmm, dat was smullen!', 'Wel veel vet en zout. Zullen we vanavond extra groente eten? 💛', 'let op · 28', 's-let')}</div>`;
+
+// ?extra=1: herinnering op het vergrendelscherm
+if (new URLSearchParams(location.search).has('extra2')) {
+  t.textContent = 'Optie B – Perzik · extra schermen'; st.textContent = 'Kennismaking, reactie na het loggen en de herinnering';
+  boards.innerHTML = onboard + react + notifPhone;
+  throw 0;
+}
+if (new URLSearchParams(location.search).has('extra')) { t.textContent = 'Herinnering'; st.textContent = ''; }
+boards.innerHTML = new URLSearchParams(location.search).has('extra') ? notifPhone : phone1 + phone2 + desk;
+</script>
+</body>
+</html>

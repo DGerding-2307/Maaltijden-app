@@ -18,6 +18,9 @@ import crypto from 'node:crypto';
 import { UNITS } from './calc.js';
 import { updateStatus, triggerUpdate } from './updater.js';
 import { uploadDir } from './paths.js';
+import * as buddy from './buddy.js';
+import * as reminders from './reminders.js';
+import * as accounts from './accounts.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 // Versie: uit het Docker-image (APP_VERSION) of anders uit package.json
@@ -71,6 +74,12 @@ export function createApp() {
     res.set('Cache-Control', 'no-store');
     res.json(haSensorsJson(baseUrl(req)));
   });
+  app.get('/meldingen/:token/:person.json', (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    if (req.params.token !== reminders.reminderToken()) return res.status(404).json({ error: 'Onbekende link' });
+    res.set('Cache-Control', 'no-store');
+    res.json({ person_id: Number(req.params.person), reminders: reminders.scheduleFor(Number(req.params.person)) });
+  });
   app.get('/agenda/:token.ics', (req, res) => {
     if (req.params.token !== calendarToken()) return res.status(404).send('Onbekende agenda');
     res.set('Content-Type', 'text/calendar; charset=utf-8');
@@ -91,10 +100,10 @@ export function createApp() {
     const loginPage = (error = '') => `<!doctype html><html lang="nl"><head><meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1"><title>Inloggen – Maaltijden</title>
       <link rel="icon" href="/icon.svg"><style>
-      body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:system-ui,sans-serif;background:#f7f5f0;color:#1f2a24}
-      form{background:#fff;border:1px solid #e3ded2;border-radius:16px;padding:1.6rem;width:min(340px,90vw);display:grid;gap:.8rem}
-      img{width:64px;height:64px}h1{margin:0;font-size:1.3rem}input{font:inherit;padding:.65rem;border:1px solid #e3ded2;border-radius:10px}
-      button{font:inherit;font-weight:600;padding:.7rem;border:0;border-radius:10px;background:#2f6b4f;color:#fff}.err{color:#c0392b;margin:0}
+      body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:system-ui,sans-serif;background:#fff7ef;color:#3a2a22}
+      form{background:#fff;border:1px solid #f1e1d2;border-radius:24px;padding:1.6rem;width:min(340px,90vw);display:grid;gap:.8rem}
+      img{width:64px;height:64px}h1{margin:0;font-size:1.3rem}input{font:inherit;padding:.65rem;border:1px solid #f1e1d2;border-radius:10px}
+      button{font:inherit;font-weight:700;padding:.7rem;border:0;border-radius:999px;background:#e5683c;color:#fff}.err{color:#c0392b;margin:0}
       @media (prefers-color-scheme:dark){body{background:#141816;color:#e9ece9}form{background:#1d2320;border-color:#323a35}input{background:#141816;color:#e9ece9;border-color:#323a35}}
       </style></head><body><form method="post" action="/login"><img src="/icon.svg" alt=""><h1>Maaltijden</h1>
       ${error ? `<p class="err">${error}</p>` : ''}<label for="pw">Wachtwoord</label>
@@ -120,6 +129,41 @@ export function createApp() {
   app.use('/vendor/zxing', express.static(path.join(here, '..', 'node_modules', '@zxing', 'library', 'umd'), { maxAge: '7d' }));
 
   const api = express.Router();
+  // Accounts: wie ben je en mag je hierbij? (zonder accounts is alles open, zoals vóór v4)
+  api.use(accounts.apiGuard);
+  api.get('/auth/me', (req, res) => res.json({ accounts_enabled: accounts.accountsEnabled(), user: accounts.publicUser(req.user) }));
+  api.post('/auth/login', wrapAuth((req, res) => {
+    const { token, user } = accounts.login(req.body.username, req.body.password);
+    res.set('Set-Cookie', accounts.sessionCookie(req, token));
+    return { user };
+  }));
+  api.post('/auth/logout', wrapAuth((req, res) => {
+    accounts.logout(accounts.tokenFrom(req));
+    res.set('Set-Cookie', accounts.sessionCookie(req, null));
+    return { ok: true };
+  }));
+  // Eerste account (wordt beheerder en is meteen ingelogd) of een beheerder die iemand toevoegt
+  api.post('/auth/accounts', wrapAuth((req, res) => {
+    const first = !accounts.accountsEnabled();
+    const user = accounts.createAccount(req.body, req.user);
+    if (first) {
+      const { token } = accounts.login(user.username, req.body.password);
+      res.set('Set-Cookie', accounts.sessionCookie(req, token));
+    }
+    return { user, first };
+  }));
+  api.get('/auth/accounts', wrapAuth((req) => {
+    if (accounts.accountsEnabled() && !req.user?.is_admin) throw Object.assign(new Error('Alleen een beheerder kan dit.'), { status: 403 });
+    return accounts.listAccounts();
+  }));
+  api.put('/auth/accounts/:id', wrapAuth((req) => accounts.adminUpdate(req.user, Number(req.params.id), req.body)));
+  api.put('/auth/password', wrapAuth((req, res) => {
+    if (!req.user) throw Object.assign(new Error('Log eerst in'), { status: 401 });
+    accounts.changePassword(req.user, req.body);
+    const { token } = accounts.login(req.user.username, req.body.password);
+    res.set('Set-Cookie', accounts.sessionCookie(req, token));
+    return { ok: true };
+  }));
   const wrap = (fn) => async (req, res) => {
     try {
       const out = await fn(req, res);
@@ -130,6 +174,30 @@ export function createApp() {
       if (!res.headersSent) res.status(status).json({ error: message });
     }
   };
+  async function buddyReaction(id) {
+    const entry = tracker.getLogEntry(id);
+    const day = tracker.getDay(entry.person_id, entry.date);
+    const scored = day.meals.flatMap((m) => m.entries).find((e) => e.id === id) || entry;
+    const name = buddy.buddyOf(day.person).name;
+    const reaction = buddy.reactionFor({ entry: scored, day, streak: buddy.streakOf(entry.person_id, entry.date), name, personId: entry.person_id });
+    if (getSetting('buddy_ai', false) && ai.claudeStatus().configured && reaction.mood !== 'trots') {
+      try {
+        Object.assign(reaction, await ai.buddyMessage({ name, food: entry.name, meal: entry.meal, level: reaction.level, nutrition: entry, kcalLeft: reaction.kcal_left }), { ai: true });
+      } catch (err) { console.warn(`Berichtje van het maatje via Claude mislukt: ${err.message}`); }
+    }
+    return reaction;
+  }
+  // /auth staat vóór de algemene wrap, maar werkt hetzelfde
+  function wrapAuth(fn) {
+    return async (req, res) => {
+      try {
+        const out = await fn(req, res);
+        if (!res.headersSent) res.json(out ?? { ok: true });
+      } catch (err) {
+        if (!res.headersSent) res.status(err.status || 500).json({ error: err.message });
+      }
+    };
+  }
   const notFound = (what = 'Niet gevonden') => Object.assign(new Error(what), { status: 404 });
   const week = (q) => (q ? mondayOf(new Date(q + 'T12:00:00')) : mondayOf(new Date()));
   api.use((req, res, next) => {
@@ -152,6 +220,7 @@ export function createApp() {
     prices_auto: getSetting('prices_auto', true),
     household: getSetting('household', ''),
     weekly_budget_cents: getSetting('weekly_budget_cents', null),
+    buddy_ai: getSetting('buddy_ai', false),
     claude: ai.claudeStatus(),
     app_version: APP_VERSION,
     builtin_sync: lastBuiltinSync(),
@@ -159,7 +228,7 @@ export function createApp() {
   })));
 
   api.put('/settings', wrap((req) => {
-    const allowed = ['default_servings', 'meals', 'household', 'weekly_budget_cents', 'claude_model', 'anthropic_api_key', 'off_auto', 'prices_auto'];
+    const allowed = ['default_servings', 'meals', 'household', 'weekly_budget_cents', 'claude_model', 'anthropic_api_key', 'off_auto', 'prices_auto', 'buddy_ai'];
     for (const key of allowed) if (key in req.body) setSetting(key, req.body[key]);
     return { ok: true, claude: ai.claudeStatus() };
   }));
@@ -171,7 +240,14 @@ export function createApp() {
     maxPrice: Number(req.query.maxPrice) || 0,
     have: String(req.query.have || '').split(',').map((s) => s.trim()).filter(Boolean),
   })));
-  api.get('/recipes/:id', wrap((req) => repo.getRecipe(Number(req.params.id), Number(req.query.personen) || null) || Promise.reject(notFound('Recept niet gevonden'))));
+  api.get('/recipes/:id', wrap((req) => {
+    const r = repo.getRecipe(Number(req.params.id), Number(req.query.personen) || null);
+    if (!r) throw notFound('Recept niet gevonden');
+    // Hoe gezond is één portie? (voor het maatje op de receptpagina)
+    const veg = buddy.vegGramsOf(tracker.itemsFromRecipe(r.id, 1));
+    const score = buddy.healthScore(r.nutrition_per_serving, { meal: r.category === 'Ontbijt' ? 'ontbijt' : r.category === 'Lunch' ? 'lunch' : 'diner', vegGrams: veg });
+    return { ...r, health: { score, ...buddy.levelFor(score), veg_grams: Math.round(veg) } };
+  }));
 
   async function prepareRows(rows = []) {
     // Ingrediënten die Claude schatte en nog niet bestaan, aanmaken in de database
@@ -192,6 +268,8 @@ export function createApp() {
     return rows;
   }
 
+  // Ingrediënten van een recept voor het dagboek (aan te passen voordat je logt)
+  api.get('/recipes/:id/items', wrap((req) => tracker.itemsFromRecipe(Number(req.params.id), Number(req.query.porties) || 1)));
   api.post('/recipes', wrap(async (req) => {
     await prepareRows(req.body.ingredients);
     return repo.getRecipe(repo.saveRecipe(req.body));
@@ -341,13 +419,21 @@ export function createApp() {
   api.put('/people/:id', wrap((req) => tracker.savePerson(req.body, Number(req.params.id)) || Promise.reject(notFound())));
   api.delete('/people/:id', wrap((req) => tracker.deletePerson(Number(req.params.id))));
   api.get('/diary', wrap((req) => tracker.getDay(Number(req.query.persoon), req.query.datum || new Date().toISOString().slice(0, 10))));
-  api.post('/diary', wrap((req) => ({ id: tracker.addLogEntry(req.body) })));
-  api.put('/diary/:id', wrap((req) => (tracker.updateLogEntry(Number(req.params.id), req.body) ? { ok: true } : Promise.reject(notFound()))));
+  api.post('/diary', wrap(async (req) => {
+    const id = tracker.addLogEntry(req.body);
+    return { id, reaction: await buddyReaction(id) };
+  }));
+  api.post('/diary/preview', wrap((req) => tracker.previewItems(req.body)));
+  api.put('/diary/:id', wrap(async (req) => {
+    if (!tracker.updateLogEntry(Number(req.params.id), req.body)) throw notFound();
+    return { ok: true, reaction: Array.isArray(req.body.items) ? await buddyReaction(Number(req.params.id)) : null };
+  }));
   api.delete('/diary/:id', wrap((req) => tracker.deleteLogEntry(Number(req.params.id))));
   api.post('/diary/from-plan', wrap((req) => ({ added: tracker.logPlannedDay(Number(req.body.person_id), req.body.date, req.body.plan_entry_id) })));
   api.post('/diary/copy', wrap((req) => ({ copied: tracker.copyDay(Number(req.body.person_id), req.body.from, req.body.to) })));
   api.get('/diary/recent', wrap((req) => tracker.recentEntries(Number(req.query.persoon))));
   api.get('/diary/summary', wrap((req) => tracker.summary(Number(req.query.persoon), req.query.van, req.query.tot)));
+  api.get('/diary/:id', wrap((req) => tracker.getLogEntry(Number(req.params.id)) || Promise.reject(notFound())));
   api.get('/foods', wrap((req) => {
     // Zoeken in recepten en ingrediënten om toe te voegen aan het dagboek
     const q = String(req.query.q || '').trim();
@@ -357,6 +443,40 @@ export function createApp() {
       ingredients: repo.listIngredients(q).slice(0, 12).map((i) => ({ id: i.id, name: i.name, kcal: i.kcal, unit_weight_g: i.unit_weight_g, image_url: i.image_url })),
     };
   }));
+  // ---- Maatje ----
+  api.get('/buddy', wrap((req) => {
+    const personId = Number(req.query.persoon);
+    const now = reminders.localNow();
+    const day = tracker.getDay(personId, req.query.datum || now.date);
+    return buddy.buddyState(day, { streak: buddy.streakOf(personId, now.date), hour: now.hour, personId });
+  }));
+  api.put('/buddy', wrap((req) => {
+    const personId = Number(req.body.person_id);
+    if (!tracker.getPerson(personId)) throw notFound('Persoon niet gevonden');
+    buddy.saveBuddy(personId, req.body);
+    return buddy.buddyOf(tracker.getPerson(personId));
+  }));
+
+  // ---- Herinneringen ----
+  api.get('/reminders', wrap((req) => {
+    const personId = Number(req.query.persoon);
+    if (!tracker.getPerson(personId)) throw notFound('Persoon niet gevonden');
+    return {
+      settings: reminders.getReminders(personId),
+      push_public_key: reminders.vapidKeys().publicKey,
+      push_devices: reminders.subscriptionCount(personId),
+      home_assistant: !!haLink(),
+      schedule_url: `${baseUrl(req)}/meldingen/${reminders.reminderToken()}/${personId}.json`,
+    };
+  }));
+  api.put('/reminders', wrap((req) => reminders.saveReminders(Number(req.body.person_id), req.body)));
+  api.post('/reminders/test', wrap((req) => reminders.testReminder(Number(req.body.person_id))));
+  api.post('/push/subscribe', wrap((req) => {
+    if (!tracker.getPerson(Number(req.body.person_id))) throw notFound('Persoon niet gevonden');
+    reminders.saveSubscription(Number(req.body.person_id), req.body.subscription);
+    return { ok: true };
+  }));
+  api.post('/push/unsubscribe', wrap((req) => { reminders.removeSubscription(req.body.endpoint); return { ok: true }; }));
   api.get('/weight', wrap((req) => tracker.weightHistory(Number(req.query.persoon), Number(req.query.dagen) || 90)));
   api.put('/weight', wrap((req) => tracker.logWeight(req.body)));
   api.delete('/weight/:id', wrap((req) => tracker.deleteWeight(Number(req.params.id))));
@@ -434,6 +554,14 @@ export function createApp() {
   api.post('/ai/test', wrap(() => ai.testConnection()));
   api.post('/ai/import', wrap((req) => ai.importRecipe(req.body)));
   api.post('/ai/generate', wrap((req) => ai.generateRecipe(req.body)));
+  api.post('/ai/label', wrap((req) => ai.readLabel(req.body)));
+  api.post('/ai/photo', wrap(async (req) => {
+    const result = await ai.analyzeMealPhoto(req.body);
+    if (!result.is_food) return { ...result, items: [], preview: null };
+    const items = tracker.itemsFromPhoto(result);
+    const preview = tracker.previewItems({ items, meal: req.body.meal, person_id: req.body.person_id });
+    return { ...result, items, preview };
+  }));
   api.post('/ai/week-menu', wrap(async (req) => {
     const start = week(req.body.week);
     const dates = Array.from({ length: 7 }, (_, i) => addDays(start, i));
@@ -482,6 +610,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   // Home Assistant: bij het starten en elke 5 minuten bijwerken (ook als de dag wisselt)
   schedulePush(5000);
   setInterval(() => schedulePush(0), 5 * 60 * 1000).unref();
+  // Herinneringen van het maatje: elke minuut kijken of er een melding moet komen
+  reminders.startReminders();
   createApp().listen(port, host, () => {
     console.log(`🍽️  Maaltijden-app draait op http://${host === '0.0.0.0' ? 'localhost' : host}:${port}`);
     if (!ai.claudeStatus().configured) console.log('ℹ️  Claude is nog niet ingesteld (ANTHROPIC_API_KEY of via Instellingen).');

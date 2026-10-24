@@ -1,10 +1,9 @@
 // Calorieëndagboek en gewichtslog.
 import { api, liveSync } from '../api.js';
 import {
-  $, $$, esc, num, addDays, mondayOf, todayISO, fmtDate, toast, modal, confirmDialog, debounce, savedPerson, rememberPerson,
+  $, $$, esc, num, addDays, mondayOf, todayISO, fmtDate, toast, confirmDialog, debounce, savedPerson, rememberPerson,
 } from '../util.js';
-import { scanBarcode } from '../scanner.js';
-import { ingThumb } from '../ingredient-form.js';
+import { openLog, editEntry } from '../log.js';
 
 const MEAL_ICONS = { ontbijt: '🌅', lunch: '🥪', diner: '🍽️', tussendoor: '🍎' };
 const MACROS = [
@@ -132,7 +131,7 @@ export async function render(root, params) {
             <span class="muted">${m.entries.length ? `${num(m.totals.kcal, 0)} kcal` : ''}</span>
           </div>
           ${m.entries.map((e) => `<button class="log-item" data-entry="${e.id}">
-            <span class="log-name">${esc(e.name)}</span>
+            <span class="log-name">${esc(e.name)} <span class="score s-${esc(e.level)}">🐾 ${esc(e.label)}</span></span>
             <span class="muted small">${e.type === 'recipe' ? `${num(e.servings, 2)} portie${e.servings === 1 ? '' : 's'}` : e.type === 'ingredient' ? `${num(e.grams, 0)} g` : ''}</span>
             <span class="log-kcal">${num(e.kcal, 0)}</span>
           </button>`).join('')}
@@ -228,168 +227,6 @@ export async function render(root, params) {
       const go = () => { location.hash = link({ datum: days[Number(rect.dataset.i)].date }); };
       rect.addEventListener('click', go);
       rect.addEventListener('keydown', (e) => e.key === 'Enter' && go());
-    });
-  }
-
-  // ---------- Toevoegen en bewerken ----------
-
-  function addDialog(meal) {
-    const md = modal(`
-      <h2>${MEAL_ICONS[meal]} Toevoegen aan ${esc(meal)}</h2>
-      <div class="seg small" role="tablist">
-        <button type="button" class="active" data-pane="zoek">🔎 Zoeken</button>
-        <button type="button" data-pane="scan">📷 Barcode</button>
-        <button type="button" data-pane="snel">⚡ Snel</button>
-      </div>
-      <div data-body></div>`);
-    const body = $('[data-body]', md.el);
-    const done = async (entry) => {
-      try {
-        await api.post('/diary', { person_id: person.id, date, meal, ...entry });
-        toast(`${entry.name || 'Toegevoegd'} toegevoegd`, 'success');
-        md.close();
-        load();
-      } catch (err) { toast(err.message, 'error'); }
-    };
-
-    const panes = {
-      zoek() {
-        body.innerHTML = `<input type="search" class="input" placeholder="Zoek recept of ingrediënt, bv. ‘banaan’" data-q>
-          <div class="pick-list" data-results><p class="muted small">Typ minstens 2 letters. Recepten tellen per portie, ingrediënten per gram.</p></div>`;
-        const q = $('[data-q]', body);
-        q.focus();
-        // Recent gebruikt: met één tik dezelfde hoeveelheid nog een keer
-        api.get(`/diary/recent?persoon=${person.id}`).then((recent) => {
-          if (!recent.length || q.value.trim()) return;
-          $('[data-results]', body).innerHTML = `<p class="small muted">Recent gebruikt – tik om toe te voegen</p>${recent.map((x, i) => `
-            <button class="pick-item" data-recent="${i}"><span>↺ ${esc(x.name)}</span>
-              <span class="muted small">${x.type === 'recipe' ? `${num(x.servings, 2)} portie` : x.type === 'ingredient' ? `${num(x.grams, 0)} g` : 'eigen invoer'} · ${num(x.kcal, 0)} kcal</span></button>`).join('')}`;
-          $$('[data-recent]', body).forEach((b) => b.addEventListener('click', () => {
-            const x = recent[Number(b.dataset.recent)];
-            done({ type: x.type, recipe_id: x.recipe_id, ingredient_id: x.ingredient_id, servings: x.servings, grams: x.grams, name: x.name, values: x.values });
-          }));
-        }).catch(() => {});
-        const search = debounce(async () => {
-          if (q.value.trim().length < 2) return;
-          const r = await api.get(`/foods?q=${encodeURIComponent(q.value.trim())}`);
-          $('[data-results]', body).innerHTML = [
-            ...r.recipes.map((x) => `<button class="pick-item" data-recipe="${x.id}"><span>📖 ${esc(x.title)}</span>
-              <span class="muted small">recept · ${num(x.kcal_per_serving, 0)} kcal per portie</span></button>`),
-            ...r.ingredients.map((x) => `<button class="pick-item" data-ing="${x.id}"><span>${ingThumb(x, 'sm') || '🥕 '}${esc(x.name)}</span>
-              <span class="muted small">${num(x.kcal, 0)} kcal per 100 g${x.unit_weight_g ? ` · 1 stuk ≈ ${num(x.unit_weight_g, 0)} g` : ''}</span></button>`),
-          ].join('') || '<p class="muted">Niets gevonden. Probeer ‘Snel’ om zelf kcal in te vullen.</p>';
-          $$('[data-recipe]', body).forEach((b) => b.addEventListener('click', () => amount(r.recipes.find((x) => x.id === Number(b.dataset.recipe)), 'recipe')));
-          $$('[data-ing]', body).forEach((b) => b.addEventListener('click', () => amount(r.ingredients.find((x) => x.id === Number(b.dataset.ing)), 'ingredient')));
-        }, 200);
-        q.addEventListener('input', search);
-      },
-      async scan() {
-        body.innerHTML = '<p class="muted">Scan de barcode van een verpakt product. De voedingswaarden komen uit Open Food Facts.</p>';
-        const code = await scanBarcode({ title: 'Product scannen' });
-        if (!code) return panes.zoek();
-        body.innerHTML = '<p class="muted">Product opzoeken…</p>';
-        try {
-          const p = await api.get(`/off/product/${code}`);
-          if (!p.nutrition?.kcal) throw new Error('Dit product heeft geen voedingswaarden in Open Food Facts');
-          amount({ name: `${p.name}${p.brands ? ` (${p.brands.split(',')[0]})` : ''}`, kcal: p.nutrition.kcal, nutrition: p.nutrition, unit_weight_g: null }, 'product');
-        } catch (err) {
-          body.innerHTML = `<p class="bad">${esc(err.message)}</p><button class="btn" data-again>Opnieuw scannen</button>`;
-          $('[data-again]', body).addEventListener('click', panes.scan);
-        }
-      },
-      snel() {
-        body.innerHTML = `<form class="form" data-free>
-          <div class="grid-2">
-            <label class="span-2">Wat heb je gegeten? <input class="input" name="name" placeholder="bv. Stuk appeltaart" required></label>
-            <label>kcal <input class="input" name="kcal" type="number" min="1" inputmode="numeric" required></label>
-            <label>Eiwit (g) <input class="input" name="protein" type="number" min="0" step="0.1" inputmode="decimal"></label>
-            <label>Koolhydraten (g) <input class="input" name="carbs" type="number" min="0" step="0.1" inputmode="decimal"></label>
-            <label>Vet (g) <input class="input" name="fat" type="number" min="0" step="0.1" inputmode="decimal"></label>
-          </div>
-          <div class="row end"><button class="btn btn-primary">Toevoegen</button></div></form>`;
-        $('[name=name]', body).focus();
-        $('[data-free]', body).addEventListener('submit', (e) => {
-          e.preventDefault();
-          const f = e.target;
-          done({ type: 'free', name: f.name.value, values: { kcal: f.kcal.value, protein: f.protein.value, carbs: f.carbs.value, fat: f.fat.value } });
-        });
-      },
-    };
-
-    function amount(item, kind) {
-      const isRecipe = kind === 'recipe';
-      const perUnit = isRecipe ? item.kcal_per_serving : item.kcal / 100;
-      const start = isRecipe ? 1 : item.unit_weight_g || 100;
-      body.innerHTML = `<form class="form" data-amount>
-        <h3>${esc(item.title || item.name)}</h3>
-        <label>${isRecipe ? 'Porties' : 'Gram'}
-          <input class="input" name="n" type="number" min="${isRecipe ? 0.25 : 1}" step="${isRecipe ? 0.25 : 1}" value="${start}" inputmode="decimal" required></label>
-        <div class="row wrap quick-amounts">
-          ${(isRecipe ? [0.5, 1, 1.5, 2] : [item.unit_weight_g, 50, 100, 150, 250].filter(Boolean))
-            .map((v, i) => `<button type="button" class="chip-toggle" data-v="${v}">${isRecipe ? `${num(v, 2)}×` : !isRecipe && i === 0 && item.unit_weight_g ? `1 stuk (${num(v, 0)} g)` : `${v} g`}</button>`).join('')}
-        </div>
-        <p class="kcal-preview"><strong data-kcal></strong> kcal</p>
-        <div class="row end"><button type="button" class="btn" data-back>Terug</button><button class="btn btn-primary">Toevoegen</button></div>
-      </form>`;
-      const f = $('[data-amount]', body);
-      const upd = () => { $('[data-kcal]', f).textContent = num((Number(f.n.value) || 0) * perUnit, 0); };
-      f.n.addEventListener('input', upd);
-      $$('[data-v]', f).forEach((b) => b.addEventListener('click', () => { f.n.value = b.dataset.v; upd(); }));
-      $('[data-back]', f).addEventListener('click', () => panes.zoek());
-      upd();
-      f.n.select();
-      f.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const n = Number(f.n.value);
-        if (kind === 'recipe') return done({ type: 'recipe', recipe_id: item.id, servings: n, name: item.title });
-        if (kind === 'ingredient') return done({ type: 'ingredient', ingredient_id: item.id, grams: n, name: item.name });
-        // Gescand product: waarden per 100 g omrekenen naar de gegeten hoeveelheid
-        const values = Object.fromEntries(Object.entries(item.nutrition).map(([k, v]) => [k, ((Number(v) || 0) * n) / 100]));
-        return done({ type: 'free', name: `${item.name}, ${num(n, 0)} g`, values });
-      });
-    }
-
-    $$('[data-pane]', md.el).forEach((b) => b.addEventListener('click', () => {
-      $$('[data-pane]', md.el).forEach((x) => x.classList.toggle('active', x === b));
-      panes[b.dataset.pane]();
-    }));
-    panes.zoek();
-  }
-
-  async function editDialog(id) {
-    const day = await api.get(`/diary?persoon=${person.id}&datum=${date}`);
-    const e = day.meals.flatMap((m) => m.entries).find((x) => x.id === id);
-    if (!e) return;
-    const md = modal(`<h2>${esc(e.name)}</h2>
-      <form class="form" data-edit>
-        <div class="grid-2">
-          ${e.type === 'recipe' ? `<label>Porties <input class="input" name="servings" type="number" min="0.25" step="0.25" value="${e.servings}"></label>` : ''}
-          ${e.type === 'ingredient' ? `<label>Gram <input class="input" name="grams" type="number" min="1" value="${e.grams}"></label>` : ''}
-          ${e.type === 'free' ? `<label class="span-2">Naam <input class="input" name="name" value="${esc(e.name)}"></label>
-            <label>kcal <input class="input" name="kcal" type="number" min="1" value="${Math.round(e.kcal)}"></label>
-            <label>Eiwit (g) <input class="input" name="protein" type="number" min="0" step="0.1" value="${e.protein}"></label>
-            <label>Koolhydraten (g) <input class="input" name="carbs" type="number" min="0" step="0.1" value="${e.carbs}"></label>
-            <label>Vet (g) <input class="input" name="fat" type="number" min="0" step="0.1" value="${e.fat}"></label>` : ''}
-          <label>Moment <select class="input" name="meal">${Object.keys(MEAL_ICONS).map((m) => `<option ${m === e.meal ? 'selected' : ''}>${m}</option>`).join('')}</select></label>
-          <label>Datum <input class="input" type="date" name="date" value="${e.date}"></label>
-        </div>
-        <p class="muted small">${num(e.kcal, 0)} kcal · eiwit ${num(e.protein, 1)} g · koolhydraten ${num(e.carbs, 1)} g · vet ${num(e.fat, 1)} g</p>
-        <div class="row end"><button type="button" class="btn btn-danger" data-del>Verwijderen</button><button class="btn btn-primary">Opslaan</button></div>
-      </form>`);
-    const f = $('[data-edit]', md.el);
-    $('[data-del]', f).addEventListener('click', async () => {
-      await api.del(`/diary/${id}`);
-      md.close();
-      load();
-    });
-    f.addEventListener('submit', async (ev) => {
-      ev.preventDefault();
-      const body = Object.fromEntries(new FormData(f));
-      try {
-        await api.put(`/diary/${id}`, body);
-        md.close();
-        load();
-      } catch (err) { toast(err.message, 'error'); }
     });
   }
 
@@ -569,9 +406,10 @@ export async function render(root, params) {
   async function onClick(e) {
     try {
       const add = e.target.closest('[data-add]');
-      if (add) return addDialog(add.dataset.add);
+      // v4: hetzelfde logpaneel en dezelfde ingrediënten-editor als op Vandaag
+      if (add) return openLog({ personId: person.id, date, meal: add.dataset.add, onDone: () => load() });
       const entry = e.target.closest('[data-entry]');
-      if (entry) return editDialog(Number(entry.dataset.entry));
+      if (entry) return editEntry(Number(entry.dataset.entry), { personId: person.id, onDone: () => load() });
       const plan = e.target.closest('[data-plan]');
       if (plan) {
         await api.post('/diary/from-plan', { person_id: person.id, date, plan_entry_id: Number(plan.dataset.plan) });
@@ -608,8 +446,11 @@ export async function render(root, params) {
   root.addEventListener('change', onChange);
   await load();
   const stopSync = liveSync(load);
+  const onLogged = () => load();
+  window.addEventListener('maaltijden-logged', onLogged);
   return () => {
     stopSync();
+    window.removeEventListener('maaltijden-logged', onLogged);
     resizeObs?.disconnect();
     root.removeEventListener('click', onClick);
     root.removeEventListener('change', onChange);

@@ -5,6 +5,7 @@ import { getDb, tx } from './db.js';
 import { NUTRIENTS } from './calc.js';
 import { addDays } from './seed.js';
 import * as repo from './repo.js';
+import { healthScore, levelFor, vegGramsOf, itemsNutrition } from './buddy.js';
 
 export const MEALS = ['ontbijt', 'lunch', 'diner', 'tussendoor'];
 export const ACTIVITY = [
@@ -73,6 +74,9 @@ function latestWeight(personId) {
  * Zonder gegevens een standaard van 2000 kcal (referentie-inname).
  */
 export function withTargets(p) {
+  // Wachtwoord (hash) nooit naar buiten
+  const { password_hash, ...pub } = p;
+  p = { ...pub, has_account: !!password_hash };
   const weight = latestWeight(p.id)?.weight_kg ?? p.start_weight_kg;
   const age = p.birth_year ? new Date().getFullYear() - p.birth_year : null;
   let bmr = null;
@@ -106,6 +110,44 @@ export function withTargets(p) {
 }
 
 // ---------- Dagboek ----------
+// Sinds v4 bewaart een regel ook de ingrediënten (`items`), zodat je achteraf kunt aanpassen wat je precies at.
+// Een item: { ingredient_id, name, grams, per100: {kcal, protein, …}, veg }. Zijn er items, dan zijn de
+// voedingswaarden van de regel de som van de items.
+
+const AGF = 'Aardappelen, groente & fruit';
+const isVeg = (ing) => ing?.category === AGF && !/aardappel|friet|patat|krieler|puree/i.test(ing.name || '');
+
+/** Item voor de ingrediëntenlijst van een log uit een ingrediënt in de database. */
+export function itemFromIngredient(ing, grams) {
+  return {
+    ingredient_id: ing.id, name: ing.name, grams: round(grams, 0), unit_weight_g: ing.unit_weight_g || null, image_url: ing.image_url || null,
+    per100: Object.fromEntries(NUTRIENTS.map((k) => [k, Number(ing[k]) || 0])), veg: isVeg(ing),
+  };
+}
+
+/** Ingrediënten van een recept voor het aantal porties dat je at. */
+export function itemsFromRecipe(recipeId, servings = 1) {
+  const r = repo.getRecipe(Number(recipeId));
+  if (!r) return [];
+  const factor = (Number(servings) || 1) / (r.servings || 1);
+  return r.ingredients
+    .filter((l) => l.ingredient && l.computed_grams > 0)
+    .map((l) => itemFromIngredient(l.ingredient, l.computed_grams * factor))
+    .filter((x) => x.grams >= 1); // snufje zout of peper: verwaarloosbaar
+}
+
+/** Items van buiten (app, foto) netjes maken: bekende ingrediënten met de waarden uit de database. */
+function cleanItems(items) {
+  return (Array.isArray(items) ? items : []).map((x) => {
+    const grams = Math.max(0, Number(x.grams) || 0);
+    const ing = x.ingredient_id ? repo.getIngredient(Number(x.ingredient_id)) : null;
+    if (ing) return { ...itemFromIngredient(ing, grams), name: String(x.name || ing.name).slice(0, 80) };
+    return {
+      ingredient_id: null, name: String(x.name || 'Ingrediënt').slice(0, 80), grams: round(grams, 0), unit_weight_g: Number(x.unit_weight_g) || null, image_url: null,
+      per100: Object.fromEntries(NUTRIENTS.map((k) => [k, Math.max(0, Number(x.per100?.[k]) || 0)])), veg: !!x.veg,
+    };
+  }).filter((x) => x.name);
+}
 
 function nutritionFor({ type, recipe_id, servings, ingredient_id, grams, values }) {
   if (type === 'recipe') {
@@ -125,15 +167,39 @@ function nutritionFor({ type, recipe_id, servings, ingredient_id, grams, values 
   return { name: null, nutrition: Object.fromEntries(NUTRIENTS.map((k) => [k, Number(values?.[k]) || 0])) };
 }
 
+function scoreOf(nutrition, items, meal, personId) {
+  const target = getPerson(personId)?.targets.kcal ?? 2000;
+  return healthScore(nutrition, { meal, kcalTarget: target, vegGrams: vegGramsOf(items) });
+}
+
+/** Voedingswaarden, score en stemming voor een lijst ingrediënten die je nog aan het aanpassen bent. */
+export function previewItems({ items, meal, person_id }) {
+  const clean = cleanItems(items);
+  const n = itemsNutrition(clean);
+  const score = scoreOf(n, clean, MEALS.includes(meal) ? meal : 'tussendoor', Number(person_id));
+  return { nutrition: Object.fromEntries(NUTRIENTS.map((k) => [k, round(n[k], k === 'kcal' ? 0 : 1)])), score, ...levelFor(score) };
+}
+
 export function addLogEntry(data) {
   const type = ['recipe', 'ingredient', 'free'].includes(data.type) ? data.type : 'free';
   const meal = MEALS.includes(data.meal) ? data.meal : 'tussendoor';
-  const { name, nutrition } = nutritionFor({ ...data, type });
+  let items = Array.isArray(data.items) && data.items.length ? cleanItems(data.items) : null;
+  let name = null;
+  let nutrition;
+  if (items) nutrition = itemsNutrition(items);
+  else ({ name, nutrition } = nutritionFor({ ...data, type }));
+  // Ingrediënten bewaren, zodat je ze later kunt aanpassen
+  if (!items && type === 'recipe') items = itemsFromRecipe(data.recipe_id, data.servings);
+  if (!items && type === 'ingredient') items = [itemFromIngredient(repo.getIngredient(Number(data.ingredient_id)), Number(data.grams) || 0)];
+  if (!name && type === 'recipe') name = repo.getRecipe(Number(data.recipe_id))?.title;
+  if (!name && type === 'ingredient') name = repo.getIngredient(Number(data.ingredient_id))?.name;
   const entryName = String(data.name || name || 'Iets gegeten').slice(0, 120);
   if (type === 'free' && !nutrition.kcal) throw Object.assign(new Error('Vul het aantal kcal in'), { status: 400 });
+  const score = scoreOf(nutrition, items, meal, Number(data.person_id));
+  const photo = typeof data.photo === 'string' && /^\/uploads\/[\w.-]+$/.test(data.photo) ? data.photo : null;
   const { lastInsertRowid } = getDb().prepare(`INSERT INTO food_log
-    (person_id, date, meal, type, recipe_id, ingredient_id, plan_entry_id, servings, grams, name, ${NUTRIENTS.join(', ')})
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${NUTRIENTS.map(() => '?').join(', ')})`).run(
+    (person_id, date, meal, type, recipe_id, ingredient_id, plan_entry_id, servings, grams, name, items, photo, score, ${NUTRIENTS.join(', ')})
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${NUTRIENTS.map(() => '?').join(', ')})`).run(
     Number(data.person_id), data.date, meal, type,
     type === 'recipe' ? Number(data.recipe_id) : null,
     type === 'ingredient' ? Number(data.ingredient_id) : null,
@@ -141,12 +207,28 @@ export function addLogEntry(data) {
     type === 'recipe' ? Number(data.servings) || 1 : null,
     type === 'ingredient' ? Number(data.grams) || 0 : null,
     entryName,
+    items?.length ? JSON.stringify(items) : null,
+    photo,
+    score,
     ...NUTRIENTS.map((k) => round(nutrition[k], 2)),
   );
   return Number(lastInsertRowid);
 }
 
-/** Portie of hoeveelheid aanpassen: voedingswaarden schalen mee. */
+/** Eén regel uit het dagboek, met de ingrediënten (bij een log van vóór v4 uit het recept gehaald). */
+export function getLogEntry(id) {
+  const e = getDb().prepare('SELECT * FROM food_log WHERE id = ?').get(id);
+  if (!e) return null;
+  let items = e.items ? JSON.parse(e.items) : null;
+  if (!items && e.type === 'recipe' && e.recipe_id) items = itemsFromRecipe(e.recipe_id, e.servings);
+  if (!items && e.type === 'ingredient' && e.ingredient_id) {
+    const ing = repo.getIngredient(e.ingredient_id);
+    if (ing) items = [itemFromIngredient(ing, e.grams)];
+  }
+  return { ...e, items: items || [] };
+}
+
+/** Portie, hoeveelheid of ingrediënten aanpassen: voedingswaarden en score rekenen mee. */
 export function updateLogEntry(id, data) {
   const db = getDb();
   const e = db.prepare('SELECT * FROM food_log WHERE id = ?').get(id);
@@ -163,14 +245,26 @@ export function updateLogEntry(id, data) {
   }
   if (data.meal && MEALS.includes(data.meal)) upd.meal = data.meal;
   if (data.date) upd.date = data.date;
-  if (e.type === 'free' && data.kcal != null) {
+  if (data.name && (e.type === 'free' || Array.isArray(data.items))) upd.name = String(data.name).slice(0, 120);
+  let items = e.items ? JSON.parse(e.items) : null;
+  if (Array.isArray(data.items)) {
+    items = cleanItems(data.items);
+    const n = itemsNutrition(items);
+    for (const k of NUTRIENTS) upd[k] = round(n[k], 2);
+    upd.items = JSON.stringify(items);
+  } else if (e.type === 'free' && data.kcal != null) {
     for (const k of NUTRIENTS) if (data[k] != null) upd[k] = Number(data[k]) || 0;
-    if (data.name) upd.name = String(data.name).slice(0, 120);
   } else if (factor !== 1) {
     for (const k of NUTRIENTS) upd[k] = round(e[k] * factor, 2);
+    if (items) {
+      items = items.map((x) => ({ ...x, grams: round(x.grams * factor, 0) }));
+      upd.items = JSON.stringify(items);
+    }
   }
+  const after = { ...e, ...upd };
+  upd.score = scoreOf(after, items, after.meal, e.person_id);
   const keys = Object.keys(upd);
-  if (keys.length) db.prepare(`UPDATE food_log SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`).run(...Object.values(upd), id);
+  db.prepare(`UPDATE food_log SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`).run(...Object.values(upd), id);
   return true;
 }
 
@@ -188,7 +282,11 @@ function totalsOf(rows) {
 export function getDay(personId, date) {
   const person = getPerson(personId);
   if (!person) throw Object.assign(new Error('Persoon niet gevonden'), { status: 404 });
-  const entries = getDb().prepare('SELECT * FROM food_log WHERE person_id = ? AND date = ? ORDER BY id').all(personId, date);
+  const entries = getDb().prepare('SELECT * FROM food_log WHERE person_id = ? AND date = ? ORDER BY id').all(personId, date).map((e) => {
+    const items = e.items ? JSON.parse(e.items) : null;
+    const score = e.score ?? healthScore(e, { meal: e.meal, kcalTarget: person.targets.kcal, vegGrams: vegGramsOf(items) });
+    return { ...e, items, score, ...levelFor(score) };
+  });
   const byMeal = Object.fromEntries(MEALS.map((m) => [m, entries.filter((e) => e.meal === m)]));
   // Geplande maaltijden: recepten en maaltijden van losse ingrediënten
   const planned = repo.getPlan(date, 1).days[0].entries.filter((p) => p.recipe_id || p.extras?.length);
@@ -253,7 +351,7 @@ export function recentEntries(personId, limit = 12) {
 export function copyDay(personId, from, to) {
   const rows = getDb().prepare('SELECT * FROM food_log WHERE person_id = ? AND date = ?').all(personId, from);
   tx((db) => {
-    const cols = ['person_id', 'meal', 'type', 'recipe_id', 'ingredient_id', 'servings', 'grams', 'name', ...NUTRIENTS];
+    const cols = ['person_id', 'meal', 'type', 'recipe_id', 'ingredient_id', 'servings', 'grams', 'name', 'items', 'photo', 'score', ...NUTRIENTS];
     const ins = db.prepare(`INSERT INTO food_log (date, ${cols.join(', ')}) VALUES (?, ${cols.map(() => '?').join(', ')})`);
     for (const r of rows) ins.run(to, ...cols.map((c) => r[c]));
   });
@@ -348,4 +446,16 @@ export function addDiaryToPlan(plan, personId) {
     for (const e of d.entries) e.eaten = eaten.has(e.id);
   }
   return plan;
+}
+
+/** Resultaat van de foto-analyse omzetten naar items: bekende ingrediënten uit de eigen lijst, de rest met Claudes schatting. */
+export function itemsFromPhoto(result) {
+  return (result.items || []).filter((x) => x.grams > 0).map((x) => {
+    const ing = x.known ? repo.matchIngredient(x.name) : null;
+    if (ing) return { ...itemFromIngredient(ing, x.grams), veg: isVeg(ing) || !!x.vegetable_or_fruit };
+    return {
+      ingredient_id: null, name: String(x.name).slice(0, 80), grams: round(x.grams, 0), unit_weight_g: null, image_url: null,
+      per100: Object.fromEntries(NUTRIENTS.map((k) => [k, Math.max(0, Number(x.per100?.[k]) || 0)])), veg: !!x.vegetable_or_fruit, estimated: true,
+    };
+  });
 }

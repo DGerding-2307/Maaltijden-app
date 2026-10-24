@@ -1,6 +1,6 @@
 {
   "name": "maaltijden-app",
-  "version": "3.13.0",
+  "version": "4.0.0",
   "description": "Maaltijdplanner en receptenboek met Nederlandse recepten, voedingswaarden, Jumbo-prijzen en Claude AI",
   "type": "module",
   "main": "server/index.js",
@@ -15,7 +15,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.132.1",
+    "@zxing/library": "0.23.0",
     "express": "^5.2.1",
-    "@zxing/library": "0.23.0"
+    "web-push": "^3.6.7"
   }
 }

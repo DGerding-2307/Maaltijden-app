@@ -1,5 +1,6 @@
 import { api, meta, liveSync } from '../api.js';
 import { meatDialog, extrasDialog, meatOptions, defaultPortion } from '../meat.js';
+import { say } from '../say.js';
 import {
   $, $$, esc, euro, num, addDays, mondayOf, todayISO, fmtDate, weekNumber, DAY_NAMES, toast, modal, confirmDialog, debounce, minutes, meatOffered, PLAN_LINK_KEY,
   savedPerson, rememberPerson,
@@ -11,6 +12,8 @@ export async function render(root, params) {
   const meals = m.meals;
   let recipes = [];
   let plan;
+  // Gekozen dag (standaard vandaag, of de maandag van een andere week)
+  let selected = /^\d{4}-\d{2}-\d{2}$/.test(params.dag || '') ? params.dag : todayISO();
   // Dagboek: wie heeft wat gegeten (per apparaat onthouden)
   const { people } = await api.get('/people');
   let person = people.find((p) => p.id === savedPerson()) || people[0];
@@ -24,37 +27,6 @@ export async function render(root, params) {
   const NOT_A_RECIPE = /^(uit eten|restjes|afhaal|bezorg|pizza bestellen)/i;
   const canBecomeRecipe = (e) => !e.recipe_id && !e.leftover_of && !e.extras?.length && e.title && !NOT_A_RECIPE.test(e.title.trim());
 
-  function entryCard(e) {
-    const rest = e.leftover_of || e.no_shopping;
-    const title = e.recipe_id ? e.recipe_title : (e.title || (e.extras?.length ? e.extras.map((x) => x.name).join(', ') : 'Losse ingrediënten'));
-    return `<div class="plan-entry ${e.recipe_id ? '' : 'free'} ${rest ? 'leftover' : ''}" draggable="true" data-entry="${e.id}">
-      <a class="plan-entry-title" ${e.recipe_id ? `href="#/recept/${e.recipe_id}?personen=${e.servings}"` : canBecomeRecipe(e) ? 'href="#" data-make-recipe role="button"' : ''}>${rest ? '♻️ ' : ''}${esc(title)}</a>
-      ${canBecomeRecipe(e) ? '<button class="plan-extras add" data-make-recipe title="Er een recept van maken of een bestaand recept kiezen">📖 Recept maken</button>' : ''}
-      ${rest ? '<span class="muted small">restjes – geen boodschappen</span>' : ''}
-      ${!e.recipe_id && e.extras?.length ? '<button class="plan-extras" data-ingredients title="Ingrediënten en hoeveelheden wijzigen">🥕 ingrediënten wijzigen</button>'
-        : e.extras?.length ? `<button class="plan-extras" data-meat title="Vlees of vis wijzigen">🥩 + ${e.extras.map((x) => esc(x.name)).join(', ')}</button>`
-        : e.recipe_id && !e.has_meat && !rest && meatOffered(e.meal) ? '<button class="plan-extras add" data-meat title="Vlees of vis bij dit gerecht kiezen">🥩 + Vlees of vis</button>' : ''}
-      ${e.note && !rest ? `<span class="muted small">${esc(e.note)}</span>` : ''}
-      <div class="plan-entry-meta">
-        <span class="servings-ctl">
-          <button class="mini" data-serv="-1" aria-label="Minder personen">−</button>
-          <span title="personen">👤 ${e.servings}</span>
-          <button class="mini" data-serv="1" aria-label="Meer personen">+</button>
-        </span>
-        ${e.kcal_per_serving != null || ((e.recipe_id || e.extras?.length) && !rest) ? `<span class="muted entry-figures">${[
-          e.kcal_per_serving != null ? `<span title="per persoon">${num(e.kcal_per_serving, 0)} kcal</span>` : '',
-          (e.recipe_id || e.extras?.length) && !rest ? `<span>${euro(e.cost_cents)}</span>` : '',
-        ].filter(Boolean).join(' · ')}</span>` : ''}
-        ${e.recipe_id && e.date <= todayISO() ? `<button class="eat-toggle ${e.eaten ? 'on' : ''}" data-eat aria-pressed="${!!e.eaten}"
-          title="${e.eaten ? `Staat in het dagboek van ${esc(person.name)}` : `Als gegeten in het dagboek van ${esc(person.name)} zetten`}">${e.eaten ? '✓ gegeten' : 'gegeten?'}</button>` : ''}
-      </div>
-      <div class="entry-actions">
-        <button class="mini" data-entry-menu aria-label="Verplaatsen, restjes, bewerken" title="Verplaatsen, restjes, bewerken">⋯</button>
-        <button class="mini danger" data-remove aria-label="Verwijderen" title="Verwijderen">✕</button>
-      </div>
-    </div>`;
-  }
-
   // Dagboekregels die niet gepland waren, bij het juiste moment in de planner
   function diaryItems(d, meal) {
     const items = (d.diary?.items || []).filter((x) => (meal == null ? !meals.some((m) => m.toLowerCase() === x.meal.toLowerCase()) : x.meal.toLowerCase() === meal.toLowerCase()));
@@ -64,28 +36,90 @@ export async function render(root, params) {
     </a>`;
   }
 
+  // v4 ‘Foto's & bubbels’: één dag tegelijk, met grote foto-tegels; de rest van de week als kleine foto's
+  const MEAL_EMOJI = { ontbijt: '🥣', lunch: '🥪', diner: '🍽️' };
+  const titleOf = (e) => (e.recipe_id ? e.recipe_title : (e.title || (e.extras?.length ? e.extras.map((x) => x.name).join(', ') : 'Losse ingrediënten')));
+
+  function tile(e) {
+    const rest = e.leftover_of || e.no_shopping;
+    const title = titleOf(e);
+    const href = e.recipe_id ? `href="#/recept/${e.recipe_id}?personen=${e.servings}"` : canBecomeRecipe(e) ? 'href="#" data-make-recipe role="button"' : '';
+    const figures = [e.kcal_per_serving != null ? `${num(e.kcal_per_serving, 0)} kcal p.p.` : '', (e.recipe_id || e.extras?.length) && !rest ? euro(e.cost_cents) : ''].filter(Boolean).join(' · ');
+    return `<article class="tile ${rest ? 'leftover' : ''}" draggable="true" data-entry="${e.id}">
+      <a class="tile-photo ${e.image_url ? '' : 'noimg'}" ${href}>
+        ${e.image_url ? `<img src="${esc(e.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}
+        <span class="tile-ov"><span class="k">${esc(e.meal)}</span><b>${esc(title)}</b>${figures ? `<small>${figures}</small>` : ''}</span>
+      </a>
+      <div class="tile-tools">
+        <button class="mini" data-entry-menu aria-label="Verplaatsen, restjes, bewerken" title="Verplaatsen, restjes, bewerken">⋯</button>
+        <button class="mini danger" data-remove aria-label="Verwijderen" title="Verwijderen">✕</button>
+      </div>
+      <div class="tile-bar">
+        <span class="servings-ctl">
+          <button class="mini" data-serv="-1" aria-label="Minder personen">−</button>
+          <span title="personen">👤 ${e.servings}</span>
+          <button class="mini" data-serv="1" aria-label="Meer personen">+</button>
+        </span>
+        ${canBecomeRecipe(e) ? '<button class="plan-extras add" data-make-recipe title="Er een recept van maken of een bestaand recept kiezen">📖 Recept maken</button>' : ''}
+        ${!e.recipe_id && e.extras?.length ? '<button class="plan-extras" data-ingredients title="Ingrediënten en hoeveelheden wijzigen">🥕 ingrediënten</button>'
+          : e.extras?.length ? `<button class="plan-extras" data-meat title="Vlees of vis wijzigen">🥩 + ${e.extras.map((x) => esc(x.name)).join(', ')}</button>`
+          : e.recipe_id && !e.has_meat && !rest && meatOffered(e.meal) ? '<button class="plan-extras add" data-meat title="Vlees of vis bij dit gerecht kiezen">🥩 + Vlees of vis</button>' : ''}
+        ${e.note && !rest ? `<span class="muted small">${esc(e.note)}</span>` : ''}
+        ${e.recipe_id && e.date <= todayISO() ? `<button class="eat-toggle ${e.eaten ? 'on' : ''}" data-eat aria-pressed="${!!e.eaten}"
+          title="${e.eaten ? `Staat in het dagboek van ${esc(person.name)}` : `Als gegeten in het dagboek van ${esc(person.name)} zetten`}">${e.eaten ? '✓ gegeten' : 'gegeten?'}</button>` : ''}
+      </div>
+    </article>`;
+  }
+
+  function slotHtml(d, meal) {
+    const list = d.entries.filter((e) => e.meal === meal);
+    return `<div class="mslot" data-date="${d.date}" data-meal="${esc(meal)}">
+      ${list.map(tile).join('')}
+      ${diaryItems(d, meal)}
+      ${list.length ? `<button class="mslot-more" data-add>+ nog iets bij ${esc(meal)}</button>`
+        : `<button class="mslot-add" data-add aria-label="Toevoegen aan ${esc(meal)}"><span>${MEAL_EMOJI[meal.toLowerCase()] || '🍽️'}</span>+ ${esc(meal)}</button>`}
+    </div>`;
+  }
+
+  // Wat zegt het maatje over deze dag?
+  function buddyLine(d) {
+    const today = todayISO();
+    const dayName = DAY_NAMES[(new Date(`${d.date}T12:00`).getDay() + 6) % 7];
+    const when = d.date === today ? 'Vandaag' : d.date === addDays(today, 1) ? 'Morgen' : dayName.charAt(0).toUpperCase() + dayName.slice(1);
+    const dinner = d.entries.find((e) => e.meal === 'diner');
+    const empty = meals.filter((meal) => !d.entries.some((e) => e.meal === meal));
+    const emptyWeek = plan.days.filter((x) => x.date >= today && !x.entries.length).length;
+    if (!plan.days.some((x) => x.entries.length)) return { mood: 'hongerig', text: 'Deze week is nog leeg… zal Claude een weekmenu voor je maken? ✨' };
+    if (dinner) return { mood: 'blij', text: `${when} ${esc(titleOf(dinner))}, mmm! 🐾${empty.length ? ` ${esc(empty.join(' en '))} ${empty.length === 1 ? 'is' : 'zijn'} nog leeg.` : ''}` };
+    if (emptyWeek > 1) return { mood: 'hongerig', text: `${when} is er nog niets gepland, en nog ${emptyWeek} dagen deze week. Zal ik helpen? ✨` };
+    return { mood: 'rust', text: `${when} is er nog geen diner gepland. Tik op een tegel om iets te kiezen.` };
+  }
+
   function draw() {
     const today = todayISO();
     const daysWithFood = plan.days.filter((d) => d.entries.some((e) => e.recipe_id || e.extras?.length));
     const avgKcal = daysWithFood.length ? daysWithFood.reduce((s, d) => s + d.nutrition_per_person.kcal, 0) / daysWithFood.length : 0;
-    const planned = plan.days.reduce((s, d) => s + d.entries.length, 0);
     const budget = m.weekly_budget_cents;
+    if (!plan.days.some((d) => d.date === selected)) selected = plan.days.some((d) => d.date === today) ? today : plan.days[0].date;
+    const d = plan.days.find((x) => x.date === selected);
+    const i = plan.days.indexOf(d);
+    const line = buddyLine(d);
+    const bubble = say({ mood: line.mood, html: line.text, action: line.mood === 'hongerig' && m.claude.configured ? '<br><button class="btn small btn-primary" data-action="ai">✨ Weekmenu voorstellen</button>' : '' });
+    const extraMeals = d.entries.filter((e) => !meals.includes(e.meal));
     root.innerHTML = `
-      <div class="page-head">
-        <div class="week-nav">
-          <a class="btn icon-btn" href="#/planner?week=${addDays(start, -7)}" aria-label="Vorige week">‹</a>
-          <div class="week-title">
-            <h1>Week ${weekNumber(start)}</h1>
-            <span class="muted">${fmtDate(start)} – ${fmtDate(addDays(start, 6), { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-          </div>
-          <a class="btn icon-btn" href="#/planner?week=${addDays(start, 7)}" aria-label="Volgende week">›</a>
-          ${start !== mondayOf(today) ? '<a class="btn btn-ghost" href="#/planner">Vandaag</a>' : ''}
+      <div class="head-row">
+        <div class="row">
+          <a class="round-btn" href="#/planner?week=${addDays(start, -7)}" aria-label="Vorige week">‹</a>
+          <div><h1 class="page-title">Week ${weekNumber(start)}</h1>
+            <p class="page-sub">${fmtDate(start)} – ${fmtDate(addDays(start, 6))} · ${euro(plan.total_cost_cents)}${budget ? ` <span class="${plan.total_cost_cents > budget ? 'bad' : 'good'}">(budget ${euro(budget)})</span>` : ''} · gem. ${num(avgKcal, 0)} kcal</p></div>
+          <a class="round-btn" href="#/planner?week=${addDays(start, 7)}" aria-label="Volgende week">›</a>
+          ${start !== mondayOf(today) ? '<a class="btn btn-ghost small" href="#/planner">Deze week</a>' : ''}
         </div>
         <div class="actions">
           ${people.length > 1 ? `<label class="plan-person" title="Dagboek van">👤 <select class="input" data-person aria-label="Dagboek van">
             ${people.map((p) => `<option value="${p.id}" ${p.id === person.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>` : ''}
-          <button class="btn btn-ai" data-action="ai">✨ Weekmenu met Claude</button>
-          <a class="btn" href="#/boodschappen?week=${start}">🛒 Boodschappenlijst</a>
+          <button class="btn btn-ai" data-action="ai">✨ Weekmenu</button>
+          <a class="btn" href="#/boodschappen?week=${start}">🛒 Boodschappen</a>
           <details class="menu">
             <summary class="btn btn-ghost" aria-label="Meer acties">⋯</summary>
             <div class="menu-items">
@@ -98,51 +132,44 @@ export async function render(root, params) {
         </div>
       </div>
 
-      <div class="stats">
-        <div class="stat"><span class="stat-label">Weekkosten (geschat)</span><span class="stat-value">${euro(plan.total_cost_cents)}</span>
-          ${budget ? `<span class="stat-sub ${plan.total_cost_cents > budget ? 'bad' : 'good'}">budget ${euro(budget)}</span>` : ''}</div>
-        <div class="stat"><span class="stat-label">Gem. per dag p.p.</span><span class="stat-value">${num(avgKcal, 0)} kcal</span>
-          <span class="stat-sub">van geplande maaltijden</span></div>
-        <div class="stat"><span class="stat-label">Ingepland</span><span class="stat-value">${planned}</span><span class="stat-sub">maaltijden</span></div>
-      </div>
-
-      <nav class="day-jump" aria-label="Ga naar dag">
-        ${plan.days.map((d, i) => `<a href="#day-${d.date}" data-jump="${d.date}" class="${d.date === today ? 'today' : ''} ${d.entries.length ? '' : 'empty'}">
-          ${DAY_NAMES[i].slice(0, 2)}<strong>${Number(d.date.slice(8))}</strong><span class="dot"></span></a>`).join('')}
-      </nav>
-      <div class="planner-layout">
-        <div class="week-grid" style="--meals:${meals.length}">
-          ${plan.days.map((d, i) => `
-            <section class="day ${d.date === today ? 'today' : ''} ${d.date < today ? 'past' : ''}" id="day-${d.date}">
-              <header class="day-head">
-                <strong>${DAY_NAMES[i]}</strong> <span class="muted">${fmtDate(d.date)}</span>
-              </header>
-              ${meals.map((meal) => `
-                <div class="slot" data-date="${d.date}" data-meal="${esc(meal)}">
-                  <div class="slot-label">${esc(meal)}</div>
-                  ${d.entries.filter((e) => e.meal === meal).map(entryCard).join('')}
-                  ${diaryItems(d, meal)}
-                  <button class="slot-add" data-add aria-label="Toevoegen aan ${esc(meal)} op ${DAY_NAMES[i]}">+</button>
-                </div>`).join('')}
-              ${d.entries.some((e) => !meals.includes(e.meal)) ? `<div class="slot"><div class="slot-label">extra</div>${d.entries.filter((e) => !meals.includes(e.meal)).map(entryCard).join('')}</div>` : ''}
-              ${diaryItems(d, null) ? `<div class="slot"><div class="slot-label">tussendoor</div>${diaryItems(d, null)}</div>` : ''}
-              <footer class="day-foot">
-                ${d.entries.length ? `<span title="per persoon">${num(d.nutrition_per_person.kcal, 0)} kcal p.p.</span><span>${euro(d.cost_cents)}</span>` : '<span class="muted">Nog niets gepland</span>'}
-              </footer>
-              ${d.diary && (d.diary.entries || d.date <= today) ? `<a class="day-diary" href="#/dagboek?datum=${d.date}&persoon=${person.id}" title="Dagboek ${esc(person.name)}">
-                <span class="${d.diary.kcal > d.diary.target_kcal ? 'bad' : ''}">🔥 ${d.diary.entries ? `${num(d.diary.kcal, 0)}/${num(d.diary.target_kcal, 0)}` : '–'}</span>
-                ${d.diary.weight_kg ? `<span>⚖️ ${num(d.diary.weight_kg, 1)} kg</span>` : ''}</a>` : ''}
-            </section>`).join('')}
-        </div>
-
-        <aside class="recipe-dock">
-          <h3>Sleep een recept naar een dag</h3>
-          <input type="search" class="input" placeholder="Zoek recept…" data-dock-search>
-          <div class="dock-filters">
-            <label><input type="checkbox" data-dock-fav> Alleen favorieten</label>
+      <div class="planner-c">
+        <aside class="planner-side">
+          ${bubble}
+          <div class="recipe-dock">
+            <h3>Sleep een recept naar een moment</h3>
+            <input type="search" class="input" placeholder="Zoek recept…" data-dock-search>
+            <div class="dock-filters"><label><input type="checkbox" data-dock-fav> Alleen favorieten</label></div>
+            <div class="dock-list"></div>
           </div>
-          <div class="dock-list"></div>
         </aside>
+        <div class="planner-main">
+          ${bubble}
+          <nav class="daychips" aria-label="Kies een dag">
+            ${plan.days.map((x, n) => `<button class="daychip ${x.date === selected ? 'on' : ''} ${x.date === today ? 'is-today' : ''} ${x.entries.length ? '' : 'empty'}" data-day="${x.date}" aria-pressed="${x.date === selected}">
+              <small>${DAY_NAMES[n].slice(0, 2)}</small><b>${Number(x.date.slice(8))}</b><i></i></button>`).join('')}
+          </nav>
+          <h2 class="sr-day" style="margin:0 0 .6rem">${DAY_NAMES[i].charAt(0).toUpperCase()}${DAY_NAMES[i].slice(1)} ${fmtDate(d.date, { day: 'numeric', month: 'long' })}${d.date === today ? ' · vandaag' : ''}</h2>
+          <div class="meal-tiles" style="--meals:${meals.length}">
+            ${meals.map((meal) => slotHtml(d, meal)).join('')}
+          </div>
+          ${extraMeals.length ? `<div class="mslot" data-date="${d.date}" data-meal="${esc(extraMeals[0].meal)}" style="margin-top:.8rem">${extraMeals.map(tile).join('')}</div>` : ''}
+          ${diaryItems(d, null)}
+          <div class="day-sum">
+            ${d.entries.length ? `<span title="per persoon">🔥 ${num(d.nutrition_per_person.kcal, 0)} kcal p.p.</span><span>💶 ${euro(d.cost_cents)}</span>` : ''}
+            ${d.diary && (d.diary.entries || d.date <= today) ? `<a href="#/dagboek?datum=${d.date}&persoon=${person.id}" title="Dagboek ${esc(person.name)}">📓 ${d.diary.entries ? `${num(d.diary.kcal, 0)} / ${num(d.diary.target_kcal, 0)} gegeten` : 'dagboek'}</a>` : ''}
+          </div>
+          <section class="rest-week" style="margin-top:1.4rem">
+            <h3>Rest van de week</h3>
+            <div class="rest-row">
+              ${plan.days.filter((x) => x.date !== selected).map((x) => {
+                const pic = [...x.entries].reverse().find((e) => e.image_url);
+                const n = plan.days.indexOf(x);
+                return `<button class="rest-day" data-day="${x.date}"><span class="ph">${pic ? `<img src="${esc(pic.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : x.entries.length ? '🍽️' : '＋'}</span>
+                  <small>${DAY_NAMES[n].slice(0, 2)} ${Number(x.date.slice(8))}${x.entries.length ? '' : ' · leeg'}</small></button>`;
+              }).join('')}
+            </div>
+          </section>
+        </div>
       </div>`;
     drawDock();
     bind();
@@ -165,7 +192,7 @@ export async function render(root, params) {
 
 
     // Drag & drop naar dagvakken
-    $$('.slot', root).forEach((slot) => {
+    $$('.mslot', root).forEach((slot) => {
       slot.addEventListener('dragover', (e) => { e.preventDefault(); slot.classList.add('drop'); });
       slot.addEventListener('dragleave', () => slot.classList.remove('drop'));
       slot.addEventListener('drop', async (e) => {
@@ -190,10 +217,12 @@ export async function render(root, params) {
   }
 
   async function onClick(e) {
-    const jump = e.target.closest('[data-jump]');
-    if (jump) {
-      e.preventDefault(); // geen hash-navigatie: alleen naar de dag scrollen
-      document.getElementById(`day-${jump.dataset.jump}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const day = e.target.closest('[data-day]');
+    if (day) {
+      selected = day.dataset.day;
+      history.replaceState(null, '', `#/planner?week=${start}&dag=${selected}`);
+      draw();
+      if (day.classList.contains('rest-day')) $('.daychips', root)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       return;
     }
     const entryEl = e.target.closest('[data-entry]');
@@ -223,7 +252,7 @@ export async function render(root, params) {
         return load();
       }
       if (e.target.closest('[data-add]')) {
-        const slot = e.target.closest('.slot');
+        const slot = e.target.closest('[data-date][data-meal]');
         return pickRecipe(slot.dataset.date, slot.dataset.meal);
       }
       const action = e.target.closest('[data-action]')?.dataset.action;
@@ -545,10 +574,6 @@ export async function render(root, params) {
   root.addEventListener('change', onChange);
   root.addEventListener('dragstart', onDragStart);
   await load();
-  // Op de telefoon staat de week onder elkaar: spring meteen naar vandaag
-  if (window.matchMedia('(max-width: 720px)').matches && start === mondayOf(todayISO()) && !params.week) {
-    document.getElementById(`day-${todayISO()}`)?.scrollIntoView({ block: 'start' });
-  }
   const stopSync = liveSync(load);
   return () => {
     stopSync();
