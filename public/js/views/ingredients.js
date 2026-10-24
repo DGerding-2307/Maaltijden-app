@@ -37,11 +37,12 @@ export async function render(root) {
       </div>
     </div>
     <div data-off-status></div>
+    <details class="sources-info"><summary>Waar komen de voedingswaarden en prijzen vandaan?</summary>
     <p class="muted">Voedingswaarden per 100 g komen uit <a href="https://nl.openfoodfacts.org" target="_blank" rel="noopener">Open Food Facts</a>
       (open database, ODbL) – per ingrediënt de mediaan van vergelijkbare Nederlandse producten, of één product dat je zelf kiest of scant.
       Waar nog geen OFF-gegevens zijn, staan NEVO-gemiddelden of een schatting van Claude.
       Prijzen komen uit <a href="https://prices.openfoodfacts.org" target="_blank" rel="noopener">Open Prices</a>: de mediaan van recente prijzen in Nederlandse winkels.
-      Waar die nog ontbreken staat een schatting; een zelf ingevulde prijs (✏️) wordt nooit automatisch overschreven.</p>
+      Waar die nog ontbreken staat een schatting; een zelf ingevulde prijs (✏️) wordt nooit automatisch overschreven.</p></details>
     <div class="filters">
       <input type="search" class="input grow" placeholder="Zoek ingrediënt…" data-q>
       <select class="input" data-cat><option value="">Alle afdelingen</option>${m.categories.map((c) => `<option>${esc(c)}</option>`).join('')}</select>
@@ -56,8 +57,9 @@ export async function render(root) {
   function draw() {
     const list = all.filter((i) => (!cat || i.category === cat) && (!q || `${i.name} ${i.aliases}`.toLowerCase().includes(q)));
     $('[data-body]', view).innerHTML = list.map((i) => `
-      <tr data-id="${i.id}">
-        <td><span class="ing-cell">${ingThumb(i)}<span><strong>${esc(i.name)}</strong>${i.pantry ? ' <span class="badge">voorraad</span>' : ''}</span></span></td>
+      <tr data-id="${i.id}" title="Tik om ${esc(i.name)} aan te passen">
+        <td><span class="ing-cell">${ingThumb(i)}<span><strong>${esc(i.name)}</strong>${i.pantry ? ' <span class="badge">voorraad</span>' : ''}
+          <small class="ing-sum">${num(i.kcal, 0)} kcal · ${num(i.protein)} g eiwit per 100 g${i.price_cents != null ? ` · ${euro(i.price_cents)}` : ''}</small></span></span></td>
         <td class="small">${esc(i.category)}</td>
         <td class="num">${num(i.kcal, 0)}</td>
         <td class="num">${num(i.protein)}</td>
@@ -99,6 +101,7 @@ export async function render(root) {
         <p class="muted small">Bron: ${esc(ing.nutrition_source || '–')}</p>
         <div class="row wrap">
           ${ing.id ? '<button type="button" class="btn" data-off-dialog>🥫 Zoek in Open Food Facts</button>' : ''}
+          ${ing.id ? '<button type="button" class="btn" data-price-dialog>🏷️ Prijzen via Open Prices</button>' : ''}
           ${m.claude.configured && ing.id ? '<button type="button" class="btn btn-ai" data-estimate>✨ Laat Claude schatten</button>' : ''}
         </div>
         <h3>Gewicht & prijs</h3>
@@ -123,6 +126,7 @@ export async function render(root) {
     const form = $('[data-form]', md.el);
     bindMediaFields(form);
     $('[data-off-dialog]', md.el)?.addEventListener('click', () => { md.close(); offDialog(ing); });
+    $('[data-price-dialog]', md.el)?.addEventListener('click', () => { md.close(); priceDialog(ing); });
     $('[data-estimate]', md.el)?.addEventListener('click', async (e) => {
       e.target.disabled = true;
       e.target.textContent = 'Claude schat…';
@@ -339,6 +343,8 @@ export async function render(root) {
         await api.del(`/ingredients/${ing.id}`);
         return reload();
       }
+      // Ergens anders op de regel getikt: ingrediënt bewerken (ook op de telefoon, waar de knoppen klein zijn)
+      if (!e.target.closest('button, a, input, select')) return editDialog(ing);
     } catch (err) {
       toast(err.message, 'error');
     }
