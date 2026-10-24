@@ -140,6 +140,29 @@ CREATE TABLE IF NOT EXISTS weight_log (
   UNIQUE (person_id, date)
 );
 
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  person_id INTEGER NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+  endpoint TEXT NOT NULL UNIQUE,
+  keys TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Ingelogde apparaten (alleen een hash van de sessiecode)
+CREATE TABLE IF NOT EXISTS sessions (
+  token TEXT PRIMARY KEY,
+  person_id INTEGER NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Herinneringen die al verstuurd zijn (per persoon, dag en moment), zodat er maar één melding komt
+CREATE TABLE IF NOT EXISTS reminder_sent (
+  person_id INTEGER NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+  date TEXT NOT NULL,
+  slot TEXT NOT NULL,
+  PRIMARY KEY (person_id, date, slot)
+);
+
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -214,6 +237,16 @@ const MIGRATIONS = [
   ['plan_extras', 'recipe_id', 'INTEGER REFERENCES recipes(id) ON DELETE CASCADE'],
   ['ingredients', 'image_credit', 'TEXT'],
   ['ingredients', 'allergens', 'TEXT'],
+  // v4: maatje, ingrediënten per log, foto en herinneringen
+  ['food_log', 'items', 'TEXT'],
+  ['food_log', 'photo', 'TEXT'],
+  ['food_log', 'score', 'INTEGER'],
+  ['people', 'buddy_name', 'TEXT'],
+  ['people', 'buddy_onboarded', 'INTEGER NOT NULL DEFAULT 0'],
+  ['people', 'reminders', 'TEXT'],
+  ['people', 'username', 'TEXT'],
+  ['people', 'password_hash', 'TEXT'],
+  ['people', 'is_admin', 'INTEGER NOT NULL DEFAULT 0'],
 ];
 
 function migrate(db) {
@@ -221,6 +254,7 @@ function migrate(db) {
     const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
     if (!cols.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
   }
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_people_username ON people(username) WHERE username IS NOT NULL');
   // De Jumbo-accountkoppeling is verwijderd: een eventueel bewaarde sessie opruimen.
   db.prepare("DELETE FROM settings WHERE key IN ('jumbo_token', 'jumbo_email')").run();
   // 'pandanrijst' is sinds v2.4 een eigen ingrediënt

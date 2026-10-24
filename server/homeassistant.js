@@ -537,6 +537,13 @@ async function withHaImages(link, sensors) {
   return sensors;
 }
 
+/** Melding naar een telefoon via de Home Assistant Companion-app (service notify.<naam>). */
+export async function haNotify(link, service, { title, message, data = {} }) {
+  const name = String(service || '').replace(/^notify\./, '');
+  if (!/^\w+$/.test(name)) throw Object.assign(new Error('Vul de naam van de meldingsdienst in, bv. mobile_app_pixel_8'), { status: 400 });
+  return haFetch(link, `/api/services/notify/${name}`, { method: 'POST', body: JSON.stringify({ title, message, data }) });
+}
+
 /** Sensoren bijwerken (maakt ze aan als ze nog niet bestaan). */
 export async function pushStates(link = haLink()) {
   if (!link) return false;

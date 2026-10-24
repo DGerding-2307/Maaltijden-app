@@ -1,5 +1,6 @@
 import { api, meta } from '../api.js';
 import { $, $$, esc, euro, num, minutes, debounce, toast, confirmDialog } from '../util.js';
+import { say } from '../say.js';
 
 const CATEGORY_EMOJI = {
   Ontbijt: '🥣', Lunch: '🥪', Hoofdgerecht: '🍽️', Soep: '🍲', Bijgerecht: '🥗', Salade: '🥗', Nagerecht: '🍮', Snack: '🥨', Bakken: '🥧',
@@ -18,13 +19,15 @@ export async function render(root, params) {
     maxMinutes: params.maxMinutes || '', sort: params.sort || 'title', maxPrice: params.maxPrice || '', have: params.have || '',
   };
 
-  root.innerHTML = `<div class="view">
-    <div class="page-head">
-      <h1>Receptenboek</h1>
+  const active = () => state.q || state.tag || state.category || state.favorite || state.maxMinutes || state.maxPrice || state.have;
+  root.innerHTML = `<div class="view recipes-c">
+    <div data-say></div>
+    <div class="head-row">
+      <h1 class="page-title">Recepten</h1>
       <div class="actions">
-        <a class="btn btn-ai" href="#/importeren">✨ Recept toevoegen</a>
-        <a class="btn" href="#/recept/nieuw">+ Zelf invoeren</a>
-        <button class="btn btn-ghost" data-select-mode>☑️ Selecteren</button>
+        <a class="btn btn-ai" href="#/importeren">✨ Toevoegen</a>
+        <a class="btn" href="#/recept/nieuw">+ Zelf</a>
+        <button class="btn btn-ghost" data-select-mode title="Meerdere recepten selecteren">☑️</button>
       </div>
     </div>
     <div class="select-bar" data-select-bar hidden>
@@ -33,38 +36,43 @@ export async function render(root, params) {
       <button class="btn btn-danger" data-delete-selected disabled>🗑️ Verwijderen</button>
       <button class="btn" data-select-done>Klaar</button>
     </div>
-    <div class="filters">
-      <input type="search" class="input grow" placeholder="Zoek op naam, tag of ingrediënt (bv. ‘kip’, ‘stamppot’)…" value="${esc(state.q)}" data-f="q">
-      <select class="input" data-f="category">
-        <option value="">Alle categorieën</option>
-        ${['Ontbijt', 'Lunch', 'Hoofdgerecht', 'Soep', 'Bijgerecht', 'Salade', 'Nagerecht', 'Snack', 'Bakken'].map((c) => `<option ${c === state.category ? 'selected' : ''}>${c}</option>`).join('')}
-      </select>
-      <select class="input" data-f="maxMinutes">
-        <option value="">Elke bereidingstijd</option>
-        ${[20, 30, 45, 60].map((t) => `<option value="${t}" ${String(t) === String(state.maxMinutes) ? 'selected' : ''}>Max. ${t} min</option>`).join('')}
-      </select>
-      <select class="input" data-f="sort">
-        ${[['title', 'A–Z'], ['newest', 'Nieuwste'], ['price', 'Goedkoopste'], ['kcal', 'Minste kcal'], ['time', 'Snelste'], ['rating', 'Hoogste waardering']]
-          .map(([v, l]) => `<option value="${v}" ${v === state.sort ? 'selected' : ''}>${l}</option>`).join('')}
-      </select>
-      <label class="chip-toggle"><input type="checkbox" data-f="favorite" ${state.favorite ? 'checked' : ''}> ★ Favorieten</label>
+    <div class="search-row">
+      <input type="search" class="input grow" placeholder="🔎 Zoek recept, tag of ingrediënt…" value="${esc(state.q)}" data-f="q" aria-label="Zoeken">
     </div>
-    <div class="quick-filters">
-      <button class="tag ${state.tag === 'vegetarisch' ? 'active' : ''}" data-quick="veg">🌱 Vegetarisch</button>
-      <button class="tag ${String(state.maxMinutes) === '30' ? 'active' : ''}" data-quick="fast">⚡ Snel (≤ 30 min)</button>
-      <button class="tag ${String(state.maxPrice) === '250' ? 'active' : ''}" data-quick="cheap">💶 Goedkoop (≤ € 2,50 p.p.)</button>
+    <div class="filter-chips">
+      <label class="tag ${state.favorite ? 'active' : ''}" data-fav-chip><input type="checkbox" data-f="favorite" ${state.favorite ? 'checked' : ''} hidden> ♥ Favorieten</label>
+      <button class="tag ${String(state.maxMinutes) === '30' ? 'active' : ''}" data-quick="fast">⚡ Snel</button>
+      <button class="tag ${state.tag === 'vegetarisch' ? 'active' : ''}" data-quick="veg">🌱 Vega</button>
+      <button class="tag ${String(state.maxPrice) === '250' ? 'active' : ''}" data-quick="cheap">💶 Goedkoop</button>
+      ${m.tags.filter((t) => t.tag !== 'vegetarisch').slice(0, 12).map((t) => `<button class="tag ${t.tag === state.tag ? 'active' : ''}" data-tag="${esc(t.tag)}">${esc(t.tag)}</button>`).join('')}
     </div>
-    <form class="pantry-search" data-have-form>
-      <label for="have-input">🧺 Wat kan ik maken met wat ik in huis heb?</label>
-      <div class="row">
-        <input id="have-input" class="input grow" name="have" value="${esc(state.have)}" placeholder="bv. kip, prei, rijst, paprika (komma's)">
-        <button class="btn">Zoek</button>
-        ${state.have ? '<button type="button" class="btn btn-ghost" data-clear-have>Wissen</button>' : ''}
+    <details class="more-filters" ${state.category || state.have || (state.maxMinutes && String(state.maxMinutes) !== '30') || state.sort !== 'title' ? 'open' : ''}>
+      <summary>Meer filters ▾</summary>
+      <div class="filters">
+        <select class="input" data-f="category" aria-label="Categorie">
+          <option value="">Alle categorieën</option>
+          ${['Ontbijt', 'Lunch', 'Hoofdgerecht', 'Soep', 'Bijgerecht', 'Salade', 'Nagerecht', 'Snack', 'Bakken'].map((c) => `<option ${c === state.category ? 'selected' : ''}>${c}</option>`).join('')}
+        </select>
+        <select class="input" data-f="maxMinutes" aria-label="Bereidingstijd">
+          <option value="">Elke bereidingstijd</option>
+          ${[20, 30, 45, 60].map((t) => `<option value="${t}" ${String(t) === String(state.maxMinutes) ? 'selected' : ''}>Max. ${t} min</option>`).join('')}
+        </select>
+        <select class="input" data-f="sort" aria-label="Sorteren">
+          ${[['title', 'A–Z'], ['newest', 'Nieuwste'], ['price', 'Goedkoopste'], ['kcal', 'Minste kcal'], ['time', 'Snelste'], ['rating', 'Hoogste waardering']]
+            .map(([v, l]) => `<option value="${v}" ${v === state.sort ? 'selected' : ''}>${l}</option>`).join('')}
+        </select>
       </div>
-    </form>
-    <div class="tags">
-      ${m.tags.slice(0, 18).map((t) => `<button class="tag ${t.tag === state.tag ? 'active' : ''}" data-tag="${esc(t.tag)}">${esc(t.tag)} <span>${t.count}</span></button>`).join('')}
-    </div>
+      <form class="pantry-search" data-have-form>
+        <label for="have-input">🧺 Wat kan ik maken met wat ik in huis heb?</label>
+        <div class="row">
+          <input id="have-input" class="input grow" name="have" value="${esc(state.have)}" placeholder="bv. kip, prei, rijst, paprika (komma's)">
+          <button class="btn">Zoek</button>
+          ${state.have ? '<button type="button" class="btn btn-ghost" data-clear-have>Wissen</button>' : ''}
+        </div>
+      </form>
+    </details>
+    <div data-for-you></div>
+    <div class="sec-k" data-all-label>Alles</div>
     <div class="recipe-grid"></div>
   </div>`;
   const view = $('.view', root);
@@ -95,6 +103,7 @@ export async function render(root, params) {
     for (const [k, v] of Object.entries(state)) if (v) qs.set(k, v === true ? '1' : v);
     history.replaceState(null, '', `#/recepten${qs.toString() ? `?${qs}` : ''}`);
     const list = await api.get(`/recipes?${qs}`);
+    drawForYou(list);
     $('.recipe-grid', view).innerHTML = list.map((r) => `
       <article class="recipe-card" data-id="${r.id}">
         <label class="pick" aria-label="${esc(r.title)} selecteren"><input type="checkbox" data-pick></label>
@@ -117,6 +126,27 @@ export async function render(root, params) {
     if (selecting) updateSelectBar();
   }
 
+  // Bovenaan: het maatje en (zonder filters) een paar recepten om te proberen
+  function drawForYou(list) {
+    const favs = list.filter((r) => r.favorite && r.image_url);
+    const day = Number(new Date().toISOString().slice(8, 10));
+    const pool = (favs.length >= 3 ? favs : list.filter((r) => r.image_url));
+    const pick = pool.length ? Array.from({ length: Math.min(5, pool.length) }, (_, i) => pool[(day * 7 + i * 11) % pool.length])
+      .filter((r, i, arr) => arr.indexOf(r) === i) : [];
+    const f = active();
+    $('[data-say]', view).innerHTML = say(f
+      ? { mood: list.length ? 'blij' : 'bezorgd', text: list.length ? `Ik vond ${list.length} ${list.length === 1 ? 'recept' : 'recepten'} voor je! 🐾` : 'Hmm, daar vind ik niets bij. Probeer iets anders, of laat Claude een recept bedenken ✨' }
+      : { mood: 'hongerig', text: 'Wat eten we vandaag? Ik heb al een paar ideetjes!' });
+    $('[data-for-you]', view).innerHTML = !f && pick.length ? `<div class="sec-k">✨ ${favs.length >= 3 ? 'Jouw favorieten' : 'Voor jou'}</div>
+      <div class="for-you">${pick.map((r) => `<a href="#/recept/${r.id}"><img src="${esc(r.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer">
+        <span class="tile-ov"><b>${esc(r.title)}</b><small>${r.total_minutes ? `${minutes(r.total_minutes)} · ` : ''}${num(r.kcal_per_serving, 0)} kcal</small></span></a>`).join('')}</div>` : '';
+    $('[data-all-label]', view).textContent = f ? `${list.length} gevonden` : 'Alles';
+  }
+
+  view.addEventListener('change', (e) => {
+    // Favorieten-chip: het verborgen vinkje zit in het label
+    if (e.target.matches('[data-f="favorite"]')) e.target.closest('[data-fav-chip]').classList.toggle('active', e.target.checked);
+  });
   view.addEventListener('input', debounce((e) => {
     const f = e.target.dataset.f;
     if (!f) return;

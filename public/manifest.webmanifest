@@ -1,10 +1,10 @@
 {
-  "name": "Maaltijden – planner & receptenboek",
+  "name": "Maaltijden – eten loggen met je maatje",
   "short_name": "Maaltijden",
-  "start_url": "/#/planner",
+  "start_url": "/#/vandaag",
   "display": "standalone",
-  "background_color": "#f7f5f0",
-  "theme_color": "#2f6b4f",
+  "background_color": "#fff7ef",
+  "theme_color": "#ff8a5c",
   "lang": "nl",
   "icons": [
     { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },

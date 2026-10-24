@@ -11,6 +11,10 @@ if (!manifest.includes('android.permission.CAMERA')) {
 
     <application`);
 }
+// Herinneringen van het maatje: meldingen tonen (Android 13+) en op tijd afgaan
+for (const perm of ['android.permission.POST_NOTIFICATIONS', 'android.permission.SCHEDULE_EXACT_ALARM', 'android.permission.RECEIVE_BOOT_COMPLETED']) {
+  if (!manifest.includes(perm)) manifest = manifest.replace('<application', `<uses-permission android:name="${perm}" />\n    <application`);
+}
 if (!manifest.includes('usesCleartextTraffic')) {
   manifest = manifest.replace('<application', '<application\n        android:usesCleartextTraffic="true"');
 }

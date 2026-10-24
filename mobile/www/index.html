@@ -3,16 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#2f6b4f">
+  <meta name="theme-color" content="#fff7ef">
   <title>Maaltijden</title>
   <style>
     :root {
-      --bg: #f7f5f0; --surface: #ffffff; --text: #1f2a24; --muted: #6b726d; --border: #e3ded2;
-      --primary: #2f6b4f; --primary-ink: #ffffff; --danger: #c0392b; --accent: #e8a33d;
+      --bg: #fff7ef; --surface: #ffffff; --text: #3a2a22; --muted: #866e60; --border: #f1e1d2;
+      --primary: #e5683c; --primary-ink: #ffffff; --danger: #d1453b; --accent: #ffc94d;
       color-scheme: light;
     }
     @media (prefers-color-scheme: dark) {
-      :root { --bg: #141816; --surface: #1d2320; --text: #e9ece9; --muted: #9aa39d; --border: #323a35; --primary: #5fb88a; --primary-ink: #0d1a13; color-scheme: dark; }
+      :root { --bg: #1f1814; --surface: #2a211c; --text: #f7ebe2; --muted: #bea797; --border: #45372e; --primary: #ff9a70; --primary-ink: #2a1408; color-scheme: dark; }
     }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     /* Systeembalken: env() of de waarden die de app zelf doorgeeft (edge-to-edge op Android) */
@@ -50,18 +50,7 @@
 </head>
 <body>
   <main>
-    <svg class="logo" viewBox="0 0 100 100" aria-hidden="true">
-      <rect width="100" height="100" rx="22" fill="#2f6b4f"/>
-      <g transform="translate(10 10) scale(.8)">
-        <path d="M22 48 h56 v18 a14 14 0 0 1 -14 14 h-28 a14 14 0 0 1 -14 -14 z" fill="#f7f5f0"/>
-        <rect x="17" y="44" width="66" height="7" rx="3.5" fill="#f7f5f0"/>
-        <rect x="9" y="55" width="12" height="6" rx="3" fill="#f7f5f0"/>
-        <rect x="79" y="55" width="12" height="6" rx="3" fill="#f7f5f0"/>
-        <g fill="none" stroke="#e8a33d" stroke-width="4.5" stroke-linecap="round">
-          <path d="M38 36 c-5 -6 5 -9 0 -16"/><path d="M50 36 c-5 -6 5 -9 0 -16"/><path d="M62 36 c-5 -6 5 -9 0 -16"/>
-        </g>
-      </g>
-    </svg>
+    <img class="logo" src="logo.svg" alt="">
     <div>
       <h1>Maaltijden</h1>
       <p class="muted" id="intro">Verbinden met je Maaltijden-server…</p>
@@ -92,7 +81,7 @@
         <button id="change" type="button" class="ghost">Ander adres</button>
       </div>
     </div>
-    <p class="version">App-versie 3.0</p>
+    <p class="version">App-versie 4.0</p>
   </main>
 
   <script>
@@ -142,8 +131,44 @@
     }
 
     function open(url) {
-      location.replace(`${url}/#/planner`);
+      // Getikt op een melding? Dan meteen naar ‘eten loggen’
+      location.replace(`${url}${tapped || '/#/vandaag'}`);
     }
+
+    // ---------- Herinneringen van het maatje (v4) ----------
+    // De server geeft een rooster (geheime link); deze pagina plant daaruit lokale meldingen in.
+    // Bij elke start wordt het rooster vernieuwd, zodat gelogde maaltijden en nieuwe tijden meetellen.
+    const MKEY = 'maaltijden-meldingen';
+    const LN = () => window.Capacitor?.Plugins?.LocalNotifications;
+    let tapped = null;
+    // Koude start via een melding: open() gebruikt daarna deze link
+    LN()?.addListener('localNotificationActionPerformed', (ev) => {
+      tapped = ev.notification?.extra?.url || null;
+    });
+
+    async function scheduleReminders(url) {
+      const ln = LN();
+      if (!ln) throw new Error('Deze versie van de app kan nog geen meldingen tonen. Installeer de nieuwste app.');
+      const perm = await ln.requestPermissions();
+      if (perm.display !== 'granted') throw new Error('Je hebt meldingen niet toegestaan. Zet ze aan bij de app-instellingen van je telefoon.');
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) throw new Error('Kon de herinneringen niet ophalen.');
+      const { reminders } = await res.json();
+      const pending = await ln.getPending();
+      if (pending.notifications.length) await ln.cancel({ notifications: pending.notifications.map((n) => ({ id: n.id })) });
+      if (reminders.length) {
+        await ln.schedule({
+          notifications: reminders.map((r) => ({
+            id: r.id, title: r.title, body: r.body,
+            schedule: { at: new Date(`${r.date}T${r.time}:00`), allowWhileIdle: true },
+            extra: { url: r.url, slot: r.slot, date: r.date },
+          })),
+        });
+      }
+      return reminders.length;
+    }
+
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
     function showForm(message = '', isError = false) {
       $('offline').hidden = true;
@@ -165,6 +190,25 @@
     }
 
     async function start() {
+      const params = new URLSearchParams(location.search);
+      // Vanuit de app: ‘Herinneringen aanzetten’ stuurt hierheen met de link naar het rooster
+      if (params.has('meldingen')) {
+        const url = params.get('meldingen');
+        const back = params.get('terug');
+        $('intro').textContent = 'Herinneringen instellen…';
+        try {
+          save(url, MKEY);
+          const n = await scheduleReminders(url);
+          $('intro').textContent = n ? `🐶 ${n} herinneringen ingepland voor de komende week!` : 'Herinneringen staan aan.';
+        } catch (err) {
+          $('intro').textContent = err.message;
+          await wait(2500);
+        }
+        await wait(1200);
+        if (back && /^https?:\/\//.test(back)) return location.replace(back);
+      }
+      // Rooster op de achtergrond vernieuwen (wacht er niet lang op)
+      if (load(MKEY)) await Promise.race([scheduleReminders(load(MKEY)).catch(() => {}), wait(2500)]);
       const saved = load();
       const change = new URLSearchParams(location.search).has('wijzig');
       if (!saved || change) return showForm();

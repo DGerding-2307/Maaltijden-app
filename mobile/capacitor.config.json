@@ -2,8 +2,8 @@
   "appId": "nl.maaltijden.app",
   "appName": "Maaltijden",
   "webDir": "www",
-  "appendUserAgent": "MaaltijdenApp/3.0",
-  "backgroundColor": "#f7f5f0",
+  "appendUserAgent": "MaaltijdenApp/4.0",
+  "backgroundColor": "#fff7ef",
   "server": {
     "androidScheme": "http",
     "cleartext": true,

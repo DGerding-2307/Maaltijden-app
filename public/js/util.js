@@ -252,7 +252,27 @@ export const REFERENCE_INTAKE = { kcal: 2000, protein: 50, carbs: 260, sugar: 90
 // Per apparaat onthouden wie het dagboek bijhoudt; werkt ook zonder opslag (privévenster).
 const PERSON_KEY = 'maaltijden-persoon';
 export function savedPerson() {
-  try { return Number(localStorage.getItem(PERSON_KEY)) || null; } catch { return null; }
+  // Ingelogd (v4-accounts)? Dan ben je altijd jezelf
+  if (window.__maaltijdenUser?.id && !window.__maaltijdenUser.is_admin) return window.__maaltijdenUser.id;
+  try { return Number(localStorage.getItem(PERSON_KEY)) || window.__maaltijdenUser?.id || null; } catch { return window.__maaltijdenUser?.id || null; }
+}
+
+/** Huidige tijd → maaltijd die er het meest bij past. */
+export function guessMeal(date = new Date()) {
+  const h = date.getHours();
+  if (h < 11) return 'ontbijt';
+  if (h < 15) return 'lunch';
+  if (h >= 17 && h < 21) return 'diner';
+  return 'tussendoor';
+}
+
+/** Een link buiten de app openen: in de Android-app via de systeembrowser (als die er is), anders in een nieuw tabblad. */
+export function openExternal(url) {
+  const browser = window.Capacitor?.Plugins?.Browser;
+  if (browser?.open) return browser.open({ url });
+  const w = window.open(url, '_blank', 'noopener');
+  // Android-app zonder plug-in: in dezelfde app openen (terug met het terug-gebaar)
+  if (!w && /MaaltijdenApp/.test(navigator.userAgent)) location.href = url;
 }
 export function rememberPerson(id) {
   try { localStorage.setItem(PERSON_KEY, String(id)); } catch { /* geen opslag */ }

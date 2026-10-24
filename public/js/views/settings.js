@@ -79,6 +79,9 @@ export async function render(root) {
         <span class="small" data-test-result role="status"></span></div>` : ''}
       ${m.claude.from_env ? '' : `<label>Anthropic API-sleutel <input class="input" type="password" name="anthropic_api_key" autocomplete="off" placeholder="${m.claude.configured ? '•••••••• (laat leeg om te behouden)' : 'sk-ant-…'}"></label>`}
 
+      <label class="check"><input type="checkbox" name="buddy_ai" ${m.buddy_ai ? 'checked' : ''}>
+        🐶 Persoonlijke berichtjes van je maatje met Claude <span class="muted small">(anders de ingebouwde zinnen; kost een fractie van een cent per log)</span></label>
+
       <h2>Voedingswaarden</h2>
       <label class="check"><input type="checkbox" name="off_auto" ${m.off_auto ? 'checked' : ''}>
         Nieuwe ingrediënten automatisch aanvullen met <a href="https://nl.openfoodfacts.org" target="_blank" rel="noopener">Open Food Facts</a></label>
@@ -398,6 +401,7 @@ export async function render(root) {
       household: fd.get('household'),
       off_auto: fd.has('off_auto'),
       prices_auto: fd.has('prices_auto'),
+      buddy_ai: fd.has('buddy_ai'),
     };
     if (fd.get('claude_model')) body.claude_model = fd.get('claude_model');
     const key = fd.get('anthropic_api_key');

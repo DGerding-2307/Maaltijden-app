@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="nl"><head><meta charset="utf-8"><title>Iconen renderen</title>
+<link rel="stylesheet" href="/public/css/buddy.css">
+<style>
+  /* ?t=icon (afgerond), full (vierkant, voor maskable/apple), fg (alleen hondje, transparant), bg (alleen kleur), splash, splash-dark */
+  html, body { margin: 0; background: transparent; }
+  .box { width: 100vw; height: 100vh; display: grid; place-items: center; }
+  .full { background: radial-gradient(circle at 50% 60%, #ffd3b8, #ffb08a); }
+  .bg { background: radial-gradient(circle at 50% 60%, #ffd3b8, #ffb08a); }
+  .splash { background: #fff7ef; } .splash-dark { background: #1f1814; }
+  img { width: 100%; height: 100%; }
+  .fg img, .full img { width: 100%; height: 100%; }
+  .splash .buddy, .splash-dark .buddy { width: 28vw; max-width: none; }
+</style></head><body>
+<div class="box" id="b"></div>
+<script type="module">
+import { buddySvg } from '/public/js/buddy.js';
+const t = new URLSearchParams(location.search).get('t') || 'icon';
+const b = document.getElementById('b');
+b.className = `box ${t}`;
+if (t === 'icon') b.innerHTML = '<img src="/public/icon.svg" alt="">';
+// Vierkant zonder ronde hoeken en met wat ruimte (Android knipt er een cirkel of druppel uit)
+if (t === 'full') b.innerHTML = '<img src="/public/icon.svg" alt="" style="width:118%;height:118%;margin:-9%;clip-path:inset(7.6% round 0)">';
+if (t === 'fg') {
+  // Alleen het hondje (zonder achtergrond), binnen de veilige zone van een adaptief Android-icoon
+  const svg = (await (await fetch('/public/icon.svg')).text()).replace(/<rect[^>]*\/>/, '');
+  b.innerHTML = `<div style="width:62%;height:62%">${svg}</div>`;
+}
+if (t === 'splash' || t === 'splash-dark') b.innerHTML = buddySvg({ mood: 'blij' });
+</script></body></html>

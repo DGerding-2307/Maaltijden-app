@@ -1,8 +1,13 @@
 import { api, liveSync } from '../api.js';
 import { $, esc, euro, num, qty, addDays, mondayOf, todayISO, fmtDate, weekNumber, toast, confirmDialog } from '../util.js';
-import { ingThumb } from '../ingredient-form.js';
+import { say } from '../say.js';
 
 const COUNT_UNITS = ['stuk', 'teen', 'blik', 'pak', 'zakje', 'bos', 'plak'];
+const CAT_EMOJI = {
+  'Aardappelen, groente & fruit': '🥦', 'Vlees, vis & vega': '🍗', 'Zuivel, eieren & kaas': '🧀', 'Brood, ontbijt & beleg': '🍞',
+  'Pasta, rijst & wereldkeuken': '🍚', 'Conserven, soepen & sauzen': '🥫', 'Kruiden, specerijen & bakken': '🧂', 'Olie, azijn & smaakmakers': '🫒',
+  Diepvries: '🧊', 'Dranken & overig': '🧃', Overig: '🛒',
+};
 
 function amount(item) {
   if (COUNT_UNITS.includes(item.unit) && item.quantity > 0) {
@@ -22,8 +27,9 @@ export async function render(root, params) {
   const start = mondayOf(params.week || todayISO());
   let showPantry = localStorage.getItem('showPantry') === '1';
   let data;
+  let cat = ''; // gekozen afdeling
 
-  root.innerHTML = '<div class="view shopping"></div>';
+  root.innerHTML = '<div class="view shopping shop-c"></div>';
   const view = $('.view', root);
 
   async function load() {
@@ -43,46 +49,50 @@ export async function render(root, params) {
     const open = items.filter((i) => !i.checked);
     const openCost = open.reduce((s, i) => s + (i.cost_cents || 0), 0);
     const doneCount = data.items.filter((i) => i.checked && !i.have).length + data.extras.filter((x) => x.checked).length;
+    const shown = cat ? [...groups.entries()].filter(([c]) => c === cat) : [...groups.entries()];
+    const total = items.length;
+    const line = !data.items.length && !data.extras.length ? { mood: 'rust', text: 'Nog niets op de lijst. Plan eerst wat maaltijden, dan zet ik alles voor je klaar 🐾' }
+      : !open.length ? { mood: 'blij', text: 'Alles in je mandje! Goed gedaan 🎉 Vergeet niet ‘in huis zetten’ te tikken.' }
+        : open.length < total ? { mood: 'trots', text: `Nog ${open.length} ${open.length === 1 ? 'dingetje' : 'dingetjes'}! Samen zijn we zo klaar 🛒` }
+          : { mood: 'hongerig', text: `${open.length} dingen op je lijstje, samen ± ${euro(openCost)}. Zullen we gaan? 🛒` };
     view.innerHTML = `
-      <div class="page-head">
-        <div class="week-nav">
-          <a class="btn icon-btn" href="#/boodschappen?week=${addDays(start, -7)}" aria-label="Vorige week">‹</a>
-          <div class="week-title"><h1>Boodschappen week ${weekNumber(start)}</h1>
-            <span class="muted">${fmtDate(start)} – ${fmtDate(addDays(start, 6))} · ${data.meals} maaltijden</span></div>
-          <a class="btn icon-btn" href="#/boodschappen?week=${addDays(start, 7)}" aria-label="Volgende week">›</a>
+      ${say(line)}
+      <div class="head-row">
+        <div class="row">
+          <a class="round-btn" href="#/boodschappen?week=${addDays(start, -7)}" aria-label="Vorige week">‹</a>
+          <div><h1 class="page-title">Boodschappen</h1>
+            <p class="page-sub">Week ${weekNumber(start)} · ${data.meals} maaltijden · ${euro(data.total_cents)}</p></div>
+          <a class="round-btn" href="#/boodschappen?week=${addDays(start, 7)}" aria-label="Volgende week">›</a>
         </div>
-        <div class="actions">
-          <button class="btn" data-copy>📋 Kopieer lijst</button>
-          <button class="btn" data-print>🖨️ Afdrukken</button>
+        <div class="actions no-print">
+          <button class="btn" data-copy>📋 Kopieer</button>
+          <button class="btn btn-ghost" data-print aria-label="Afdrukken">🖨️</button>
         </div>
       </div>
-      <div class="stats">
-        <div class="stat"><span class="stat-label">Verwachte kosten</span><span class="stat-value">${euro(data.total_cents)}</span><span class="stat-sub">hele verpakkingen, excl. voorraadkast</span></div>
-        <div class="stat"><span class="stat-label">Nog te halen</span><span class="stat-value">${open.length}</span><span class="stat-sub">${euro(openCost)}</span></div>
-      </div>
-      <div class="row wrap no-print">
-        <label class="chip-toggle"><input type="checkbox" data-pantry ${showPantry ? 'checked' : ''}> Toon voorraadkast (${pantryCount}: zout, olie, kruiden…)</label>
-        <span class="muted small">Tik 🏠 bij wat je al in huis hebt. Wijzigingen van huisgenoten verschijnen vanzelf.</span>
+      <div class="filter-chips no-print">
+        <button class="tag ${cat ? '' : 'active'}" data-cat="">Alles · ${total}</button>
+        ${[...groups.entries()].map(([c, list]) => `<button class="tag ${c === cat ? 'active' : ''}" data-cat="${esc(c)}" title="${esc(c)}">${CAT_EMOJI[c] || '🛒'} ${list.length}</button>`).join('')}
+        <label class="tag ${showPantry ? 'active' : ''}" title="Voorraadkast tonen: zout, olie, kruiden…"><input type="checkbox" data-pantry ${showPantry ? 'checked' : ''} hidden> 🧂 Voorraad (${pantryCount})</label>
       </div>
 
-      ${!data.items.length && !data.extras.length ? `<div class="empty"><p>Nog niets op de lijst. Plan eerst maaltijden in.</p><a class="btn btn-primary" href="#/planner?week=${start}">Naar de planner</a></div>` : ''}
+      ${!data.items.length && !data.extras.length ? `<div class="empty"><a class="btn btn-primary" href="#/planner?week=${start}">Naar de planner</a></div>` : ''}
 
-      ${[...groups.entries()].map(([cat, list]) => `
+      ${shown.map(([c, list]) => `
         <section class="shop-group">
-          <h2>${esc(cat)}</h2>
-          <ul class="shop-list">
+          <div class="sec-k">${CAT_EMOJI[c] || '🛒'} ${esc(c)}</div>
+          <div class="shop-tiles">
             ${list.map((i) => `
-              <li class="${i.checked ? 'done' : ''} ${i.pantry ? 'pantry' : ''}">
-                <label>
-                  <input type="checkbox" data-key="${esc(i.key)}" ${i.checked ? 'checked' : ''}>
-                  <span class="shop-name">${ingThumb(i, 'sm')}<strong>${esc(i.name)}</strong> <span class="muted">${amount(i)}</span>
-                    <small class="muted shop-for" title="${esc(i.recipes.join(', '))}">voor ${esc(i.recipes.slice(0, 2).join(', '))}${i.recipes.length > 2 ? ` +${i.recipes.length - 2}` : ''}</small></span>
-                  <span class="shop-pack">${i.packages ? `${i.packages}× ${esc(i.package_label || '')}` : ''}</span>
-                  <span class="shop-cost">${i.cost_cents != null ? euro(i.cost_cents) : ''}</span>
-                </label>
-                <button class="mini no-print have-btn" data-have="${esc(i.key)}" title="Heb ik al in huis – niet kopen">🏠</button>
-              </li>`).join('')}
-          </ul>
+              <label class="shop-tile ${i.checked ? 'done' : ''} ${i.pantry ? 'pantry' : ''}">
+                <input type="checkbox" data-key="${esc(i.key)}" ${i.checked ? 'checked' : ''} aria-label="${esc(i.name)} in je mandje">
+                <span class="ph">${i.image_url ? `<img src="${esc(i.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : CAT_EMOJI[c] || '🛒'}</span>
+                ${i.cost_cents != null ? `<span class="pr">${euro(i.cost_cents)}</span>` : ''}
+                <span class="ck" aria-hidden="true">✓</span>
+                <span class="nm">${esc(i.name)}</span>
+                <span class="am">${amount(i)}${i.packages ? ` · ${i.packages}× ${esc(i.package_label || '')}` : ''}</span>
+                <span class="for" title="${esc(i.recipes.join(', '))}">voor ${esc(i.recipes.slice(0, 2).join(', '))}${i.recipes.length > 2 ? ` +${i.recipes.length - 2}` : ''}</span>
+                <button type="button" class="mini no-print have-btn" data-have="${esc(i.key)}" title="Heb ik al in huis – niet kopen" aria-label="${esc(i.name)} al in huis">🏠</button>
+              </label>`).join('')}
+          </div>
         </section>`).join('')}
 
       ${doneCount ? `<div class="done-bar no-print">
@@ -137,6 +147,8 @@ export async function render(root, params) {
     load();
   });
   view.addEventListener('click', async (e) => {
+    const chip = e.target.closest('[data-cat]');
+    if (chip) { cat = chip.dataset.cat; return draw(); }
     if (e.target.closest('[data-done-to-have]')) {
       const items = data.items.filter((i) => i.checked && !i.have).length;
       const extras = data.extras.filter((x) => x.checked).length;

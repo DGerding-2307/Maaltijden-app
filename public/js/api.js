@@ -16,6 +16,7 @@ async function request(method, url, body) {
       throw new Error(res.ok ? 'Onverwacht antwoord van de server. Herlaad de pagina.' : `Fout ${res.status}`);
     }
   }
+  if (res.status === 401 && data.login && !url.startsWith('/auth/')) window.dispatchEvent(new Event('login-required'));
   if (!res.ok) throw new Error(data.error || `Fout ${res.status}`);
   return data;
 }

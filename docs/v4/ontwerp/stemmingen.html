@@ -1,0 +1,9 @@
+<!doctype html><html lang="nl"><head><meta charset="utf-8"><link rel="stylesheet" href="/public/css/buddy.css">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;800;900&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#fff7ef;font-family:Nunito,sans-serif;color:#3a2a22;padding:40px}h1{font-weight:900;margin:0 0 30px}
+.grid{display:grid;grid-template-columns:repeat(6,1fr);gap:24px}.c{background:#fff;border-radius:28px;padding:40px 16px 18px;text-align:center;box-shadow:0 6px 24px rgba(60,40,20,.06)}
+.c b{display:block;margin-top:10px;font-size:20px}.c span{font-size:14px;color:#9a8a7e}</style></head><body>
+<h1>Het maatje – 6 duidelijke stemmingen</h1><div class="grid" id="g"></div>
+<script type="module">import {buddySvg,MOODS} from '/public/js/buddy.js';
+const t={rust:'Gewoon gezellig',blij:'Super gezond gegeten · springt, hartjes',trots:'Doel gehaald / reeks · medaille, sterren',bezorgd:'Minder gezond · puppy-ogen, druppel',slaperig:'Avond / niets gelogd · zzz, belletje',hongerig:'Herinnering · likt, denkt aan een bot'};
+g.innerHTML=MOODS.map(m=>`<div class="c">${buddySvg({mood:m})}<b>${m}</b><span>${t[m]}</span></div>`).join('');</script></body></html>

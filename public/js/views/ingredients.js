@@ -1,5 +1,6 @@
 import { api, meta } from '../api.js';
 import { scanBarcode } from '../scanner.js';
+import { scanProduct } from '../scan-flow.js';
 import { mediaFields, bindMediaFields, applyShopSource, ingThumb } from '../ingredient-form.js';
 import { $, esc, euro, num, toast, modal, confirmDialog, debounce, NUTRIENT_LABELS } from '../util.js';
 
@@ -29,6 +30,7 @@ export async function render(root) {
     <div class="page-head">
       <h1>Ingrediënten & prijzen</h1>
       <div class="actions">
+        <button class="btn btn-primary" data-scan-new>📷 Product scannen</button>
         <button class="btn" data-new>+ Nieuw ingrediënt</button>
         <button class="btn" data-off-all title="Vul voedingswaarden aan met Open Food Facts (op de achtergrond)">🥫 Voedingswaarden via Open Food Facts</button>
         <button class="btn" data-prices-all title="Haal Nederlandse winkelprijzen op uit Open Prices (op de achtergrond); handmatige prijzen blijven staan">🏷️ Prijzen via Open Prices</button>
@@ -309,6 +311,15 @@ export async function render(root) {
     const ing = tr && all.find((i) => i.id === Number(tr.dataset.id));
     try {
       if (e.target.closest('[data-new]')) return editDialog();
+      if (e.target.closest('[data-scan-new]')) {
+        return scanProduct({ purpose: 'list' }).then(async (ing) => {
+          if (!ing) return;
+          await reload();
+          q = ing.name.toLowerCase();
+          $('[data-q]', view).value = ing.name;
+          draw();
+        });
+      }
       if (e.target.closest('[data-prices-all]')) {
         await api.post('/prices/queue', {});
         toast('Prijzen worden op de achtergrond opgehaald uit Open Prices', 'success');

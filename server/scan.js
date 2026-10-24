@@ -25,7 +25,12 @@ export async function lookupBarcode(ean) {
   try {
     result.product = await productByBarcode(code);
   } catch (err) {
-    result.warnings.push(`Open Food Facts: ${err.message}`);
+    // Onbekend product (404) is iets anders dan een storing: dan kun je het zelf aan Open Food Facts toevoegen
+    if (err.status === 404 || /404|niet gevonden/i.test(err.message)) result.not_in_off = true;
+    else {
+      result.off_unreachable = true;
+      result.warnings.push(`Open Food Facts: ${err.message}`);
+    }
   }
   const name = result.product?.name || '';
   result.suggested_name = genericName(name, result.product?.brands) || name.toLowerCase();
