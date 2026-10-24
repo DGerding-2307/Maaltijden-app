@@ -3,7 +3,7 @@ import { api, liveSync } from '../api.js';
 import { $, $$, esc, num, todayISO, addDays, mondayOf, modal, toast, savedPerson, rememberPerson } from '../util.js';
 import { buddySvg, setMood, pet } from '../buddy.js';
 import { openLog, editEntry, showReaction, MEALS, forgetBuddy } from '../log.js';
-import { reminderCard, enablePush } from '../reminders.js';
+import { reminderCard, enablePush, enableInApp, appVersion, appError } from '../reminders.js';
 
 const MEAL_ICONS = { ontbijt: '🥣', lunch: '🥪', diner: '🍽️', tussendoor: '🍎' };
 const PET_LINES = ['Woef! 🐾', 'Hihi, dat kriebelt!', 'Nog een aai? 💛', 'Jij bent mijn favoriete mens!', 'Kwispel kwispel!'];
@@ -190,14 +190,14 @@ export async function render(root, params) {
       $('[data-yes]', box).addEventListener('click', async () => {
         await api.put('/reminders', { person_id: person.id, enabled: true });
         try {
-          if (/MaaltijdenApp/.test(navigator.userAgent)) {
+          if (appVersion()) {
             await api.put('/buddy', { person_id: person.id, name, onboarded: true });
-            location.href = `http://localhost/?meldingen=${encodeURIComponent(r.schedule_url)}&terug=${encodeURIComponent(location.href)}`;
+            await enableInApp(person.id, r.schedule_url);
             return;
           }
           await enablePush(person.id, r.push_public_key);
           toast(`${name} stuurt je herinneringen 🐶`, 'success');
-        } catch (err) { toast(err.message, 'error'); }
+        } catch (err) { appError(err); }
         finish();
       });
     }

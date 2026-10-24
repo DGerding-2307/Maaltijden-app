@@ -81,9 +81,12 @@
         <button id="change" type="button" class="ghost">Ander adres</button>
       </div>
     </div>
-    <p class="version">App-versie 4.0</p>
+    <p class="version">App-versie 4.0.1</p>
   </main>
 
+  <!-- Capacitor en de meldingen-plug-in zonder bundler (gekopieerd door scripts/copy-vendor.mjs) -->
+  <script src="vendor/capacitor.js"></script>
+  <script src="vendor/local-notifications.js"></script>
   <script>
     // De app slaat het serveradres op en opent daarna je eigen Maaltijden-server.
     // Omdat de app de pagina's van je server toont, is hij na een serverupdate automatisch bijgewerkt.
@@ -139,7 +142,7 @@
     // De server geeft een rooster (geheime link); deze pagina plant daaruit lokale meldingen in.
     // Bij elke start wordt het rooster vernieuwd, zodat gelogde maaltijden en nieuwe tijden meetellen.
     const MKEY = 'maaltijden-meldingen';
-    const LN = () => window.Capacitor?.Plugins?.LocalNotifications;
+    const LN = () => window.capacitorLocalNotifications?.LocalNotifications || window.Capacitor?.Plugins?.LocalNotifications;
     let tapped = null;
     // Koude start via een melding: open() gebruikt daarna deze link
     LN()?.addListener('localNotificationActionPerformed', (ev) => {
@@ -195,18 +198,36 @@
       if (params.has('meldingen')) {
         const url = params.get('meldingen');
         const back = params.get('terug');
+        const goBack = (result) => {
+          // Uitkomst meegeven, zodat de app een melding kan tonen
+          if (!back || !/^https?:\/\//.test(back)) return start2();
+          const [base, hash = '#/vandaag'] = back.split('#');
+          location.replace(`${base}#${hash}${hash.includes('?') ? '&' : '?'}${result}`);
+        };
         $('intro').textContent = 'Herinneringen instellen…';
         try {
           save(url, MKEY);
           const n = await scheduleReminders(url);
-          $('intro').textContent = n ? `🐶 ${n} herinneringen ingepland voor de komende week!` : 'Herinneringen staan aan.';
+          $('intro').textContent = `🐶 ${n} herinneringen ingepland voor de komende week!`;
+          await wait(1200);
+          return goBack(`meldingen=ok&aantal=${n}`);
         } catch (err) {
+          // Foutmelding laten staan (niet wegspringen), met een knop terug
           $('intro').textContent = err.message;
-          await wait(2500);
+          const box = document.createElement('div');
+          box.className = 'row';
+          box.innerHTML = '<button type="button">Opnieuw proberen</button><button type="button" class="ghost">Terug naar de app</button>';
+          const [again, backBtn] = box.querySelectorAll('button');
+          again.addEventListener('click', () => location.reload());
+          backBtn.addEventListener('click', () => goBack(`meldingen=fout&reden=${encodeURIComponent(err.message)}`));
+          $('intro').closest('div').after(box);
+          return;
         }
-        await wait(1200);
-        if (back && /^https?:\/\//.test(back)) return location.replace(back);
       }
+      return start2();
+    }
+
+    async function start2() {
       // Rooster op de achtergrond vernieuwen (wacht er niet lang op)
       if (load(MKEY)) await Promise.race([scheduleReminders(load(MKEY)).catch(() => {}), wait(2500)]);
       const saved = load();

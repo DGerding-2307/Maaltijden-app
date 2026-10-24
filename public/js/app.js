@@ -1,5 +1,5 @@
 // Eenvoudige hash-router.
-import { $, $$, esc, closeAllModals, hasDirtyModal, savedPerson } from './util.js';
+import { $, $$, esc, closeAllModals, hasDirtyModal, savedPerson, toast } from './util.js';
 import { checkForUpdateBanner } from './update.js';
 import { api } from './api.js';
 import { buddySvg } from './buddy.js';
@@ -93,7 +93,11 @@ async function start() {
     return;
   }
   window.addEventListener('hashchange', router);
+  // Terug uit het beginscherm van de Android-app na ‘meldingen aanzetten’
+  const { reminderResultFromHash } = await import('./reminders.js');
+  const result = reminderResultFromHash();
   router();
+  if (result) setTimeout(() => toast(result.text, result.ok ? 'success' : 'error'), 600);
 }
 // Sessie verlopen of uitgelogd op een ander apparaat
 window.addEventListener('login-required', () => { if (!document.body.classList.contains('auth-only')) location.reload(); });
