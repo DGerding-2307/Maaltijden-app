@@ -35,19 +35,25 @@ export async function render(root, params) {
         <p class="muted small">Werkt met de meeste receptensites (Allerhande, Jumbo, 24Kitchen, Leukerecepten, buitenlandse sites…).</p>`,
       text: `<label>Plak het recept (ingrediënten + bereiding), in elke taal
           <textarea class="input" name="text" rows="12" required placeholder="Bijv. een recept uit een e-mail, WhatsApp of een kookboek"></textarea></label>`,
-      photo: `<label class="dropzone" data-drop>
-          <input type="file" name="file" accept="image/*,application/pdf" capture="environment" hidden>
-          <span data-drop-label>📷 Maak een foto van een kookboek of kies een afbeelding/PDF</span>
+      photo: `<div class="dropzone" data-drop>
+          <span data-drop-label>Maak een foto van een kookboek, of kies een foto of PDF (of sleep hem hierheen)</span>
+          <span class="row wrap drop-buttons">
+            <label class="btn">📷 Foto maken<input type="file" name="file" accept="image/*" capture="environment" hidden></label>
+            <label class="btn">🖼️ Kies foto of bestand<input type="file" name="file" accept="image/*,application/pdf" hidden></label>
+          </span>
           <img data-preview alt="" hidden>
-        </label>
+        </div>
         <label>Extra toelichting (optioneel) <input class="input" name="text" placeholder="bv. ‘alleen het recept rechts op de pagina’"></label>`,
       generate: `<label>Waar heb je zin in?
           <textarea class="input" name="prompt" rows="4" placeholder="Bijv. ‘iets met de kip en prei die nog in de koelkast liggen’, ‘vegetarische stamppot’, ‘snelle pasta onder €2 p.p.’">${esc(params.idee || '')}</textarea></label>
-        <label class="dropzone small-drop" data-drop>
-          <input type="file" name="file" accept="image/*" capture="environment" hidden>
-          <span data-drop-label>📷 Optioneel: foto van je koelkast of voorraadkast – Claude kookt met wat erop staat</span>
+        <div class="dropzone small-drop" data-drop>
+          <span data-drop-label>Optioneel: foto van je koelkast of voorraadkast – Claude kookt met wat erop staat</span>
+          <span class="row wrap drop-buttons">
+            <label class="btn">📷 Foto maken<input type="file" name="file" accept="image/*" capture="environment" hidden></label>
+            <label class="btn">🖼️ Kies foto of bestand<input type="file" name="file" accept="image/*" hidden></label>
+          </span>
           <img data-preview alt="" hidden>
-        </label>
+        </div>
         <label>Personen <input class="input narrow" type="number" min="1" name="servings" value="${m.default_servings}"></label>`,
     };
     form.innerHTML = `${forms[tab]}
@@ -61,7 +67,6 @@ export async function render(root, params) {
   }
 
   function bindPhoto() {
-    const input = $('input[type=file]', form);
     const drop = $('[data-drop]', form);
     const setFile = async (f) => {
       if (!f) return;
@@ -76,7 +81,8 @@ export async function render(root, params) {
         img.hidden = false;
       }
     };
-    input.addEventListener('change', () => setFile(input.files[0]));
+    // Twee knoppen: met ‘capture’ opent Android alleen de camera, zonder kies je uit de galerij of bestanden
+    $$('input[type=file]', form).forEach((input) => input.addEventListener('change', () => { setFile(input.files[0]); input.value = ''; }));
     drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('drop'); });
     drop.addEventListener('dragleave', () => drop.classList.remove('drop'));
     drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('drop'); setFile(e.dataTransfer.files[0]); });

@@ -56,6 +56,11 @@ geeft hij een tip, maar boos wordt hij nooit. Geef hem zelf een naam: Bolletje, 
 - **Nederlands.** Nederlandse recepten, Nederlandse supermarktprijzen en voedingswaarden uit NEVO en Open Food Facts.
 - **Voor het hele huishouden.** Samen plannen en boodschappen doen, en ieder een eigen dagboek en maatje.
 
+## Nieuw in versie 4.0.2
+
+- 🖼️ **Foto importeren bij recept toevoegen**: naast *📷 Foto maken* nu ook *🖼️ Kies foto of bestand*, voor een foto uit je galerij of een PDF
+  (de app opende alleen de camera). Werkt meteen na de server-update, ook in de bestaande Android-app
+
 ## Nieuw in versie 4.0.1
 
 - 🔔 **Meldingen in de Android-app werken**: ‘Aanzetten in de app’ plant de herinneringen nu echt in (installeer de nieuwe APK).

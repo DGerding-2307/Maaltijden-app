@@ -361,7 +361,7 @@ a.plan-entry-title[href]:hover { text-decoration: underline; }
 .tabs { display: flex; gap: .3rem; flex-wrap: wrap; margin-bottom: .8rem; }
 .tabs button { border: 1px solid var(--border); background: var(--surface); color: var(--text); padding: .55rem .95rem; border-radius: 10px; font: inherit; cursor: pointer; }
 .tabs button.active { background: var(--ai); color: #fff; border-color: var(--ai); }
-.dropzone { border: 2px dashed var(--border); border-radius: var(--radius); padding: 2rem 1rem; text-align: center; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: .8rem; }
+.dropzone { border: 2px dashed var(--border); border-radius: var(--radius); padding: 2rem 1rem; text-align: center; display: flex; flex-direction: column; align-items: center; gap: .8rem; }
 .dropzone.drop, .dropzone:hover { border-color: var(--ai); background: var(--ai-soft); }
 .dropzone img { max-height: 260px; max-width: 100%; border-radius: 10px; }
 .progress-msg { color: var(--ai); font-weight: 500; }
@@ -1268,3 +1268,4 @@ body.auth-only main { padding-bottom: 1.25rem; }
 .sources-info { margin: .2rem 0 .9rem; }
 .sources-info summary { cursor: pointer; color: var(--primary-text); font-weight: 800; }
 .sources-info p { margin: .5rem 0 0; }
+.drop-buttons { justify-content: center; gap: .5rem; }
