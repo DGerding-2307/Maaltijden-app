@@ -275,7 +275,8 @@ test('Home Assistant: overzicht van vandaag en kant-en-klare YAML', async () => 
   assert.ok(all.week.dagen.every((d) => !d.diner.length || d.afbeelding));
   assert.ok(all.boodschappen_open.artikelen.length > 0 && all.boodschappen_open.artikelen.every((x) => x.afbeelding && x.naam));
   // (een nieuwe database heeft al een paar voorbeeldmaaltijden deze week)
-  const nasi = data.diner.find((x) => x.titel === 'Nasi goreng');
+  // (op sommige dagen staat er ook al Nasi goreng voor 4 personen in de voorbeeldplanning)
+  const nasi = data.diner.find((x) => x.titel === 'Nasi goreng' && x.personen === 2);
   assert.ok(nasi, JSON.stringify(data.diner));
   assert.equal(data.state, data.diner[0].titel);
   assert.equal(nasi.personen, 2);

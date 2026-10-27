@@ -105,6 +105,13 @@ test('beheerder voegt een huisgenoot toe; die ziet alleen zijn eigen dagboek', a
   assert.equal((await sanne.get(`/buddy?persoon=${login.user.id}`)).name, 'Pip');
   // Gedeeld: recepten en planner
   assert.ok((await sanne.get('/recipes')).length > 5);
+  // Claude-koppeling: alleen voor jezelf, ook zonder of met een andere persoon in de vraag
+  for (const body of [{}, { person_id: dennisId }]) assert.equal((await sanne.post('/mcp/new-link', body)).person_id, login.user.id);
+  assert.equal((await sanne.get(`/mcp?persoon=${dennisId}`)).person_id, login.user.id);
+  assert.equal((await admin.get(`/mcp?persoon=${dennisId}`)).url, null, 'Dennis heeft nog geen link');
+  const link = (await sanne.get('/mcp')).url;
+  const res = await fetch(link, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'dagboek_bekijken', arguments: {} } }) });
+  assert.equal((await res.json()).result.structuredContent.persoon, 'Sanne', 'werkt zonder cookie, met het dagboek van Sanne');
 });
 
 test('wachtwoord wijzigen en beheer: resetten, opheffen, altijd één beheerder', async () => {

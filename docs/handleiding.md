@@ -217,6 +217,37 @@ Die link (`/ha/<code>/sensoren.json`) werkt zonder inloggen, ook met `APP_PASSWO
 ‘Vandaag’ volgt de tijdzone `TZ` (standaard Europe/Amsterdam). Achter een reverse proxy kun je met `APP_URL` het adres voor de links instellen.
 Wil je de hele week als agenda in Home Assistant, voeg dan de integratie *Remote calendar* toe met de agenda-link.
 
+## Claude als assistent (MCP-koppeling)
+
+Met de koppeling kan Claude (op claude.ai of in de Claude-app op je telefoon) rechtstreeks met Maaltijden werken. Vraag bijvoorbeeld
+*‘Wat eten we deze week?’*, *‘Plan voor donderdag iets snels met kip voor 3 personen’*, *‘Zet melk op de boodschappenlijst’*,
+*‘Ik heb net een broodje kroket gegeten’* of *‘Hoe gaat het met mijn gewicht?’*.
+
+**Instellen**
+1. De app moet via **https** vanaf internet bereikbaar zijn (zie [Bereikbaar vanaf internet?](#bereikbaar-vanaf-internet)), want Claude maakt
+   verbinding vanaf de servers van Anthropic. Klopt het adres in de link niet (bv. `http://192.168…`), zet dan `APP_URL` op je https-adres.
+2. Ga in de app naar **Instellingen → 🤖 Claude**, kies (als er meer personen zijn) voor wie de koppeling is en tik op **Link maken**.
+3. Ga op claude.ai naar **Instellingen → Connectors → Eigen connector toevoegen** (*Add custom connector*). Naam *Maaltijden*,
+   URL: de link. Laat de OAuth-velden leeg.
+4. Zet de connector in een gesprek aan. Claude vraagt toestemming voordat hij iets aanpast.
+
+**Wat Claude kan**
+
+| Onderdeel | Hulpmiddelen |
+|---|---|
+| Planner | `planning_bekijken`, `maaltijd_plannen`, `maaltijd_wijzigen`, `maaltijd_verwijderen` |
+| Recepten | `recepten_zoeken`, `recept_bekijken`, `recept_opslaan` |
+| Boodschappen | `boodschappenlijst`, `boodschap_toevoegen`, `boodschap_afvinken` |
+| Dagboek | `dagboek_bekijken`, `eten_loggen`, `dagboek_verwijderen` |
+| Gewicht | `gewicht_loggen`, `gewicht_bekijken` |
+
+Planner, recepten en boodschappen zijn van het hele huishouden; het dagboek en gewicht gaan over de persoon van de link.
+Elke persoon kan een eigen link hebben. Wijzigingen staan meteen in de app (en in Home Assistant).
+
+**Beveiliging.** De link bevat een lange geheime code en werkt ook als je `APP_PASSWORD` of accounts gebruikt. Iedereen met de link kan
+je gegevens zien en aanpassen. Maak bij twijfel een nieuwe link (de oude stopt meteen) of zet de koppeling uit. De codes zitten niet in back-ups.
+Technisch: MCP via *Streamable HTTP* op `/mcp/<code>` (alleen POST, zonder sessies, zonder OAuth).
+
 ## Mobiele app
 
 ### Android

@@ -1,5 +1,5 @@
 import { api, meta } from '../api.js';
-import { $, esc, toast, confirmDialog } from '../util.js';
+import { $, esc, toast, confirmDialog, savedPerson } from '../util.js';
 import { updateStatus, startUpdate, shortVersion } from '../update.js';
 
 // Voorbeeld van de Home Assistant-kaart (dezelfde Markdown die de kaart laat zien, eenvoudig weergegeven)
@@ -44,6 +44,63 @@ function personForm(p, activity) {
 // $0,084 → "0,08"; $0,0021 → "0,002"
 const price = (usd) => (Number.isInteger(usd) ? String(usd) : usd.toFixed(2).replace('.', ','));
 const costLabel = (usd) => (usd >= 0.01 ? usd.toFixed(2) : usd.toFixed(3)).replace('.', ',');
+
+/** Koppeling met Claude (MCP): een geheime link per persoon om als connector in Claude toe te voegen. */
+async function drawMcp(sec, people, personId) {
+  const user = window.__maaltijdenUser;
+  const pid = personId || savedPerson() || people[0]?.id;
+  const info = await api.get(`/mcp?persoon=${pid}`);
+  const name = people.find((p) => p.id === info.person_id)?.name || '';
+  const choose = people.length > 1 && (!user || user.is_admin);
+  sec.innerHTML = `<h2>🤖 Claude</h2>
+    <p class="muted">Met deze koppeling kan Claude (op claude.ai of in de Claude-app) je planner, recepten, boodschappen, dagboek en gewicht
+      bekijken en aanpassen. Vraag bijvoorbeeld: <em>‘Plan voor donderdag iets met kip’</em>, <em>‘Wat moet ik nog halen?’</em>
+      of <em>‘Ik heb net een broodje kroket gegeten’</em>.</p>
+    ${choose ? `<label>Koppeling voor
+      <select class="input" data-mcp-person>${people.map((p) => `<option value="${p.id}"${p.id === info.person_id ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
+      <p class="small muted">Het dagboek en gewicht gaan over deze persoon; planner, recepten en boodschappen zijn van het hele huishouden.</p>` : ''}
+    ${info.url ? `<label>Link voor ${esc(name)} (geheim)
+        <input class="input" readonly value="${esc(info.url)}" data-mcp-url></label>
+      ${/^http:/.test(info.url) ? `<p class="small bad">Deze link begint met http://. Claude heeft een https-adres nodig dat vanaf internet bereikbaar is
+        (bv. via een reverse proxy, Cloudflare Tunnel of Tailscale Funnel). Zet <code>APP_URL</code> op dat adres, of vervang het begin van de link zelf.</p>` : ''}
+      <div class="row wrap">
+        <button class="btn btn-primary" type="button" data-mcp-copy>📋 Link kopiëren</button>
+        <button class="btn" type="button" data-mcp-new>Nieuwe link</button>
+        <button class="btn btn-ghost" type="button" data-mcp-off>Uitzetten</button>
+      </div>` : `<div class="row"><button class="btn btn-primary" type="button" data-mcp-new>🔗 Link maken${name ? ` voor ${esc(name)}` : ''}</button></div>`}
+    <details class="small help-list"><summary>Zo voeg je hem toe in Claude</summary>
+      <ol>
+        <li>Maak hierboven de link en kopieer hem.</li>
+        <li>Ga op <strong>claude.ai</strong> naar <strong>Instellingen → Connectors</strong> en kies <strong>Eigen connector toevoegen</strong>
+          (<em>Add custom connector</em>).</li>
+        <li>Naam: <em>Maaltijden</em>, URL: plak de link. Laat de geavanceerde instellingen (OAuth) leeg en klik op <strong>Toevoegen</strong>.</li>
+        <li>Zet in een gesprek de connector <em>Maaltijden</em> aan (knop met de schuifjes onder het tekstvak). Op je telefoon werkt hij daarna ook in de Claude-app.</li>
+      </ol>
+      <p>Claude vraagt toestemming voordat hij iets aanpast. Je kunt in Claude per hulpmiddel kiezen of dat altijd mag.</p>
+    </details>
+    <p class="muted small">Iedereen met de link kan je gegevens zien en aanpassen; deel hem niet. Gelekt? Maak een nieuwe link (de oude stopt dan).</p>`;
+  sec.onclick = async (e) => {
+    try {
+      if (e.target.closest('[data-mcp-copy]')) {
+        const input = $('[data-mcp-url]', sec);
+        try { await navigator.clipboard.writeText(input.value); } catch { input.select(); document.execCommand('copy'); }
+        return toast('Link gekopieerd – plak hem in Claude bij Eigen connector toevoegen', 'success');
+      }
+      if (e.target.closest('[data-mcp-new]')) {
+        if (info.url && !(await confirmDialog('Een nieuwe link maken? Claude met de oude link kan er dan niet meer bij; vervang hem in Claude.', 'Nieuwe link'))) return;
+        await api.post('/mcp/new-link', { person_id: info.person_id });
+        await drawMcp(sec, people, info.person_id);
+        return toast('Link gemaakt', 'success');
+      }
+      if (e.target.closest('[data-mcp-off]')) {
+        if (!(await confirmDialog('De koppeling met Claude uitzetten? Verwijder de connector daarna ook in Claude.', 'Uitzetten'))) return;
+        await api.post('/mcp/disconnect', { person_id: info.person_id });
+        return drawMcp(sec, people, info.person_id);
+      }
+    } catch (err) { toast(err.message, 'error'); }
+  };
+  $('[data-mcp-person]', sec)?.addEventListener('change', (e) => drawMcp(sec, people, Number(e.target.value)));
+}
 
 export async function render(root) {
   const m = await meta(true);
@@ -182,6 +239,8 @@ export async function render(root) {
       </details>
     </section>` : ''}
 
+    <section class="card" data-mcp-card></section>
+
     <section class="card">
       <h2>Back-up</h2>
       <p class="muted">Download al je recepten, ingrediënten, planning en instellingen als één bestand (zonder API-sleutel), of zet een back-up terug.</p>
@@ -247,6 +306,7 @@ export async function render(root) {
     </section>
   </div>`;
   const form = $('[data-form]', root);
+  drawMcp($('[data-mcp-card]', root), people).catch(() => { $('[data-mcp-card]', root).hidden = true; });
 
   // Versie en updates
   const updCard = $('[data-update-card]', root);

@@ -56,6 +56,13 @@ geeft hij een tip, maar boos wordt hij nooit. Geef hem zelf een naam: Bolletje, 
 - **Nederlands.** Nederlandse recepten, Nederlandse supermarktprijzen en voedingswaarden uit NEVO en Open Food Facts.
 - **Voor het hele huishouden.** Samen plannen en boodschappen doen, en ieder een eigen dagboek en maatje.
 
+## Nieuw in versie 4.1.0
+
+- 🤖 **Claude als assistent**: koppel Maaltijden aan Claude (claude.ai of de Claude-app) via **Instellingen → 🤖 Claude**.
+  Vraag dan bijvoorbeeld *‘Plan voor donderdag iets met kip’*, *‘Wat moet ik nog halen?’* of *‘Ik heb een broodje kroket gegeten’*.
+  Claude kan de planner, recepten, boodschappen, het dagboek en je gewicht bekijken en aanpassen. De app moet via https bereikbaar zijn;
+  zie de [handleiding](docs/handleiding.md#claude-als-assistent-mcp-koppeling)
+
 ## Nieuw in versie 4.0.2
 
 - 🖼️ **Foto importeren bij recept toevoegen**: naast *📷 Foto maken* nu ook *🖼️ Kies foto of bestand*, voor een foto uit je galerij of een PDF

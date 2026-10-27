@@ -55,3 +55,20 @@ test('Home Assistant-link werkt zonder inloggen, alleen met de juiste code', asy
   assert.equal((await fetch(`${base}/ha/verkeerd/vandaag.json`)).status, 404);
   assert.equal((await fetch(`${base}/api/homeassistant`)).status, 401, 'instellingen alleen na inloggen');
 });
+
+test('Claude-koppeling (MCP) werkt met wachtwoord, alleen met de juiste code; geen OAuth', async () => {
+  const { newMcpToken } = await import('../server/mcp.js');
+  const { listPeople } = await import('../server/tracker.js');
+  const token = newMcpToken(listPeople()[0].id);
+  const rpc = (path) => fetch(`${base}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }) });
+  const ok = await rpc(`/mcp/${token}`);
+  assert.equal(ok.status, 200);
+  assert.ok((await ok.json()).result.tools.length > 5);
+  assert.equal((await rpc('/mcp/fout')).status, 404);
+  // Claude zoekt eerst naar OAuth: 404 (geen inlogpagina of 401), anders denkt hij dat er OAuth nodig is
+  for (const p of ['/.well-known/oauth-protected-resource', `/.well-known/oauth-protected-resource/mcp/${token}`, '/.well-known/oauth-authorization-server']) {
+    const res = await fetch(`${base}${p}`);
+    assert.equal(res.status, 404, p);
+    assert.match(res.headers.get('content-type'), /json/);
+  }
+});

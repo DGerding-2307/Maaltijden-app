@@ -18,6 +18,7 @@ import crypto from 'node:crypto';
 import { UNITS } from './calc.js';
 import { updateStatus, triggerUpdate } from './updater.js';
 import { uploadDir } from './paths.js';
+import { mcpRoute, mcpToken, newMcpToken, removeMcpToken } from './mcp.js';
 import * as buddy from './buddy.js';
 import * as reminders from './reminders.js';
 import * as accounts from './accounts.js';
@@ -63,6 +64,10 @@ export function createApp() {
   // Agenda-abonnement: beveiligd met de geheime sleutel in de link (agenda-apps kunnen niet inloggen)
   // Adres van de app voor links (achter een reverse proxy eventueel APP_URL zetten)
   const baseUrl = (req) => (process.env.APP_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+  // Claude (MCP): eigen geheime code per persoon in de link, werkt ook met APP_PASSWORD en accounts
+  // Geen OAuth: de geheime code in de link is de toegang. Claude kijkt eerst hier; een 404 zegt ‘geen inloggen nodig’
+  app.get(/^\/\.well-known\/oauth-/, (req, res) => res.status(404).json({ error: 'Geen OAuth: gebruik de link met de geheime code' }));
+  app.all('/mcp/:token', mcpRoute({ version: APP_VERSION, onChange: () => { changeCounter++; schedulePush(); } }));
   // Home Assistant: overzicht van vandaag (geheime code in de link, werkt ook met APP_PASSWORD)
   app.get('/ha/:token/vandaag.json', (req, res) => {
     if (req.params.token !== haToken()) return res.status(404).json({ error: 'Onbekende link' });
@@ -490,6 +495,16 @@ export function createApp() {
   api.post('/homeassistant/sync', wrap(async () => ({ ok: await pushStates() })));
   api.post('/homeassistant/disconnect', wrap(() => { disconnectHomeAssistant(); return { ok: true }; }));
   api.post('/homeassistant/new-link', wrap((req) => { haToken(true); return haConfig(baseUrl(req)); }));
+  // Koppeling met Claude (MCP), per persoon
+  const mcpInfo = (req, personId) => {
+    const token = mcpToken(personId);
+    return { person_id: personId, url: token ? `${baseUrl(req)}/mcp/${token}` : null };
+  };
+  // Een gewone gebruiker alleen voor zichzelf; een beheerder (of zonder accounts) voor iedereen
+  const mcpPerson = (req, v) => (req.user && !req.user.is_admin ? req.user.id : Number(v) || tracker.listPeople()[0].id);
+  api.get('/mcp', wrap((req) => mcpInfo(req, mcpPerson(req, req.query.persoon))));
+  api.post('/mcp/new-link', wrap((req) => { const id = mcpPerson(req, req.body?.person_id); newMcpToken(id); return mcpInfo(req, id); }));
+  api.post('/mcp/disconnect', wrap((req) => { const id = mcpPerson(req, req.body?.person_id); removeMcpToken(id); return mcpInfo(req, id); }));
   api.post('/calendar/new-link', wrap((req) => ({ url: `${req.protocol}://${req.get('host')}/agenda/${calendarToken(true)}.ics` })));
 
   // ---- Barcode scannen ----
