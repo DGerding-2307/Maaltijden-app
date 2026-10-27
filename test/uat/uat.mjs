@@ -32,13 +32,40 @@ async function scenario(id, title, fn) {
 }
 const expect = (cond, msg) => { if (!cond) throw new Error(msg); };
 const api = (p, opts) => page.evaluate(async ([p, o]) => (await fetch('/api' + p, o)).json(), [p, opts]);
+// v4: de planner toont één dag tegelijk. Kies eerst de dag met de dagknoppen; dan staan de momenten (.mslot) met tegels (.tile).
+const dayChips = (pg) => pg.locator('.daychip').evaluateAll((els) => els.map((e) => e.dataset.day));
+async function showDay(pg, date) {
+  if (await pg.locator(`.mslot[data-date="${date}"]`).count()) return;
+  await pg.locator(`.daychip[data-day="${date}"]`).click();
+  await pg.waitForSelector(`.mslot[data-date="${date}"]`);
+}
+const slot = (pg, date, meal) => pg.locator(`.mslot[data-date="${date}"][data-meal="${meal}"]`);
+const tileTitles = (loc) => loc.locator('.tile .tile-ov b').allTextContents();
+// v4: het logpaneel (zoals de + in de onderbalk) – zoeken, ingrediënt kiezen, grammen, loggen en de reactie van het maatje sluiten
+async function logIngredient(pg, meal, q, name, grams) {
+  await pg.locator(`[data-add="${meal}"]`).click();
+  await pg.locator('.modal [data-go="zoek"]').click();
+  await pg.fill('.modal [data-q]', q);
+  await pg.waitForSelector('.modal [data-ing]');
+  const item = name ? pg.locator('.modal [data-ing]').filter({ hasText: name }).first() : pg.locator('.modal [data-ing]').first();
+  await item.click();
+  await pg.waitForSelector('.modal [data-g]');
+  if (grams != null) await pg.fill('.modal [data-g]', String(grams));
+  await pg.waitForFunction(() => /\d/.test(document.querySelector('.modal [data-totals] b')?.textContent || ''));
+  const kcal = Number((await pg.textContent('.modal [data-totals] b')).replace(/\./g, ''));
+  await pg.locator('.modal [data-save]').click();
+  await pg.locator('.modal [data-ok]').click();
+  return kcal;
+}
 
 await scenario('UAT-01', 'Week plannen op desktop door recepten te slepen', async () => {
   await page.goto(B + '#/planner');
   await page.waitForSelector('.dock-item');
-  await page.dragAndDrop('.dock-item >> nth=2', '.day >> nth=6 >> .slot[data-meal="diner"]');
+  const sunday = (await dayChips(page))[6];
+  await showDay(page, sunday);
+  await page.dragAndDrop('.dock-item >> nth=2', `.mslot[data-date="${sunday}"][data-meal="diner"]`);
   await page.waitForTimeout(400);
-  const t = await page.locator('.day').nth(6).locator('.plan-entry-title').allTextContents();
+  const t = await tileTitles(page.locator('.meal-tiles'));
   expect(t.length === 1, 'zondag niet gevuld');
   await page.screenshot({ path: `${OUT}/01-planner.png` });
   return `zondag: ${t[0]}`;
@@ -46,34 +73,40 @@ await scenario('UAT-01', 'Week plannen op desktop door recepten te slepen', asyn
 
 await scenario('UAT-02', 'Op de telefoon een maaltijd naar een andere dag verplaatsen', async () => {
   await mob.goto(B + '#/planner');
-  await mob.waitForSelector('.plan-entry');
-  const first = mob.locator('.plan-entry').first();
-  const title = await first.locator('.plan-entry-title').textContent();
+  await mob.waitForSelector('.tile');
+  const first = mob.locator('.tile').first();
+  const title = await first.locator('.tile-ov b').textContent();
   await first.locator('[data-entry-menu]').tap();
   const form = mob.locator('[data-move]');
   const d = await form.locator('[name=date]').inputValue();
-  const target = new Date(d); target.setDate(target.getDate() + 1);
-  await form.locator('[name=date]').fill(target.toISOString().slice(0, 10));
+  // Naar de volgende dag (of de vorige, als dit de zondag is), zodat de dag in dezelfde week blijft
+  const days = await dayChips(mob);
+  const target = days[days.indexOf(d) + 1] || days[days.indexOf(d) - 1];
+  await form.locator('[name=date]').fill(target);
   await mob.screenshot({ path: `${OUT}/02-verplaatsen-mobiel.png` });
   await form.locator('button').tap();
   await mob.waitForTimeout(500);
-  const second = await mob.locator('.day').nth(1).locator('.plan-entry-title').allTextContents();
+  await showDay(mob, target);
+  const second = await tileTitles(mob.locator('.meal-tiles'));
   expect(second.includes(title), 'niet verplaatst');
-  return `“${title}” van maandag naar dinsdag`;
+  return `“${title}” van ${d} naar ${target}`;
 });
 
 await scenario('UAT-03', 'Vrije tekst plannen (‘Uit eten’) en later aanpassen', async () => {
   await page.goto(B + '#/planner');
-  await page.locator('.day').nth(5).locator('.slot[data-meal="lunch"] [data-add]').click();
+  await page.waitForSelector('.daychip');
+  const saturday = (await dayChips(page))[5];
+  await showDay(page, saturday);
+  await slot(page, saturday, 'lunch').locator('[data-add]').click();
   await page.fill('[data-free-title]', 'Uit eten');
   await page.click('[data-free] button');
   await page.waitForTimeout(300);
-  const entry = page.locator('.plan-entry.free').first();
+  const entry = slot(page, saturday, 'lunch').locator('.tile', { hasText: 'Uit eten' }).first();
   await entry.locator('[data-entry-menu]').click();
   await page.fill('[data-move] [name=title]', 'Uit eten bij oma');
   await page.click('[data-move] button');
   await page.waitForTimeout(300);
-  expect((await page.locator('.plan-entry.free .plan-entry-title').allTextContents()).includes('Uit eten bij oma'), 'titel niet aangepast');
+  expect((await tileTitles(slot(page, saturday, 'lunch'))).includes('Uit eten bij oma'), 'titel niet aangepast');
 });
 
 await scenario('UAT-04', 'Porties schalen van 4 naar 6 personen', async () => {
@@ -127,20 +160,24 @@ await scenario('UAT-07', 'Product opzoeken via barcode', async () => {
 
 await scenario('UAT-08', 'Boodschappenlijst automatisch, per afdeling, met kosten', async () => {
   await page.goto(B + '#/boodschappen');
-  await page.waitForSelector('.shop-group h2');
-  const groups = await page.locator('.shop-group h2').count();
-  const total = await page.locator('.stat-value').first().textContent();
+  await page.waitForSelector('.shop-group .sec-k');
+  const groups = await page.locator('.shop-group .sec-k').count();
+  // v4: het totaalbedrag staat onder de titel (‘Week 44 · 9 maaltijden · € 55,46’)
+  const total = (await page.locator('.page-sub').textContent()).match(/€\s?[\d.,]+/)?.[0];
+  expect(total, 'geen kosten');
   expect(groups >= 4, 'te weinig afdelingen');
   return `${groups} afdelingen, ${total}`;
 });
 
 await scenario('UAT-09', '‘Heb ik al in huis’ uitsluiten vóór het boodschappen doen', async () => {
   await page.goto(B + '#/boodschappen');
-  const before = await page.locator('.stat-value').first().textContent();
-  const name = await page.locator('.shop-list li strong').first().textContent();
+  await page.waitForSelector('.shop-tile');
+  const total = async () => (await page.locator('.page-sub').textContent()).match(/€\s?[\d.,]+/)?.[0];
+  const before = await total();
+  const name = await page.locator('.shop-tile .nm').first().textContent();
   await page.locator('[data-have]').first().click();
   await page.waitForTimeout(400);
-  const after = await page.locator('.stat-value').first().textContent();
+  const after = await total();
   expect(await page.locator('.in-house').count() === 1 && before !== after, 'niet verplaatst of totaal gelijk');
   return `${name}: ${before} → ${after}`;
 });
@@ -148,10 +185,12 @@ await scenario('UAT-09', '‘Heb ik al in huis’ uitsluiten vóór het boodscha
 await scenario('UAT-10', 'Samen boodschappen doen: afvinken op telefoon verschijnt op desktop', async () => {
   await page.goto(B + '#/boodschappen');
   await mob.goto(B + '#/boodschappen');
-  await mob.waitForSelector('[data-key]');
-  await mob.locator('[data-key]').first().check();
+  await mob.waitForSelector('.shop-tile [data-key]');
+  // v4: het vakje zit onzichtbaar in de tegel; je tikt op de tegel zelf
+  await mob.locator('.shop-tile:has(input[data-key]:not(:checked)) .nm').first().tap();
+  expect(await mob.locator('.shop-tile input[data-key]:checked').count() >= 1, 'niet afgevinkt op de telefoon');
   await page.waitForTimeout(8000);
-  const done = await page.locator('.shop-list li.done').count();
+  const done = await page.locator('.shop-tile.done').count();
   expect(done >= 1, 'desktop niet bijgewerkt');
   await mob.screenshot({ path: `${OUT}/10-boodschappen-mobiel.png` });
   return 'zichtbaar binnen ~6 s zonder verversen';
@@ -159,12 +198,22 @@ await scenario('UAT-10', 'Samen boodschappen doen: afvinken op telefoon verschij
 
 await scenario('UAT-11', 'Restjes inplannen zonder extra boodschappen', async () => {
   await page.goto(B + '#/planner');
+  await page.waitForSelector('.daychip');
   const before = (await api('/shopping')).total_cents;
-  const entry = page.locator('.plan-entry:not(.free):not(.leftover)').first();
+  // Een dag met een maaltijd uit een recept
+  const recipeTile = '.tile:not(.leftover):has(a.tile-photo[href^="#/recept/"])';
+  for (const d of await dayChips(page)) { await showDay(page, d); if (await page.locator(recipeTile).count()) break; }
+  const entry = page.locator(recipeTile).first();
   await entry.locator('[data-entry-menu]').click();
+  // Restjes staan standaard de dag erna; blijf in deze week (de planner toont één week)
+  const days = await dayChips(page);
+  const date = await page.inputValue('[data-leftovers] [name=date]');
+  const restDay = days.includes(date) ? date : await page.inputValue('[data-move] [name=date]');
+  await page.fill('[data-leftovers] [name=date]', restDay);
   await page.click('[data-leftovers] button');
   await page.waitForTimeout(500);
-  expect(await page.locator('.plan-entry.leftover').count() >= 1, 'geen restjes zichtbaar');
+  await showDay(page, restDay);
+  expect(await page.locator('.tile.leftover').count() >= 1, 'geen restjes zichtbaar');
   const after = (await api('/shopping')).total_cents;
   await page.screenshot({ path: `${OUT}/11-restjes.png` });
   return `restjes gepland; lijst ${before} → ${after} ct (1 portie extra gekookt)`;
@@ -172,6 +221,9 @@ await scenario('UAT-11', 'Restjes inplannen zonder extra boodschappen', async ()
 
 await scenario('UAT-12', '‘Wat kan ik maken?’ met ingrediënten in huis', async () => {
   await page.goto(B + '#/recepten');
+  // v4: ‘Wat kan ik maken?’ zit onder ‘Meer filters’
+  await page.waitForSelector('.more-filters');
+  if (!(await page.isVisible('#have-input'))) await page.click('.more-filters > summary');
   await page.fill('#have-input', 'kip, paprika, rijst, ui');
   await page.click('[data-have-form] button');
   await page.waitForSelector('.recipe-card .pantry-match'); // wachten op het resultaat, niet op een vaste tijd
@@ -284,8 +336,9 @@ await scenario('UAT-21', 'Ingrediënt aan een recept toevoegen door de barcode t
   await page.click('button[type=submit]');
   await page.waitForURL(/#\/recept\/7$/);
   await page.waitForSelector('.ingredient-list');
-  const txt = await page.locator('.ingredient-list').textContent();
-  expect(/250 ml\s*halfvolle melk/.test(txt.replace(/\s+/g, ' ')), 'niet in opgeslagen recept');
+  // v4: per regel eerst de naam, dan de hoeveelheid
+  const amounts = await page.locator('.ingredient-list li').filter({ has: page.locator('.name', { hasText: /^halfvolle melk/ }) }).locator('.amount').allTextContents();
+  expect(amounts.some((a) => a.trim() === '250 ml'), `niet in opgeslagen recept: ${amounts.join(', ')}`);
   return 'EAN 8710400000001 → gekoppeld aan ‘halfvolle melk’ met voedingswaarden uit Open Food Facts';
 });
 
@@ -318,13 +371,7 @@ await scenario('UAT-23', 'Calorieën bijhouden: zoeken, porties, gepland eten af
   await mob.waitForSelector('.kcal-big');
   const kcal = async () => Number((await mob.textContent('.kcal-big')).replace(/\./g, ''));
   const k0 = await kcal();
-  await mob.click('[data-add="ontbijt"]');
-  await mob.fill('[data-q]', 'banaan');
-  await mob.waitForSelector('[data-ing]');
-  await mob.click('[data-ing]');
-  await mob.fill('[data-amount] [name=n]', '120');
-  const expected = Number((await mob.textContent('[data-kcal]')).replace(/\./g, ''));
-  await mob.click('[data-amount] .btn-primary');
+  const expected = await logIngredient(mob, 'ontbijt', 'banaan', null, 120);
   await mob.waitForFunction((k) => Number(document.querySelector('.kcal-big').textContent.replace(/\./g, '')) > k, k0);
   expect(Math.abs((await kcal()) - k0 - expected) <= 1, 'banaan niet goed opgeteld');
   let planned = '';
@@ -388,29 +435,38 @@ await scenario('UAT-25', 'Telefoon/app: niets verdwijnt achter de status- of nav
 });
 
 await scenario('UAT-26', 'Touchscreen: knoppen groot genoeg om met een vinger te raken', async () => {
-  await mob.goto(B + '#/planner'); await mob.waitForSelector('.plan-entry');
+  await mob.goto(B + '#/planner'); await mob.waitForSelector('.daychip');
   // Richtlijn Apple: 44 pt, Google: 48 dp. Per soort knop de kleinste die zichtbaar is.
-  const sizes = await mob.evaluate(() => ['.slot-add', '.plan-entry [data-entry-menu]', '.plan-entry [data-remove]', '.eat-toggle', '.plan-extras.add', '.servings-ctl .mini', '.mainnav a', '.btn', '.day-jump a']
+  // v4 toont één dag tegelijk: loop alle dagen van de week langs, zodat alle soorten kaartjes meetellen.
+  const measure = () => mob.evaluate(() => ['.mslot-add', '.mslot-more', '.tile [data-entry-menu]', '.tile [data-remove]', '.eat-toggle', '.plan-extras.add', '.servings-ctl .mini', '.mainnav a', '.mainnav .nav-log', '.btn', '.daychip', '.rest-day']
     .map((sel) => {
       const vis = [...document.querySelectorAll(sel)].map((el) => el.getBoundingClientRect()).filter((r) => r.width && r.height);
       return [sel, vis.length ? Math.round(Math.min(...vis.map((r) => Math.min(r.width, r.height)))) : null];
     }));
+  const min = new Map();
+  for (const d of await dayChips(mob)) {
+    await showDay(mob, d);
+    for (const [k, v] of await measure()) if (v != null) min.set(k, Math.min(v, min.get(k) ?? Infinity));
+  }
+  expect(min.has('.tile [data-entry-menu]'), 'geen maaltijden in de planner');
+  const sizes = [...min.entries()];
   const small = sizes.filter(([, v]) => v != null && v < 44);
   expect(!small.length, `te klein: ${small.map(([k, v]) => `${k} ${v}px`).join(', ')}`);
   return sizes.filter(([, v]) => v).map(([k, v]) => `${k} ${v}px`).join(', ');
 });
 
 await scenario('UAT-27', 'Vlees of vis bij een gerecht zonder vlees, zonder nieuw recept', async () => {
-  await page.goto(B + '#/planner'); await page.waitForSelector('.day');
+  await page.goto(B + '#/planner'); await page.waitForSelector('.daychip');
   const today = iso();
   const pk = (await japi(page, 'GET', '/recipes')).find((r) => r.title === 'Hollandse pannenkoeken');
-  await page.locator(`.slot[data-date="${today}"][data-meal="diner"] [data-add]`).click();
+  await showDay(page, today);
+  await slot(page, today, 'diner').locator('[data-add]').click();
   await page.waitForSelector('[data-meat-pick]');
   const slavink = (await japi(page, 'GET', '/ingredients?q=slavink'))[0];
   await page.selectOption('.modal [data-meat-pick]', String(slavink.id));
   await page.fill('.modal [data-q]', 'pannenkoek'); await page.waitForTimeout(200);
   await page.click(`.modal [data-pick="${pk.id}"]`); await page.waitForTimeout(700);
-  const txt = await page.locator(`.slot[data-date="${today}"][data-meal="diner"]`).textContent();
+  const txt = await slot(page, today, 'diner').textContent();
   expect(/slavink/.test(txt), `kaartje: ${txt.replace(/\s+/g, ' ')}`);
   const shop = await japi(page, 'GET', `/shopping?week=${today}`);
   expect(shop.items.some((i) => i.name === 'slavink'), 'slavink niet op de boodschappenlijst');
@@ -419,18 +475,19 @@ await scenario('UAT-27', 'Vlees of vis bij een gerecht zonder vlees, zonder nieu
 });
 
 await scenario('UAT-28', 'Maaltijd van losse ingrediënten (zonder recept)', async () => {
-  await page.goto(B + '#/planner'); await page.waitForSelector('.day');
+  await page.goto(B + '#/planner'); await page.waitForSelector('.daychip');
   const today = iso();
-  await page.locator(`.slot[data-date="${today}"][data-meal="ontbijt"] [data-add]`).click();
+  await showDay(page, today);
+  await slot(page, today, 'ontbijt').locator('[data-add]').click();
   await page.click('.modal [data-loose]'); await page.waitForSelector('[data-meat-list] [data-add]');
   for (const q of ['croissant', 'banaan']) {
     await page.fill('[data-meat-q]', q); await page.waitForTimeout(250);
     await page.locator('[data-meat-list] [data-add]').first().click(); await page.waitForTimeout(400);
   }
   await page.keyboard.press('Escape'); await page.waitForTimeout(600);
-  const txt = (await page.locator(`.slot[data-date="${today}"][data-meal="ontbijt"]`).textContent()).replace(/\s+/g, ' ');
+  const txt = (await slot(page, today, 'ontbijt').textContent()).replace(/\s+/g, ' ');
   expect(/croissant/.test(txt) && /banaan/.test(txt), txt);
-  await page.locator(`.slot[data-date="${today}"][data-meal="ontbijt"]`).screenshot({ path: `${OUT}/28-losse-ingredienten.png` });
+  await slot(page, today, 'ontbijt').screenshot({ path: `${OUT}/28-losse-ingredienten.png` });
   return txt.trim().slice(0, 80);
 });
 
@@ -455,8 +512,12 @@ await scenario('UAT-30', 'Minder restjes: hele verpakking, hele stuks en een min
   await japi(page, 'PUT', `/recipes/${bc.id}`, { ...full, ingredients });
   await page.goto(B + `#/recept/${bc.id}?personen=1`); await page.waitForSelector('.ingredient-list');
   await page.waitForTimeout(400);
-  const txt = (await page.textContent('.ingredient-list')).replace(/\s+/g, ' ');
-  expect(/1 stuk ui/.test(txt) && /250 ml slagroom/.test(txt) && /hele verpakking/.test(txt), txt.slice(0, 200));
+  // v4: per regel eerst de naam (met de badge van de regel), dan de hoeveelheid
+  const rows = await page.locator('.ingredient-list li').evaluateAll((els) => els.map((li) => ({
+    name: li.querySelector('.name').textContent.replace(/\s+/g, ' ').trim(), amount: li.querySelector('.amount').textContent.replace(/\s+/g, ' ').trim() })));
+  const row = (n) => rows.find((r) => r.name === n || r.name.startsWith(`${n} `));
+  const ui = row('ui'); const room = row('slagroom');
+  expect(ui?.amount === '1 stuk' && room?.amount === '250 ml' && /hele verpakking/.test(room.name), JSON.stringify([ui, room]));
   return 'voor 1 persoon: 1 ui (minimum), 250 ml slagroom (heel pak)';
 });
 
@@ -492,15 +553,18 @@ await scenario('UAT-32', 'Niet-herkend ingrediënt koppelen of aanmaken vanuit h
 await scenario('UAT-33', 'Snel loggen: recent gebruikt met één tik, bake-off uit de Jumbo-lijst', async () => {
   await mob.goto(B + '#/dagboek'); await mob.waitForSelector('[data-add]');
   await mob.locator('[data-add="ontbijt"]').tap();
-  await mob.fill('[data-q]', 'croissant'); await mob.waitForSelector('[data-ing]');
-  const names = await mob.locator('[data-ing]').allTextContents();
+  await mob.locator('.modal [data-go="zoek"]').tap();
+  await mob.fill('.modal [data-q]', 'croissant'); await mob.waitForSelector('.modal [data-ing]');
+  const names = await mob.locator('.modal [data-ing]').allTextContents();
   expect(names.some((n) => /roomboter croissant/.test(n)), names.join(' | '));
-  await mob.locator('[data-ing]').filter({ hasText: 'roomboter croissant' }).first().tap();
-  await mob.locator('[data-amount] .btn-primary').tap(); await mob.waitForTimeout(600);
-  await mob.locator('[data-add="tussendoor"]').tap(); await mob.waitForSelector('[data-recent]');
+  await mob.locator('.modal [data-ing]').filter({ hasText: 'roomboter croissant' }).first().tap();
+  await mob.locator('.modal [data-save]').tap();
+  await mob.locator('.modal [data-ok]').tap(); await mob.waitForTimeout(600);
+  await mob.locator('[data-add="tussendoor"]').tap(); await mob.waitForSelector('.modal [data-recent]');
   await mob.waitForTimeout(700); await mob.screenshot({ path: `${OUT}/33-recent.png` });
   const before = Number((await mob.textContent('.kcal-big')).replace(/\D/g, ''));
-  await mob.locator('[data-recent]').first().tap(); await mob.waitForTimeout(600);
+  await mob.locator('.modal [data-recent]').first().tap();
+  await mob.locator('.modal [data-ok]').tap(); await mob.waitForTimeout(600);
   const after = Number((await mob.textContent('.kcal-big')).replace(/\D/g, ''));
   expect(after > before, `${before} → ${after}`);
   const ing = (await japi(mob, 'GET', '/ingredients?q=roomboter croissant'))[0];
@@ -509,64 +573,66 @@ await scenario('UAT-33', 'Snel loggen: recent gebruikt met één tik, bake-off u
 });
 
 await scenario('UAT-34', 'Uit eten met één tik; geen vlees bij ontbijt en lunch; prijs bij losse ingrediënten', async () => {
-  await page.goto(B + '#/planner'); await page.waitForSelector('.day');
+  await page.goto(B + '#/planner'); await page.waitForSelector('.daychip');
   const day = iso(); // vandaag: staat altijd in de getoonde week
+  await showDay(page, day);
   // Uit eten kiezen bij het plannen
-  await page.locator(`.slot[data-date="${day}"][data-meal="diner"] [data-add]`).click();
+  await slot(page, day, 'diner').locator('[data-add]').click();
   await page.click('.modal [data-eat-out]'); await page.waitForTimeout(600);
-  const diner = (await page.locator(`.slot[data-date="${day}"][data-meal="diner"]`).textContent()).replace(/\s+/g, ' ');
+  const diner = (await slot(page, day, 'diner').textContent()).replace(/\s+/g, ' ');
   expect(/Uit eten/.test(diner), `uit eten niet gepland: ${diner}`);
   // Ontbijt en lunch: geen vlees-keuze bij het plannen en geen vlees-knop op het kaartje
-  await page.locator(`.slot[data-date="${day}"][data-meal="ontbijt"] [data-add]`).click();
+  await slot(page, day, 'ontbijt').locator('[data-add]').click();
   await page.waitForSelector('.modal [data-pick]');
   expect(!(await page.locator('.modal [data-meat-pick]').count()), 'vlees-keuze staat bij het ontbijt');
   await page.keyboard.press('Escape'); await page.waitForTimeout(300);
-  await page.locator(`.slot[data-date="${day}"][data-meal="lunch"] [data-add]`).click();
+  await slot(page, day, 'lunch').locator('[data-add]').click();
   await page.waitForSelector('.modal [data-pick]');
   expect(!(await page.locator('.modal [data-meat-pick]').count()), 'vlees-keuze staat bij de lunch');
   const tosti = (await japi(page, 'GET', '/recipes')).find((r) => /tosti/i.test(r.title));
   await page.fill('.modal [data-q]', 'tosti'); await page.waitForTimeout(200);
   await page.click(`.modal [data-pick="${tosti.id}"]`); await page.waitForTimeout(600);
-  const lunch = page.locator(`.slot[data-date="${day}"][data-meal="lunch"]`);
+  const lunch = slot(page, day, 'lunch');
   expect(!(await lunch.locator('.plan-extras.add').count()), 'vlees-knop op de lunch');
-  expect(await page.locator(`.slot[data-date="${day}"][data-meal="diner"] .plan-entry`).count() >= 1, 'diner ontbreekt');
+  expect(await slot(page, day, 'diner').locator('.tile').count() >= 1, 'diner ontbreekt');
   // Losse ingrediënten (uit UAT-28) tonen een prijs
-  const loose = page.locator(`.slot[data-date="${iso()}"][data-meal="ontbijt"] .plan-entry`).first();
-  const meta = (await loose.locator('.plan-entry-meta').textContent()).replace(/\s+/g, ' ');
+  const loose = slot(page, iso(), 'ontbijt').locator('.tile').first();
+  const meta = (await loose.locator('.tile-ov small').textContent()).replace(/\s+/g, ' ');
   expect(/€\s?\d/.test(meta), `geen prijs bij losse ingrediënten: ${meta}`);
   return `uit eten gepland; ontbijt en lunch zonder vlees-optie; losse ingrediënten: ${meta.match(/€\s?[\d,]+/)[0]}`;
 });
 
 await scenario('UAT-35', 'Planner: kcal per maaltijd, en wat in het dagboek staat is ook in de planner te zien', async () => {
-  await page.goto(B + '#/planner'); await page.waitForSelector('.day');
+  await page.goto(B + '#/planner'); await page.waitForSelector('.daychip');
   const today = iso();
   const { people } = await japi(page, 'GET', '/people');
   await japi(page, 'POST', '/diary', { person_id: people[0].id, date: today, meal: 'lunch', type: 'free', name: 'Broodje gezond bij de bakker', values: { kcal: 420 } });
   await page.evaluate(() => localStorage.removeItem('maaltijden-persoon'));
-  await page.reload(); await page.waitForSelector('.day');
-  const lunch = (await page.locator(`.slot[data-date="${today}"][data-meal="lunch"]`).textContent()).replace(/\s+/g, ' ');
+  await page.reload(); await page.waitForSelector('.daychip'); await showDay(page, today);
+  const lunch = (await slot(page, today, 'lunch').textContent()).replace(/\s+/g, ' ');
   expect(/📓 Broodje gezond bij de bakker/.test(lunch) && /420 kcal/.test(lunch), `niet in de planner: ${lunch}`);
-  const figures = await page.locator('.plan-entry .entry-figures').allTextContents();
+  const figures = await page.locator('.tile .tile-ov small').allTextContents();
   expect(figures.length && figures.every((t) => /\d kcal/.test(t)), `geen kcal op de kaartjes: ${figures.slice(0, 3).join(' | ')}`);
-  await page.locator(`.day.today`).screenshot({ path: `${OUT}/35-dagboek-in-planner.png` });
+  await page.locator('.planner-main').screenshot({ path: `${OUT}/35-dagboek-in-planner.png` });
   // Op de telefoon ook
   await mob.goto(B + '#/planner'); await mob.evaluate(() => localStorage.removeItem('maaltijden-persoon'));
-  await mob.reload(); await mob.waitForSelector('.day');
-  expect(await mob.locator(`.slot[data-date="${today}"] .diary-items`).count() >= 1, 'dagboek niet zichtbaar op de telefoon');
+  await mob.reload(); await mob.waitForSelector('.daychip'); await showDay(mob, today);
+  expect(await mob.locator(`.mslot[data-date="${today}"] .diary-items`).count() >= 1, 'dagboek niet zichtbaar op de telefoon');
   return `lunch: ‘Broodje gezond’ (420 kcal) uit het dagboek; kaartjes: ${figures[0].trim()}`;
 });
 
 await scenario('UAT-36', 'Een gerecht plannen dat nog geen recept is, en er later een recept van maken', async () => {
-  await mob.goto(B + '#/planner'); await mob.waitForSelector('.day');
+  await mob.goto(B + '#/planner'); await mob.waitForSelector('.daychip');
   const day = iso();
+  await showDay(mob, day);
   const name = 'Stoofpotje van oma ' + Math.random().toString(36).slice(2, 6);
-  await mob.locator(`.slot[data-date="${day}"][data-meal="diner"] [data-add]`).tap();
+  await slot(mob, day, 'diner').locator('[data-add]').tap();
   await mob.fill('.modal [data-q]', name); await mob.waitForSelector('.modal [data-plan-new]');
   await mob.locator('.modal [data-plan-new]').tap(); await mob.waitForTimeout(700);
-  const card = mob.locator('.plan-entry', { hasText: name });
+  const card = mob.locator('.tile', { hasText: name });
   expect(await card.locator('[data-make-recipe].plan-extras').count() === 1, 'geen knop ‘Recept maken’ op het kaartje');
   // Op de naam tikken geeft de keuze
-  await card.locator('.plan-entry-title').tap(); await mob.waitForSelector('.modal [data-new]');
+  await card.locator('.tile-photo').tap(); await mob.waitForSelector('.modal [data-new]');
   await mob.screenshot({ path: `${OUT}/36-recept-maken.png` });
   await mob.locator('.modal [data-new]').tap();
   await mob.waitForSelector('[data-form] [name=title]');
@@ -574,12 +640,12 @@ await scenario('UAT-36', 'Een gerecht plannen dat nog geen recept is, en er late
   expect(await mob.locator('[data-plan-link]').count() === 1, 'geen melding over de koppeling met de planning');
   await mob.locator('[data-form] button[type=submit]').tap();
   await mob.waitForFunction(() => location.hash.startsWith('#/planner'), null, { timeout: 10000 });
-  await mob.waitForSelector('.day'); await mob.waitForTimeout(500);
-  const link = mob.locator(`.slot[data-date="${day}"][data-meal="diner"] .plan-entry-title`, { hasText: name });
+  await mob.waitForSelector('.daychip'); await showDay(mob, day); await mob.waitForTimeout(500);
+  const link = slot(mob, day, 'diner').locator('.tile', { hasText: name }).locator('.tile-photo');
   expect(/#\/recept\/\d+/.test(await link.getAttribute('href') || ''), 'maaltijd niet gekoppeld aan het nieuwe recept');
-  expect(!(await mob.locator('.plan-entry', { hasText: name }).locator('[data-make-recipe]').count()), 'knop staat er nog');
+  expect(!(await mob.locator('.tile', { hasText: name }).locator('[data-make-recipe]').count()), 'knop staat er nog');
   // ‘Uit eten’ krijgt geen recept-knop
-  expect(!(await mob.locator('.plan-entry', { hasText: 'Uit eten' }).locator('[data-make-recipe]').count()), 'recept-knop bij uit eten');
+  expect(!(await mob.locator('.tile', { hasText: 'Uit eten' }).locator('[data-make-recipe]').count()), 'recept-knop bij uit eten');
   return `‘${name}’ gepland → recept gemaakt → gekoppeld (${await link.getAttribute('href')})`;
 });
 
@@ -613,18 +679,19 @@ await scenario('UAT-37', 'Een venster met ingevulde gegevens sluit niet per onge
 });
 
 await scenario('UAT-38', 'Boodschappen: alles wat is afgevinkt in één keer naar ‘Al in huis’', async () => {
-  await mob.goto(B + '#/boodschappen'); await mob.waitForSelector('.shop-list [data-key]');
-  const boxes = mob.locator('.shop-list input[data-key]:not(:checked)');
+  await mob.goto(B + '#/boodschappen'); await mob.waitForSelector('.shop-tiles [data-key]');
+  const boxes = mob.locator('.shop-tiles input[data-key]:not(:checked)');
   const before = await boxes.count();
   expect(before >= 3, `te weinig artikelen (${before})`);
-  for (let i = 0; i < 3; i++) { await mob.locator('.shop-list input[data-key]:not(:checked)').first().tap(); await mob.waitForTimeout(250); }
+  // v4: het vakje zit onzichtbaar in de tegel; je tikt op de tegel zelf
+  for (let i = 0; i < 3; i++) { await mob.locator('.shop-tile:has(input[data-key]:not(:checked)) .nm').first().tap(); await mob.waitForTimeout(250); }
   await mob.waitForSelector('[data-done-to-have]');
   await mob.screenshot({ path: `${OUT}/38-afgevinkt-in-huis.png` });
   await mob.locator('[data-done-to-have]').tap();
   await mob.waitForSelector('.modal [data-yes]');
   const question = (await mob.textContent('.modal .confirm-msg')).trim();
   await mob.locator('.modal [data-yes]').tap(); await mob.waitForTimeout(700);
-  const checkedLeft = await mob.locator('.shop-list input[data-key]:checked').count();
+  const checkedLeft = await mob.locator('.shop-tiles input[data-key]:checked').count();
   expect(checkedLeft === 0, `nog ${checkedLeft} afgevinkt op de lijst`);
   expect(!(await mob.locator('[data-done-to-have]').count()), 'knop staat er nog');
   const inHouse = (await mob.textContent('.in-house summary')).replace(/\s+/g, ' ');

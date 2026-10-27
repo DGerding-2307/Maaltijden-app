@@ -1,8 +1,9 @@
-# Gebruikersacceptatietest (UAT): Maaltijden-app v1 → v3
+# Gebruikersacceptatietest (UAT): Maaltijden-app v1 → v4
 
-**Datum:** 8 oktober 2026
-**Getest:** v1.0 (eerste versie), v2.0, v2.2 (barcode scannen; Jumbo-koppeling verwijderd), v2.3 (prijzen uit Open Prices), v2.6 (dagboek) en **v3.0**
+**Datum:** 8 oktober 2026, bijgewerkt 27 oktober 2026 (v4.1.0)
+**Getest:** v1.0 (eerste versie), v2.0, v2.2 (barcode scannen; Jumbo-koppeling verwijderd), v2.3 (prijzen uit Open Prices), v2.6 (dagboek), v3.0 en **v4.1.0**
 **Uitslag v3.10:** 40 van de 40 scenario's geslaagd ✅ (zie [§8](#8-v3-recensies-opnieuw-bekeken-en-9-nieuwe-scenarios))
+**Uitslag v4.1.0:** 38 van de 40 scenario's geslaagd. UAT-20 en UAT-26 vallen uit door echte fouten in het nieuwe ontwerp (zie [§9](#9-v4-test-bijgewerkt-voor-het-nieuwe-ontwerp))
 
 ## 1. Aanpak
 
@@ -209,12 +210,64 @@ UAT-01 t/m UAT-24 zijn in dezelfde ronde opnieuw uitgevoerd en blijven geslaagd.
 
 Ook hier geldt: veel bronnen zijn overzichtssites of door concurrenten geschreven. Zie ze als richting.
 
+## 9. v4: test bijgewerkt voor het nieuwe ontwerp
+
+v4 heeft een nieuw ontwerp: het maatje Bolletje, een onderbalk (Vandaag · Planner · Loggen · Recepten · Meer), een planner die één dag tegelijk toont, boodschappen als tegels en een logpaneel voor het dagboek.
+Op v4.1.0 vielen daardoor 21 van de 40 scenario's uit (UAT-01, 02, 03, 08, 09, 10, 11, 12, 20, 21, 23, 24, 26, 27, 28, 30, 33, 34, 35, 36, 38).
+Bijna altijd zocht het script naar knoppen of vakken die niet meer bestaan. De app deed in die gevallen wel wat het scenario vraagt.
+
+### 9.1 Wat er in het script is veranderd
+
+De verwachting van elk scenario is gelijk gebleven. Alleen de weg ernaartoe is aangepast:
+
+| Scenario's | Oud (v3) | Nieuw (v4) |
+|---|---|---|
+| 01, 02, 03, 11, 27, 28, 34, 35, 36 | Planner toont de hele week als kolommen (`.day`, `.slot`, `.plan-entry`) | Eerst de dag kiezen met de dagknoppen, dan het moment (`.mslot`) met tegels (`.tile`). Verplaatsen en restjes blijven binnen de getoonde week. |
+| 26 | Knoppen meten op de weekweergave | Alle 7 dagen langslopen en per soort knop de kleinste meten, ook de nieuwe knoppen (`+ nog iets bij…`, dagknoppen, onderbalk, ‘Loggen’) |
+| 08, 09 | Afdelingen als koppen, totaal in een tegel | Afdelingen als `.sec-k`, totaal onder de titel. Het totaal moet nog steeds dalen na 🏠. |
+| 10, 38 | Vakje aanvinken in een lijst | Op de tegel tikken (het vakje zit onzichtbaar in de tegel) |
+| 12 | Invoerveld direct zichtbaar | Eerst ‘Meer filters’ openen |
+| 21, 30 | Tekst ‘250 ml halfvolle melk’ in de ingrediëntenlijst | Per regel: naam (met de badge ‘hele verpakking’) en hoeveelheid staan nu in die volgorde. Hoeveelheid per ingrediënt gecontroleerd. |
+| 23, 33 | Zoekveld en hoeveelheid in het dagboekvenster | Logpaneel: 🔎 Zoeken → ingrediënt → grammen → ‘Loggen als …’ → reactie van het maatje sluiten. Het dagtotaal moet nog steeds precies met de gelogde kcal oplopen. |
+| 24 | – | Viel alleen uit omdat UAT-23 niets had gelogd; slaagt nu zonder aanpassing |
+
+### 9.2 Uitslag v4.1.0
+
+| ID | Uitslag | Toelichting |
+|---|---|---|
+| UAT-01 t/m 19, 21 t/m 25, 27 t/m 40 | ✅ | 38 scenario's geslaagd |
+| UAT-20 | ❌ **app-fout** | `#/recepten` is op de telefoon 401 px breed (scherm 390 px): de pagina scrollt opzij |
+| UAT-26 | ❌ **app-fout** | Knoppen in de nieuwe planner zijn kleiner dan 44 px |
+
+**UAT-20, pagina te breed.** Op de telefoon staan recepten in 3 smalle kolommen (± 115 px).
+Lange woorden in een receptnaam passen daar niet in en lopen buiten het kaartje: ‘Varkenshaas met champignonroomsaus’ 25 px, ‘Boerenkoolstamppot met rookworst’ 20 px, ‘Zuurkoolstamppot met rookworst’ 4 px.
+Staat zo'n recept in de rechterkolom, dan wordt de hele pagina breder dan het scherm en schuift ook de onderbalk mee (‘Meer’ valt half buiten beeld).
+Of het gebeurt hangt af van welke recepten rechts staan. Daarom slaagt het scenario soms los wel.
+Mogelijke oplossing: `overflow-wrap: anywhere` (of `hyphens: auto`) op `.recipes-c .recipe-title`, zoals al bij de boodschappentegels (`.shop-tile .nm`).
+
+**UAT-26, knoppen te klein.** Gemeten op 390×844, alle dagen van de week:
+
+| Knop | Grootte | Richtlijn |
+|---|---|---|
+| ‘+ nog iets bij diner/lunch/ontbijt’ (`.mslot-more`) | 147–159 × **37** px | ≥ 44 px |
+| ⋯ en ✕ op een maaltijdtegel (`.tile-tools .mini`) | **38** × 44 px | ≥ 44 px |
+| ‘✨ Weekmenu’ en ‘🛒 Boodschappen’ bovenaan de planner (`.btn`) | 147 × **42** px | ≥ 44 px |
+
+De ⋯- en ✕-knoppen zijn het belangrijkst: daarmee verplaats je op de telefoon een maaltijd of haal je hem weg (UAT-02).
+In v3 waren deze knoppen juist naar 44 px vergroot (§8.4).
+
+### 9.3 Overige opmerkingen
+
+- Elke testronde geeft één consolemelding `Failed to load resource: … 400 (Bad Request)`. Die stond er vóór de aanpassingen ook al en laat geen scenario mislukken; de oorzaak is niet onderzocht.
+- UAT-23 vinkt de geplande maaltijd van vandaag alleen af als er die dag nog iets gepland staat. Dat hangt af van de volgorde van de scenario's (UAT-02 verplaatst een maaltijd van vandaag) en was in v3 ook zo.
+- De schermafbeeldingen in de bijlage zijn opnieuw gemaakt met v4.1.0.
+
 ## Bijlage: schermafbeeldingen
 
 | | |
 |---|---|
-| ![Planner](uat/01-planner.png) Planner met restjes (♻️) en vrije tekst | ![Open Food Facts](uat/06-off-zoeken.png) Voedingswaarden zoeken in Open Food Facts |
-| ![Verplaatsen op telefoon](uat/02-verplaatsen-mobiel.png) Verplaatsen op de telefoon | ![Boodschappen mobiel](uat/10-boodschappen-mobiel.png) Boodschappenlijst met 🏠 ‘heb ik al’ |
+| ![Planner](uat/01-planner.png) *(v4)* Planner: één dag tegelijk, recepten slepen uit de lijst | ![Open Food Facts](uat/06-off-zoeken.png) Voedingswaarden zoeken in Open Food Facts |
+| ![Verplaatsen op telefoon](uat/02-verplaatsen-mobiel.png) Verplaatsen op de telefoon | ![Boodschappen mobiel](uat/10-boodschappen-mobiel.png) *(v4)* Boodschappen als tegels, met 🏠 ‘heb ik al’ |
 | ![Wat kan ik maken](uat/12-wat-kan-ik-maken.png) ‘Wat kan ik maken?’ | ![Offline](uat/16-offline.png) Offline met melding |
 | ![Barcode in recept](uat/21-barcode-recept.png) Ingrediënt scannen in de recepteditor | ![Open Prices](uat/22-open-prices.png) Winkelprijzen uit Open Prices |
 | ![Dagboek](uat/23-dagboek.png) Calorieëndagboek op de telefoon | ![Gewicht](uat/24-gewicht.png) Gewichtslog met trendlijn |
