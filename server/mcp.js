@@ -193,7 +193,7 @@ const TOOLS = {
           gram: l.computed_grams || undefined, notitie: l.note || undefined, optioneel: l.optional ? true : undefined,
         })),
         bereiding: r.steps,
-        per_portie: { kcal: round(n.kcal), eiwit: n.protein, koolhydraten: n.carbs, vet: n.fat, vezels: n.fiber, zout: n.salt },
+        per_portie: { kcal: round(n.kcal), eiwit: n.protein, koolhydraten: n.carbs, vet: n.fat, verzadigd_vet: n.sat_fat, suiker: n.sugar, vezels: n.fiber, zout: n.salt },
         prijs_totaal: euro(r.cost_total_cents), prijs_pp: euro(r.cost_per_serving_cents),
         notities: r.notes || undefined,
       };
@@ -228,13 +228,67 @@ const TOOLS = {
         steps: a.bereiding || [], notes: 'Toegevoegd door Claude',
         ingredients: a.ingredienten.map((i) => ({ name: String(i.naam || ''), quantity: i.hoeveelheid ?? null, unit: i.eenheid || '', note: i.notitie || '' })),
       });
-      const r = repo.getRecipe(id);
-      const missing = r.ingredients.filter((l) => !l.ingredient_id).map((l) => l.name);
-      return {
-        opgeslagen: true, id, titel: r.title, kcal_pp: round(r.nutrition_per_serving.kcal), prijs_pp: euro(r.cost_per_serving_cents),
-        niet_gekoppeld: missing.length ? missing : undefined,
-        tip: missing.length ? 'Deze ingrediënten staan nog niet in de database; voeg ze toe in de app voor kcal en prijs.' : undefined,
-      };
+      return { opgeslagen: true, ...recipeOut(id) };
+    },
+  },
+  recept_wijzigen: {
+    description: 'Wijzig een bestaand recept (id uit recepten_zoeken). Alleen wat je meegeeft verandert; een nieuwe lijst ingrediënten '
+      + 'of stappen vervangt de oude helemaal. Foto, beoordeling en koppelingen blijven staan.',
+    input: {
+      id: int('Id van het recept'),
+      titel: str('Nieuwe naam'),
+      personen: int('Voor hoeveel personen', { minimum: 1 }),
+      ingredienten: {
+        type: 'array',
+        description: 'De complete nieuwe lijst ingrediënten',
+        items: { type: 'object', properties: { naam: str('bv. ‘ui’'), hoeveelheid: num('bv. 2'), eenheid: str('bv. g, ml, el, tl, stuks'), notitie: str('bv. ‘gesnipperd’') }, required: ['naam'] },
+      },
+      bereiding: { type: 'array', items: { type: 'string' }, description: 'De complete nieuwe stappen' },
+      categorie: str('Hoofdgerecht, Ontbijt, Lunch, Soep, Bijgerecht, Nagerecht, Snack of Bakken'),
+      beschrijving: str('Korte beschrijving'),
+      voorbereiden_min: int('Voorbereidingstijd in minuten'),
+      koken_min: int('Kooktijd in minuten'),
+      labels: { type: 'array', items: { type: 'string' }, description: 'De complete nieuwe labels' },
+      favoriet: { type: 'boolean', description: 'Favoriet aan of uit' },
+    },
+    required: ['id'],
+    changes: true,
+    run: (a) => {
+      const r = repo.getRecipe(Number(a.id));
+      if (!r) throw fail(`Recept ${a.id} bestaat niet.`);
+      if (a.titel !== undefined && !String(a.titel).trim()) throw fail('Geef het recept een titel.');
+      if (a.ingredienten !== undefined && (!Array.isArray(a.ingredienten) || !a.ingredienten.length)) throw fail('Een recept heeft ingrediënten nodig.');
+      const ingredients = a.ingredienten
+        ? a.ingredienten.map((i) => ({ name: String(i.naam || ''), quantity: i.hoeveelheid ?? null, unit: i.eenheid || '', note: i.notitie || '' }))
+        : r.ingredients.map((l) => ({
+          ingredient_id: l.ingredient_id, name: l.name, quantity: l.quantity, unit: l.unit, grams: l.grams, note: l.note, optional: l.optional,
+          section: l.section, amount_rule: l.amount_rule, min_quantity: l.min_quantity, auto_match: !!l.ingredient_id,
+        }));
+      repo.saveRecipe({
+        ...r,
+        title: a.titel ?? r.title, servings: Number(a.personen) || r.servings, category: a.categorie ?? r.category, description: a.beschrijving ?? r.description,
+        prep_minutes: a.voorbereiden_min ?? r.prep_minutes, cook_minutes: a.koken_min ?? r.cook_minutes, tags: a.labels ?? r.tags,
+        steps: a.bereiding ?? r.steps, favorite: a.favoriet ?? r.favorite, ingredients,
+      }, r.id);
+      return { gewijzigd: true, ...recipeOut(r.id) };
+    },
+  },
+  recept_verwijderen: {
+    description: 'Verwijder een recept uit het receptenboek (id uit recepten_zoeken). Staat het nog gepland vanaf vandaag, dan weigert '
+      + 'dit, tenzij ook_uit_planning aan staat. Wat in het dagboek staat, blijft bewaard.',
+    input: {
+      id: int('Id van het recept'),
+      ook_uit_planning: { type: 'boolean', description: 'Ook weghalen uit de planning (standaard niet)' },
+    },
+    required: ['id'],
+    changes: true,
+    run: ({ id, ook_uit_planning }) => {
+      const r = repo.getRecipe(Number(id));
+      if (!r) throw fail(`Recept ${id} bestaat niet.`);
+      const planned = repo.plannedDates(r.id, todayISO());
+      if (planned.length && !ook_uit_planning) throw fail(`‘${r.title}’ staat nog gepland op ${planned.join(', ')}. Haal het daar eerst weg of zet ook_uit_planning aan.`);
+      repo.deleteRecipe(r.id);
+      return { verwijderd: true, id: r.id, titel: r.title, uit_planning: planned };
     },
   },
   boodschappenlijst: {
@@ -292,8 +346,8 @@ const TOOLS = {
       const t = d.totals;
       return {
         persoon: person.name, datum: d.date,
-        totaal: { kcal: round(t.kcal), eiwit: t.protein, koolhydraten: t.carbs, vet: t.fat, vezels: t.fiber, suiker: t.sugar, zout: t.salt },
-        doel: { kcal: d.targets.kcal, eiwit: d.targets.protein, koolhydraten: d.targets.carbs, vet: d.targets.fat, vezels: d.targets.fiber },
+        totaal: { kcal: round(t.kcal), eiwit: t.protein, koolhydraten: t.carbs, vet: t.fat, verzadigd_vet: t.sat_fat, vezels: t.fiber, suiker: t.sugar, zout: t.salt },
+        doel: targetsOut(d.targets),
         nog_over_kcal: Math.max(0, d.targets.kcal - round(t.kcal || 0)),
         momenten: d.meals.filter((m) => m.entries.length).map((m) => ({
           moment: m.meal, kcal: round(m.totals.kcal),
@@ -375,6 +429,37 @@ const TOOLS = {
       };
     },
   },
+  doelen_bekijken: {
+    description: 'Je dagdoelen (kcal, eiwit, koolhydraten, vet, verzadigd vet, suiker, vezels, zout) en doelgewicht, met wat de app automatisch zou berekenen en welke doelen je zelf hebt ingesteld.',
+    input: {},
+    run: (_, { person }) => goalsOut(person),
+  },
+  doelen_aanpassen: {
+    description: 'Pas je dagdoelen of doelgewicht aan. Alleen wat je meegeeft verandert. Geef 0 om een doel terug te zetten op automatisch berekenen (of bij doelgewicht: geen doel).',
+    input: {
+      kcal: num('Kilocalorieën per dag'),
+      eiwit: num('Eiwit in gram per dag'),
+      koolhydraten: num('Koolhydraten in gram per dag'),
+      vet: num('Vet in gram per dag'),
+      verzadigd_vet: num('Verzadigd vet in gram per dag'),
+      suiker: num('Suikers in gram per dag'),
+      vezels: num('Vezels in gram per dag'),
+      zout: num('Zout in gram per dag'),
+      doelgewicht_kg: num('Doelgewicht in kilo'),
+    },
+    changes: true,
+    run: (a, { person }) => {
+      const value = (v) => (Number(v) === 0 ? null : v);
+      const nutrients = Object.fromEntries(Object.entries(TARGET_NAMES).filter(([naam]) => a[naam] !== undefined).map(([naam, key]) => [key, value(a[naam])]));
+      const changes = { nutrients };
+      if (a.kcal !== undefined) changes.kcal = value(a.kcal);
+      if (a.doelgewicht_kg !== undefined) changes.weight = value(a.doelgewicht_kg);
+      if (!Object.keys(nutrients).length && !('kcal' in changes) && !('weight' in changes)) throw fail('Geef minstens één doel mee.');
+      try {
+        return { aangepast: true, ...goalsOut(tracker.updateTargets(person.id, changes)) };
+      } catch (err) { throw fail(err.message); }
+    },
+  },
 };
 
 function toolList() {
@@ -384,6 +469,40 @@ function toolList() {
     inputSchema: { type: 'object', properties: t.input, ...(t.required ? { required: t.required } : {}) },
     annotations: { readOnlyHint: !t.changes, destructiveHint: /verwijderen/.test(name), openWorldHint: false },
   }));
+}
+
+const TARGET_NAMES = {
+  eiwit: 'protein', koolhydraten: 'carbs', vet: 'fat', verzadigd_vet: 'sat_fat', suiker: 'sugar', vezels: 'fiber', zout: 'salt',
+};
+
+/** Alle dagdoelen in de woorden van de koppeling. */
+function targetsOut(t) {
+  return {
+    kcal: t.kcal, eiwit: t.protein, koolhydraten: t.carbs, vet: t.fat, verzadigd_vet: t.sat_fat, suiker: t.sugar, vezels: t.fiber, zout: t.salt,
+  };
+}
+
+function goalsOut(person) {
+  return {
+    persoon: person.name,
+    doelen: targetsOut(person.targets),
+    automatisch: targetsOut({ ...person.targets_auto, kcal: null }),
+    eigen_doelen: [
+      ...(person.kcal_target_override ? ['kcal'] : []),
+      ...Object.entries(TARGET_NAMES).filter(([, key]) => person.target_overrides?.[key] != null).map(([naam]) => naam),
+    ],
+    doel_kg: person.target_weight_kg ?? null,
+  };
+}
+
+function recipeOut(id) {
+  const r = repo.getRecipe(id);
+  const missing = r.ingredients.filter((l) => !l.ingredient_id).map((l) => l.name);
+  return {
+    id, titel: r.title, kcal_pp: round(r.nutrition_per_serving.kcal), prijs_pp: euro(r.cost_per_serving_cents),
+    niet_gekoppeld: missing.length ? missing : undefined,
+    tip: missing.length ? 'Deze ingrediënten staan nog niet in de database; voeg ze toe in de app voor kcal en prijs.' : undefined,
+  };
 }
 
 const INSTRUCTIONS = 'Maaltijden is de maaltijdplanner van het huishouden: weekplanner, receptenboek, boodschappenlijst en een '

@@ -56,6 +56,11 @@ geeft hij een tip, maar boos wordt hij nooit. Geef hem zelf een naam: Bolletje, 
 - **Nederlands.** Nederlandse recepten, Nederlandse supermarktprijzen en voedingswaarden uit NEVO en Open Food Facts.
 - **Voor het hele huishouden.** Samen plannen en boodschappen doen, en ieder een eigen dagboek en maatje.
 
+## Nieuw in versie 4.2.0
+
+- **Eigen dagdoelen:** naast calorieën kun je nu ook eiwit, koolhydraten, vet, verzadigd vet, suikers, vezels en zout zelf instellen (**Instellingen**, bij de persoon). Laat je een veld leeg, dan berekent de app het automatisch.
+- **Claude kan meer:** via de koppeling kan Claude je doelen en doelgewicht aanpassen, en recepten wijzigen en verwijderen. Een recept dat nog gepland staat, wordt niet zomaar verwijderd.
+
 ## Nieuw in versie 4.1.0
 
 - 🤖 **Claude als assistent**: koppel Maaltijden aan Claude (claude.ai of de Claude-app) via **Instellingen → 🤖 Claude**.

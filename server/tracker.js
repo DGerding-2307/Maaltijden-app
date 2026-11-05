@@ -36,7 +36,35 @@ export function getPerson(id) {
   return p ? withTargets(p) : null;
 }
 
-const PERSON_FIELDS = ['name', 'sex', 'birth_year', 'height_cm', 'activity', 'goal', 'start_weight_kg', 'target_weight_kg', 'kcal_target_override'];
+const PERSON_FIELDS = ['name', 'sex', 'birth_year', 'height_cm', 'activity', 'goal', 'start_weight_kg', 'target_weight_kg', 'kcal_target_override', 'target_overrides'];
+
+// Dagdoelen die je zelf mag invullen (gram per dag), met wat redelijk is. Leeg = automatisch berekenen.
+export const TARGET_LIMITS = {
+  protein: [10, 400], carbs: [10, 800], fat: [10, 300], sat_fat: [1, 100], sugar: [1, 300], fiber: [5, 100], salt: [1, 20],
+};
+const KCAL_LIMITS = [800, 6000];
+const WEIGHT_LIMITS = [20, 400];
+
+function inRange(value, [min, max], label) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < min || n > max) throw Object.assign(new Error(`${label} moet tussen ${min} en ${max} liggen.`), { status: 400 });
+  return n;
+}
+
+function parseOverrides(raw) {
+  if (!raw) return {};
+  try { return typeof raw === 'string' ? JSON.parse(raw) : raw; } catch { return {}; }
+}
+
+/** Alleen bekende doelen binnen de grenzen; lege waarden vervallen. Geeft JSON voor de database, of null als er niets is. */
+function cleanOverrides(data) {
+  const clean = {};
+  for (const [key, value] of Object.entries(parseOverrides(data))) {
+    if (!TARGET_LIMITS[key] || value === '' || value == null) continue;
+    clean[key] = inRange(value, TARGET_LIMITS[key], key);
+  }
+  return Object.keys(clean).length ? JSON.stringify(clean) : null;
+}
 
 export function savePerson(data, id = null) {
   const db = getDb();
@@ -44,6 +72,7 @@ export function savePerson(data, id = null) {
     const v = data[f];
     if (v === undefined) return undefined;
     if (v === '' || v === null) return null;
+    if (f === 'target_overrides') return cleanOverrides(v);
     return ['name', 'sex', 'goal'].includes(f) ? String(v) : Number(v);
   };
   if (id) {
@@ -88,8 +117,7 @@ export function withTargets(p) {
   if (tdee) kcal = Math.max(kcal, p.sex === 'v' ? 1200 : 1500); // niet onder een veilige ondergrens
   if (p.kcal_target_override) kcal = p.kcal_target_override;
   kcal = Math.round(kcal / 10) * 10;
-  const targets = {
-    kcal,
+  const automatic = {
     protein: Math.round(weight ? Math.max(weight * 1.2, (kcal * 0.15) / 4) : (kcal * 0.15) / 4),
     carbs: Math.round((kcal * 0.5) / 4),
     fat: Math.round((kcal * 0.3) / 9),
@@ -98,8 +126,12 @@ export function withTargets(p) {
     fiber: 30,
     salt: 6,
   };
+  const overrides = parseOverrides(p.target_overrides);
+  const targets = { kcal, ...automatic, ...overrides };
   return {
     ...p,
+    target_overrides: overrides,
+    targets_auto: automatic,
     current_weight_kg: weight ?? null,
     bmi: weight && p.height_cm ? round(weight / (p.height_cm / 100) ** 2, 1) : null,
     bmr: bmr ? Math.round(bmr) : null,
@@ -107,6 +139,20 @@ export function withTargets(p) {
     targets,
     target_source: p.kcal_target_override ? 'handmatig' : tdee ? 'berekend' : 'standaard',
   };
+}
+
+/**
+ * Doelen van een persoon deels aanpassen. Alleen meegegeven velden veranderen; null zet een doel terug op automatisch.
+ * @param {{kcal?: number|null, weight?: number|null, nutrients?: Record<string, number|null>}} changes
+ */
+export function updateTargets(personId, { kcal, weight, nutrients = {} }) {
+  const row = getDb().prepare('SELECT target_overrides FROM people WHERE id = ?').get(personId);
+  if (!row) return null;
+  const merged = { ...parseOverrides(row.target_overrides), ...nutrients };
+  const data = { target_overrides: merged };
+  if (kcal !== undefined) data.kcal_target_override = kcal == null ? null : Math.round(inRange(kcal, KCAL_LIMITS, 'Calorieën'));
+  if (weight !== undefined) data.target_weight_kg = weight == null ? null : inRange(weight, WEIGHT_LIMITS, 'Doelgewicht');
+  return savePerson(data, personId);
 }
 
 // ---------- Dagboek ----------
