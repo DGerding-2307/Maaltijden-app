@@ -242,3 +242,11 @@ test('bonnetje: onbekend product wordt alleen na aanvinken een nieuw ingrediënt
   assert.deepEqual(repo.getPackages(ing.id).map((o) => o.grams), [90, 200]);
   assert.throws(() => repo.applyReceipt({ lines: [{ new_ingredient: { name: ' ' }, grams: 1, price_cents: 1 }] }), /naam/);
 });
+
+test('verpakkingen met gewicht achter de komma zijn in werkelijkheid genoeg', () => {
+  const r = cheapestPackages(1.99, [opt(1.51, 100, 'a'), opt(2.5, 200, 'b')]);
+  assert.ok(r.grams >= 1.99 - 0.02 * 1.51, `gekozen ${r.grams} g`);
+  const s = cheapestPackages(500.4, [opt(250.6, 300, 'a'), opt(700.5, 700, 'b')]);
+  assert.ok(s.grams >= 500.4 - 0.02 * 250.6, `gekozen ${s.grams} g`);
+});
+

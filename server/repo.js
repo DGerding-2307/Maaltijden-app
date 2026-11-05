@@ -638,8 +638,9 @@ export function setShoppingDays(week, dates) {
   const all = Array.from({ length: 7 }, (_, i) => addDays(week, i));
   const chosen = Array.isArray(dates) ? all.filter((d) => dates.includes(d)) : null;
   const saved = getSetting('shopping_days', {});
-  // Oude weken opruimen, zodat deze instelling niet blijft groeien
-  const keep = addDays(week, -56);
+  // Oude weken opruimen, zodat deze instelling niet blijft groeien. Gerekend vanaf vandaag,
+  // zodat een keuze voor een week ver vooruit de keuze van deze week niet wist.
+  const keep = addDays(new Date().toISOString().slice(0, 10), -56);
   const next = Object.fromEntries(Object.entries(saved).filter(([w]) => w >= keep && w !== week));
   if (chosen && chosen.length < 7) next[week] = chosen;
   setSetting('shopping_days', next);
