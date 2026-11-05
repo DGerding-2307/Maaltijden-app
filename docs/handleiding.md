@@ -153,6 +153,10 @@ en receptenapps verwachten. Zie het [UAT-rapport](UAT-rapport.md).
 - **Laat Claude bedenken**: ‘iets met kip en prei’, ‘vegetarische stamppot onder €2 p.p.’
 - Claude koppelt ingrediënten aan de database en schat voedingswaarden en prijs voor onbekende ingrediënten. Je kijkt het concept na voordat het wordt opgeslagen.
 
+**Dag vooruit bekijken**
+
+In de planner zie je onder elke dag waar je uitkomt als je alles eet wat gepland staat: calorieën, eiwit, koolhydraten, vet, vezels, verzadigd vet, suikers en zout, tegen de doelen van de gekozen persoon. Doorzichtig is wat nog gepland staat, vol is wat al in het dagboek staat.
+
 **Verpakkingen en bonnetje**
 
 Een ingrediënt kan meerdere verpakkingen hebben, elk met een eigen gewicht en prijs. Zet ze onder *Ingrediënten*, bij *Andere verpakkingen*. De boodschappenlijst telt op wat je die week nodig hebt en kiest de goedkoopste combinatie waarmee je genoeg hebt. Per artikel kun je voor die week zelf een andere verpakking kiezen.

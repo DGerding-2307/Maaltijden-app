@@ -1,6 +1,6 @@
 // Data-toegang: recepten, ingrediënten, planning en boodschappen.
 import { getDb, tx, getSetting, setSetting } from './db.js';
-import { computeRecipe, buildShoppingList, NUTRIENTS, effectiveAmount, gramsFor, pricePerGram, packageOptions } from './calc.js';
+import { computeRecipe, buildShoppingList, NUTRIENTS, effectiveAmount, gramsFor, pricePerGram, packageOptions, plannedPortion } from './calc.js';
 import { addDays } from './seed.js';
 
 const ING_FIELDS = [
@@ -493,7 +493,7 @@ export function getPlan(start, days = 7) {
     const nutrition = Object.fromEntries(NUTRIENTS.map((n) => [n, 0]));
     let cost = 0;
     for (const e of dayEntries) {
-      if (e.nutrition_per_serving) for (const n of NUTRIENTS) nutrition[n] += e.nutrition_per_serving[n] || 0;
+      if (e.nutrition_per_serving) for (const n of NUTRIENTS) nutrition[n] += (e.nutrition_per_serving[n] || 0) * plannedPortion(e.servings);
       cost += e.cost_cents || 0;
     }
     for (const n of NUTRIENTS) nutrition[n] = Math.round(nutrition[n] * 10) / 10;

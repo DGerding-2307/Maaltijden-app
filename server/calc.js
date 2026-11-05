@@ -158,6 +158,9 @@ export function computeRecipe(recipe, rows, factor = 1) {
   };
 }
 
+/** Eén persoon eet 1 portie, ook als er voor meer personen gekookt wordt. Een halve portie blijft een halve portie. */
+export const plannedPortion = (servings) => (Number(servings) > 0 && Number(servings) < 1 ? Number(servings) : 1);
+
 /** "500 g", "1,5 kg" */
 export function packageLabel(grams) {
   const g = Number(grams);

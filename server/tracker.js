@@ -2,7 +2,7 @@
 // Elke regel bewaart een momentopname van de voedingswaarden, zodat het dagboek klopt
 // ook als je later een recept of ingrediënt aanpast.
 import { getDb, tx } from './db.js';
-import { NUTRIENTS } from './calc.js';
+import { NUTRIENTS, plannedPortion } from './calc.js';
 import { addDays } from './seed.js';
 import * as repo from './repo.js';
 import { healthScore, levelFor, vegGramsOf, itemsNutrition } from './buddy.js';
@@ -360,9 +360,6 @@ export function getDay(personId, date) {
   };
 }
 
-/** Eén persoon eet 1 portie, ook als er voor meer personen gekookt wordt. Een halve portie blijft een halve portie. */
-const plannedPortion = (servings) => (Number(servings) > 0 && Number(servings) < 1 ? Number(servings) : 1);
-
 /** Planmoment → dagboekmoment ("extra" en eigen momenten tellen als tussendoor). */
 export const mealForPlan = (meal) => (MEALS.includes(meal) ? meal : 'tussendoor');
 
@@ -500,6 +497,9 @@ export function addDiaryToPlan(plan, personId) {
     WHERE person_id = ? AND date BETWEEN ? AND ? AND plan_entry_id IS NULL ORDER BY created_at, id`).all(personId, plan.start, plan.end);
   for (const [i, d] of plan.days.entries()) {
     d.diary = { ...s.days[i], target_kcal: s.target_kcal, items: logged.filter((x) => x.date === d.date) };
+    // Waar de dag uitkomt: wat al gegeten is plus wat nog gepland staat
+    const day = getDay(personId, d.date);
+    d.outlook = { totals: day.totals, expected: day.expected_totals, targets: day.targets };
     for (const e of d.entries) e.eaten = eaten.has(e.id);
   }
   return plan;

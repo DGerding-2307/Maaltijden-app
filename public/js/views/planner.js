@@ -28,6 +28,26 @@ export async function render(root, params) {
   const canBecomeRecipe = (e) => !e.recipe_id && !e.leftover_of && !e.extras?.length && e.title && !NOT_A_RECIPE.test(e.title.trim());
 
   // Dagboekregels die niet gepland waren, bij het juiste moment in de planner
+  /** Balken: vol is al gegeten, doorzichtig komt erbij als je alles eet wat gepland staat. */
+  function outlookHtml(d) {
+    const o = d.outlook;
+    if (!o || !o.expected.kcal) return '';
+    const row = ([key, label, unit, limit]) => {
+      const now = o.totals[key] || 0; const after = o.expected[key] || 0; const target = o.targets[key] || 0;
+      const pct = (v) => Math.min(100, (v / (target || 1)) * 100);
+      const over = limit ? after > target : key === 'kcal' && after > target;
+      const color = `background:var(${over ? '--bad' : limit ? '--m-f' : '--primary'})`;
+      return `<div class="mac"><div class="t">${label} <span class="${over ? 'bad' : ''}">${over ? '⚠️ ' : ''}${num(after, unit === 'g' && after < 10 ? 1 : 0)} / ${num(target, 0)} ${unit}</span></div>
+        <div class="bar"><i class="plan" style="width:${pct(after)}%;${color}"></i>${now > 0 ? `<i style="width:${pct(now)}%;${color}"></i>` : ''}</div></div>`;
+    };
+    return `<section class="card day-outlook no-print">
+      <h3>Als je alles eet wat gepland staat</h3>
+      <div class="outlook-grid">${[['kcal', 'Calorieën', 'kcal'], ['protein', 'Eiwit', 'g'], ['carbs', 'Koolhydraten', 'g'], ['fat', 'Vet', 'g'], ['fiber', 'Vezels', 'g'],
+    ['sat_fat', 'Verzadigd vet (max.)', 'g', true], ['sugar', 'Suikers (max.)', 'g', true], ['salt', 'Zout (max.)', 'g', true]].map(row).join('')}</div>
+      <p class="muted small">Doelen van ${esc(person.name)}. Doorzichtig is wat nog gepland staat, vol is wat al in het dagboek staat.</p>
+    </section>`;
+  }
+
   function diaryItems(d, meal) {
     const items = (d.diary?.items || []).filter((x) => (meal == null ? !meals.some((m) => m.toLowerCase() === x.meal.toLowerCase()) : x.meal.toLowerCase() === meal.toLowerCase()));
     if (!items.length) return '';
@@ -158,6 +178,7 @@ export async function render(root, params) {
             ${d.entries.length ? `<span title="per persoon">🔥 ${num(d.nutrition_per_person.kcal, 0)} kcal p.p.</span><span>💶 ${euro(d.cost_cents)}</span>` : ''}
             ${d.diary && (d.diary.entries || d.date <= today) ? `<a href="#/dagboek?datum=${d.date}&persoon=${person.id}" title="Dagboek ${esc(person.name)}">📓 ${d.diary.entries ? `${num(d.diary.kcal, 0)} / ${num(d.diary.target_kcal, 0)} gegeten` : 'dagboek'}</a>` : ''}
           </div>
+          ${outlookHtml(d)}
           <section class="rest-week" style="margin-top:1.4rem">
             <h3>Rest van de week</h3>
             <div class="rest-row">
