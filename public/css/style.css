@@ -1131,6 +1131,10 @@ body.auth-only main { padding-bottom: 1.25rem; }
 .tile-bar .eat-toggle { margin-left: auto; border-radius: 999px; }
 .tile-bar .plan-extras { width: auto; }
 .tile.leftover .tile-photo::after { content: '♻️ restjes'; position: absolute; top: .7rem; left: .7rem; background: rgba(255, 255, 255, .92); color: #3a2a22; border-radius: 999px; padding: .15rem .6rem; font-weight: 800; font-size: .8rem; }
+.day-outlook { margin-top: 1rem; }
+.day-outlook h3 { margin: 0 0 .4rem; }
+.outlook-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0 1.2rem; }
+.outlook-grid .t .bad { color: var(--bad); }
 .day-sum { display: flex; flex-wrap: wrap; gap: .4rem; margin: .2rem 0 0; }
 .day-sum > * { background: var(--surface); box-shadow: var(--shadow); border-radius: 999px; padding: .35rem .8rem; font-weight: 800; font-size: .88rem; text-decoration: none; color: var(--text); }
 .rest-week h3 { font-size: .8rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-family: var(--font); font-weight: 800; margin: 0 0 .5rem; }

@@ -184,3 +184,26 @@ test('dag: planning telt mee in wat je zou eten, en verdwijnt als het gegeten is
   assert.equal(day.planned_totals.kcal, 0);
   assert.equal(day.expected_totals.kcal, day.totals.kcal);
 });
+
+test('planner: laat per dag zien waar je uitkomt, en telt een halve portie als halve portie', async () => {
+  const tracker = await import('../server/tracker.js');
+  const repo = await import('../server/repo.js');
+  const person = tracker.savePerson({ name: 'Vooruit', sex: 'm', birth_year: 1990, height_cm: 180, activity: 1.2, goal: 'onderhoud' });
+  const id = person.id ?? person;
+  const date = '2031-06-02'; // maandag
+  const ing = repo.saveIngredient({ name: 'testvooruit', kcal: 100, protein: 10, carbs: 20, fat: 1, fiber: 2, salt: 0.5 });
+  const recipe = repo.saveRecipe({ title: 'Vooruit test', servings: 2, ingredients: [{ ingredient_id: ing.id, name: 'testvooruit', quantity: 200, unit: 'g', auto_match: false }] });
+  repo.addPlanEntry({ date, meal: 'diner', recipe_id: recipe, servings: 4 });
+  const half = repo.addPlanEntry({ date, meal: 'lunch', recipe_id: recipe, servings: 0.5 });
+  const plan = tracker.addDiaryToPlan(repo.getPlan(date, 7), id);
+  const day = plan.days[0];
+  assert.equal(day.nutrition_per_person.kcal, 150);
+  assert.equal(day.outlook.expected.kcal, 150);
+  assert.equal(day.outlook.totals.kcal, 0);
+  assert.ok(day.outlook.targets.kcal > 0);
+  assert.equal(plan.days[1].outlook.expected.kcal, 0);
+  tracker.logPlannedDay(id, date, half);
+  const after = tracker.addDiaryToPlan(repo.getPlan(date, 7), id).days[0];
+  assert.equal(after.outlook.totals.kcal, 50);
+  assert.equal(after.outlook.expected.kcal, 150);
+});
