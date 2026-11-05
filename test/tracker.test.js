@@ -207,3 +207,22 @@ test('planner: laat per dag zien waar je uitkomt, en telt een halve portie als h
   assert.equal(after.outlook.totals.kcal, 50);
   assert.equal(after.outlook.expected.kcal, 150);
 });
+
+test('halve geplande portie: extra vlees of vis telt ook voor de helft', async () => {
+  const tracker = await import('../server/tracker.js');
+  const repo = await import('../server/repo.js');
+  const person = tracker.savePerson({ name: 'Extraatje', sex: 'm', birth_year: 1990, height_cm: 180, activity: 1.2, goal: 'onderhoud' });
+  const id = person.id ?? person;
+  const date = '2031-07-07';
+  const ing = repo.saveIngredient({ name: 'testhoofd', kcal: 100, protein: 10 });
+  const meat = repo.saveIngredient({ name: 'testvlees', kcal: 200, protein: 20 });
+  const recipe = repo.saveRecipe({ title: 'Extra test', servings: 1, ingredients: [{ ingredient_id: ing.id, name: 'testhoofd', quantity: 100, unit: 'g', auto_match: false }] });
+  repo.addPlanEntry({ date, meal: 'lunch', recipe_id: recipe, servings: 0.5, extras: [{ ingredient_id: meat.id }] });
+  const before = tracker.getDay(id, date);
+  tracker.logPlannedDay(id, date);
+  const after = tracker.getDay(id, date);
+  assert.equal(after.totals.kcal, before.planned_totals.kcal, 'wat je logt is wat de planning voorspelde');
+  // 100 g hoofdgerecht (100 kcal) en de standaardportie vlees van 125 g (250 kcal), samen voor de helft
+  assert.equal(after.totals.kcal, 175);
+});
+

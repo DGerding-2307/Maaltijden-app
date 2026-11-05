@@ -1,7 +1,7 @@
 import { api, meta, askClaude } from '../api.js';
 import {
   $, $$, esc, euro, num, qty, minutes, toast, modal, confirmDialog, miniMarkdown, todayISO, fmtDate, addDays,
-  NUTRIENT_LABELS, REFERENCE_INTAKE, meatOffered,
+  NUTRIENT_LABELS, REFERENCE_INTAKE, meatOffered, servingsForMeal,
 } from '../util.js';
 import { recipeThumb } from './recipes.js';
 import { linkIngredientDialog } from '../link-ingredient.js';
@@ -248,7 +248,7 @@ export async function render(root, params) {
         <label>Datum <input type="date" class="input" name="date" value="${todayISO()}" required></label>
         <div class="quick-dates">${Array.from({ length: 7 }, (_, i) => addDays(todayISO(), i)).map((d) => `<button type="button" class="tag" data-date="${d}">${fmtDate(d, { weekday: 'short', day: 'numeric' })}</button>`).join('')}</div>
         <label>Moment <select class="input" name="meal">${m.meals.map((x) => `<option ${x === (r.category === 'Ontbijt' ? 'ontbijt' : r.category === 'Lunch' ? 'lunch' : 'diner') ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>
-        <label>Personen <input type="number" class="input narrow" min="1" name="servings" value="${persons}"></label>
+        <label>Personen <input type="number" class="input narrow" min="1" name="servings" value="${persons}" data-plan-servings></label>
         <label data-meat-row>🥩 Vlees of vis erbij${hasMeat ? ' <span class="muted small">(optioneel)</span>' : ''}
           <select class="input" name="meat"><option value="">– niets extra –</option>
             ${sides.length ? `<optgroup label="Gerechten">${sides.map((x) => `<option value="r${x.id}">${esc(x.title)}</option>`).join('')}</optgroup>` : ''}
@@ -264,6 +264,12 @@ export async function render(root, params) {
     };
     form.meal.addEventListener('change', meatRow);
     meatRow();
+    // Ontbijt, lunch en tussendoor: standaard 1 persoon, tot je het aantal zelf aanpast
+    let ownServings = false;
+    const setServings = () => { if (!ownServings) form.servings.value = servingsForMeal(form.meal.value, persons); };
+    form.servings.addEventListener('input', () => { ownServings = true; });
+    form.meal.addEventListener('change', setServings);
+    setServings();
     md.el.addEventListener('click', (e) => {
       const d = e.target.closest('[data-date]');
       if (d) form.date.value = d.dataset.date;

@@ -218,7 +218,8 @@ export function cheapestPackages(need, options) {
   // Dezelfde marge als bij één verpakking, gerekend op de kleinste optie
   const smallest = Math.min(...pool.map((o) => o.grams));
   const target = Math.max(1, Math.ceil(need - 0.02 * smallest));
-  const sizes = pool.map((o) => Math.max(1, Math.round(o.grams)));
+  // Naar beneden afronden: zo is een gekozen combinatie in werkelijkheid altijd genoeg
+  const sizes = pool.map((o) => Math.max(1, Math.floor(o.grams)));
   const limit = target + Math.max(...sizes);
   // Te grote hoeveelheid om door te rekenen: de voordeligste prijs per gram is dan vrijwel altijd het beste
   if (limit > 200000) return packagesOfOption(need, [...pool].sort((a, b) => ((a.price_cents || 0) / a.grams) - ((b.price_cents || 0) / b.grams))[0]);

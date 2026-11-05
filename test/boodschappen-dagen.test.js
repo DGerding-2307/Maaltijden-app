@@ -69,9 +69,16 @@ test('dagen buiten de week tellen niet, en de hele week kiezen haalt de keuze we
 });
 
 test('de keuze geldt per week en oude weken worden opgeruimd', () => {
-  repo.setShoppingDays('2029-10-01', ['2029-10-01']);
+  repo.setShoppingDays('2020-01-06', ['2020-01-06']);
   repo.setShoppingDays('2030-01-14', ['2030-01-14']);
   assert.equal(repo.getShoppingDays(week), null);
   assert.deepEqual(repo.getShoppingDays('2030-01-14'), ['2030-01-14']);
-  assert.equal(repo.getShoppingDays('2029-10-01'), null);
+  assert.equal(repo.getShoppingDays('2020-01-06'), null);
+});
+
+test('een keuze ver vooruit wist de keuze van een eerdere week niet', () => {
+  repo.setShoppingDays(week, ['2030-01-10']);
+  repo.setShoppingDays('2031-06-02', ['2031-06-02']);
+  assert.deepEqual(repo.getShoppingDays(week), ['2030-01-10']);
+  repo.setShoppingDays(week, null);
 });
