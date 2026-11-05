@@ -1223,6 +1223,15 @@ body.auth-only main { padding-bottom: 1.25rem; }
 .shop-tile .ph img { width: 100%; height: 100%; object-fit: cover; }
 .shop-tile .nm { font-weight: 800; margin-top: .4rem; line-height: 1.2; overflow-wrap: anywhere; }
 .shop-tile .am { color: var(--muted); font-size: .82rem; }
+.shop-tile .pack-pick { width: 100%; min-height: 2.75rem; margin: .15rem 0 .7rem; padding: .2rem .4rem; border: 1px solid var(--line, #ccc); border-radius: .5rem; background: var(--surface); color: var(--text); font: inherit; font-size: .82rem; }
+.pack-list { list-style: none; margin: .4rem 0; padding: 0; }
+.pack-list li { display: flex; align-items: center; gap: .6rem; padding: .3rem 0; }
+.pack-add { display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: .5rem; align-items: end; }
+.receipt-lines { display: grid; gap: .75rem; margin: .75rem 0; }
+.receipt-line { padding: .6rem .7rem; border: 1px solid var(--line, #ccc); border-radius: .75rem; }
+.receipt-line p { margin: .35rem 0 0; }
+.receipt-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; margin-top: .4rem; }
+.receipt-fields .receipt-ing { grid-column: 1 / -1; }
 .shop-tile .for { padding-right: 2.2rem; color: var(--muted); font-size: .72rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .shop-tile .pr { position: absolute; left: .9rem; top: .9rem; background: rgba(255, 255, 255, .92); color: #3a2a22; border-radius: 999px; padding: .05rem .5rem; font-size: .75rem; font-weight: 800; }
 .shop-tile .ck { position: absolute; right: .9rem; top: .9rem; width: 1.9rem; height: 1.9rem; border-radius: 50%; background: #fff; border: 2.5px solid #e9dccf; display: grid; place-items: center; color: #fff; font-weight: 900; }

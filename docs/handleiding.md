@@ -153,6 +153,12 @@ en receptenapps verwachten. Zie het [UAT-rapport](UAT-rapport.md).
 - **Laat Claude bedenken**: ‘iets met kip en prei’, ‘vegetarische stamppot onder €2 p.p.’
 - Claude koppelt ingrediënten aan de database en schat voedingswaarden en prijs voor onbekende ingrediënten. Je kijkt het concept na voordat het wordt opgeslagen.
 
+**Verpakkingen en bonnetje**
+
+Een ingrediënt kan meerdere verpakkingen hebben, elk met een eigen gewicht en prijs. Zet ze onder *Ingrediënten*, bij *Andere verpakkingen*. De boodschappenlijst telt op wat je die week nodig hebt en kiest de goedkoopste combinatie waarmee je genoeg hebt. Per artikel kun je voor die week zelf een andere verpakking kiezen.
+
+Met **🧾 Bonnetje** op de boodschappenlijst upload je een foto van je bon, of tot 4 foto's van een lange bon. Claude leest de regels (dat loopt via je eigen Claude-sleutel en kost dus een klein bedrag per bon). Jij controleert ze en alleen wat aangevinkt is, wordt opgeslagen. Staat er korting op de bon, dan wordt de normale prijs bewaard. De foto zelf wordt niet bewaard.
+
 **Boodschappenlijst**
 - Automatisch uit de weekplanning, gegroepeerd per supermarktafdeling
 - Hoeveelheden opgeteld en omgerekend naar aantal verpakkingen + geschatte kosten
@@ -238,6 +244,7 @@ Met de koppeling kan Claude (op claude.ai of in de Claude-app op je telefoon) re
 | Planner | `planning_bekijken`, `maaltijd_plannen`, `maaltijd_wijzigen`, `maaltijd_verwijderen` |
 | Recepten | `recepten_zoeken`, `recept_bekijken`, `recept_opslaan`, `recept_wijzigen`, `recept_verwijderen` |
 | Boodschappen | `boodschappenlijst`, `boodschap_toevoegen`, `boodschap_afvinken` |
+| Verpakkingen | `verpakkingen_bekijken`, `verpakking_opslaan`, `verpakking_verwijderen` |
 | Dagboek | `dagboek_bekijken`, `eten_loggen`, `dagboek_verwijderen` |
 | Gewicht | `gewicht_loggen`, `gewicht_bekijken` |
 | Doelen | `doelen_bekijken`, `doelen_aanpassen` |

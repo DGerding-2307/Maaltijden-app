@@ -1,6 +1,7 @@
 import { api, liveSync } from '../api.js';
 import { $, esc, euro, num, qty, addDays, mondayOf, todayISO, fmtDate, weekNumber, toast, confirmDialog } from '../util.js';
 import { say } from '../say.js';
+import { chooseReceipt } from '../receipt.js';
 
 const COUNT_UNITS = ['stuk', 'teen', 'blik', 'pak', 'zakje', 'bos', 'plak'];
 const CAT_EMOJI = {
@@ -21,6 +22,16 @@ function amount(item) {
     return `${num(v, 0)} ${isLiquid ? 'ml' : 'g'}`;
   }
   return `${qty(item.quantity)} ${esc(item.unit)}`;
+}
+
+/** Bij meerdere verpakkingen: de app kiest de goedkoopste, of je kiest er zelf een voor deze week. */
+function packagePicker(item) {
+  if ((item.package_options || []).length < 2) return '';
+  const option = (o) => `<option value="${esc(o.key)}" ${item.package_choice === o.key ? 'selected' : ''}>${esc(o.label)}${o.price_cents != null ? ` · ${euro(o.price_cents)}` : ''}</option>`;
+  return `<select class="pack-pick no-print" data-pack="${esc(item.key)}" aria-label="Verpakking van ${esc(item.name)}">
+    <option value="" ${item.package_choice ? '' : 'selected'}>Goedkoopste</option>
+    ${item.package_options.map(option).join('')}
+  </select>`;
 }
 
 export async function render(root, params) {
@@ -65,6 +76,7 @@ export async function render(root, params) {
           <a class="round-btn" href="#/boodschappen?week=${addDays(start, 7)}" aria-label="Volgende week">›</a>
         </div>
         <div class="actions no-print">
+          <button class="btn" data-receipt>🧾 Bonnetje</button>
           <button class="btn" data-copy>📋 Kopieer</button>
           <button class="btn btn-ghost" data-print aria-label="Afdrukken">🖨️</button>
         </div>
@@ -88,7 +100,8 @@ export async function render(root, params) {
                 ${i.cost_cents != null ? `<span class="pr">${euro(i.cost_cents)}</span>` : ''}
                 <span class="ck" aria-hidden="true">✓</span>
                 <span class="nm">${esc(i.name)}</span>
-                <span class="am">${amount(i)}${i.packages ? ` · ${i.packages}× ${esc(i.package_label || '')}` : ''}</span>
+                <span class="am">${amount(i)}${i.package_text ? ` · ${esc(i.package_text)}` : ''}${i.leftover_grams > 0 ? ` · ${num(i.leftover_grams, 0)} g over` : ''}</span>
+                ${packagePicker(i)}
                 <span class="for" title="${esc(i.recipes.join(', '))}">voor ${esc(i.recipes.slice(0, 2).join(', '))}${i.recipes.length > 2 ? ` +${i.recipes.length - 2}` : ''}</span>
                 <button type="button" class="mini no-print have-btn" data-have="${esc(i.key)}" title="Heb ik al in huis – niet kopen" aria-label="${esc(i.name)} al in huis">🏠</button>
               </label>`).join('')}
@@ -129,6 +142,9 @@ export async function render(root, params) {
         item.checked = t.checked;
         await api.put('/shopping/check', { week: start, key: item.key, checked: t.checked });
         draw();
+      } else if (t.matches('[data-pack]')) {
+        await api.put('/shopping/package', { week: start, key: t.dataset.pack, choice: t.value });
+        await load();
       } else if (t.matches('[data-extra]')) {
         await api.put(`/shopping/extras/${t.dataset.extra}`, { checked: t.checked });
         await load();
@@ -175,6 +191,7 @@ export async function render(root, params) {
       await api.del(`/shopping/extras/${e.target.closest('[data-del-extra]').dataset.delExtra}`);
       load();
     }
+    if (e.target.closest('[data-receipt]')) return chooseReceipt(load);
     if (e.target.closest('[data-print]')) window.print();
     if (e.target.closest('[data-copy]')) {
       const lines = [`Boodschappen week ${weekNumber(start)}`];
@@ -182,7 +199,7 @@ export async function render(root, params) {
       let cat = '';
       for (const i of items) {
         if (i.category !== cat) { cat = i.category; lines.push('', `*${cat}*`); }
-        lines.push(`- ${i.name} (${amount(i)}${i.packages ? `, ${i.packages}× ${i.package_label || ''}` : ''})`);
+        lines.push(`- ${i.name} (${amount(i)}${i.package_text ? `, ${i.package_text}` : ''})`);
       }
       const extras = data.extras.filter((x) => !x.checked);
       if (extras.length) lines.push('', '*Extra*', ...extras.map((x) => `- ${x.name}`));

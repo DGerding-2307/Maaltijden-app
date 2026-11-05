@@ -108,8 +108,8 @@ export async function render(root) {
         <div class="grid-4">
           <label>Gewicht 1 stuk (g) <input class="input" type="number" step="any" min="0" name="unit_weight_g" value="${ing.unit_weight_g ?? ''}"></label>
           <label>Dichtheid (g/ml) <input class="input" type="number" step="any" min="0" name="density" value="${ing.density ?? 1}"></label>
-          <label>Verpakking (g) <input class="input" type="number" step="any" min="0" name="package_grams" value="${ing.package_grams ?? ''}"></label>
-          <label>Prijs verpakking (€) <input class="input" type="number" step="0.01" min="0" name="price" value="${ing.price_cents != null ? (ing.price_cents / 100).toFixed(2) : ''}"></label>
+          <label>Hoofdverpakking (g) <input class="input" type="number" step="any" min="0" name="package_grams" value="${ing.package_grams ?? ''}"></label>
+          <label>Prijs hoofdverpakking (€) <input class="input" type="number" step="0.01" min="0" name="price" value="${ing.price_cents != null ? (ing.price_cents / 100).toFixed(2) : ''}"></label>
           <label class="span-2">Verpakkingslabel <input class="input" name="package_label" value="${esc(ing.package_label || '')}" placeholder="bv. 500 g of 6 stuks"></label>
           <label class="span-2">Open Food Facts-categorie (voor prijzen) <input class="input" name="off_category" value="${esc(ing.off_category || '')}" placeholder="bv. en:carrots"></label>
           ${ing.price_note ? `<p class="span-2 muted small">Prijs: ${esc(ing.price_note)}</p>` : ''}
@@ -121,10 +121,12 @@ export async function render(root) {
             </select>
             <span class="muted small">Per recept kun je dit nog aanpassen in de recepteditor (⚖️).</span></label>
         </div>
+        ${ing.id ? '<section data-packages></section>' : ''}
         <div class="row end"><button class="btn btn-primary">Opslaan</button></div>
       </form>`, { wide: true });
     const form = $('[data-form]', md.el);
     bindMediaFields(form);
+    if (ing.id) packagesEditor($('[data-packages]', md.el), ing);
     $('[data-off-dialog]', md.el)?.addEventListener('click', () => { md.close(); offDialog(ing); });
     $('[data-price-dialog]', md.el)?.addEventListener('click', () => { md.close(); priceDialog(ing); });
     $('[data-estimate]', md.el)?.addEventListener('click', async (e) => {
@@ -162,6 +164,40 @@ export async function render(root) {
         reload();
       } catch (err) { toast(err.message, 'error'); }
     });
+  }
+
+  /** Extra verpakkingen: wordt meteen opgeslagen, los van het formulier eromheen. */
+  async function packagesEditor(box, ing) {
+    const draw = (options) => {
+      const extras = options.filter((o) => o.key !== 'main');
+      box.innerHTML = `
+        <h3>Andere verpakkingen</h3>
+        <p class="muted small">Komt dit product in meer groottes? Zet ze hier. De boodschappenlijst kiest de goedkoopste combinatie waarmee je genoeg hebt.</p>
+        <ul class="pack-list">${extras.map((o) => `<li>
+          <span class="grow">${esc(o.label)}${o.label === `${o.grams} g` ? '' : ` <span class="muted small">(${num(o.grams, 0)} g)</span>`}</span>
+          <strong>${euro(o.price_cents)}</strong>
+          <button type="button" class="mini danger" data-del-pack="${esc(o.key)}" aria-label="${esc(o.label)} verwijderen">✕</button></li>`).join('')}</ul>
+        <div class="pack-add">
+          <label>Gewicht (g) <input class="input" type="number" step="any" min="0" inputmode="decimal" data-pack-grams></label>
+          <label>Prijs (€) <input class="input" type="number" step="0.01" min="0" inputmode="decimal" data-pack-price></label>
+          <label>Naam (mag leeg) <input class="input" data-pack-label placeholder="bv. 6 stuks"></label>
+          <button type="button" class="btn" data-add-pack>Toevoegen</button>
+        </div>`;
+    };
+    box.addEventListener('click', async (e) => {
+      try {
+        const del = e.target.closest('[data-del-pack]');
+        if (del) return draw(await api.del(`/ingredients/${ing.id}/packages/${del.dataset.delPack}`));
+        if (!e.target.closest('[data-add-pack]')) return undefined;
+        const grams = Number($('[data-pack-grams]', box).value);
+        const price = $('[data-pack-price]', box).value;
+        if (!(grams > 0)) return toast('Vul het gewicht van de verpakking in', 'error');
+        if (grams === Number(ing.package_grams)) return toast('Dit gewicht is de hoofdverpakking; pas die hierboven aan', 'error');
+        draw(await api.post(`/ingredients/${ing.id}/packages`, { grams, price_cents: price === '' ? null : Math.round(Number(price) * 100), label: $('[data-pack-label]', box).value.trim() || null }));
+      } catch (err) { toast(err.message, 'error'); }
+      return undefined;
+    });
+    try { draw(await api.get(`/ingredients/${ing.id}/packages`)); } catch (err) { toast(err.message, 'error'); }
   }
 
   function offDialog(ing) {

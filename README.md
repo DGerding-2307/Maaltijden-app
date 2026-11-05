@@ -40,7 +40,8 @@ geeft hij een tip, maar boos wordt hij nooit. Geef hem zelf een naam: Bolletje, 
 | ➕ **Loggen in 3 tikken** | Eén grote knop: foto, zoeken, barcode scannen, of met één tik wat gepland stond of wat je vaak eet. |
 | ▦ **Barcode scannen** | Producten uit Open Food Facts staan met één tik in je lijst. Onbekend product? Voeg het toe aan Open Food Facts, of laat de AI het etiket lezen. |
 | 📅 **Weekplanner** | Plan je maaltijden en kies uit 50+ Nederlandse recepten, of laat Claude een weekmenu maken binnen je budget. |
-| 🛒 **Boodschappenlijst** | Komt vanzelf uit je planning, per afdeling, met echte prijzen. Wat je al in huis hebt, vink je weg. |
+| 🛒 **Boodschappenlijst** | Komt vanzelf uit je planning, per afdeling, met echte prijzen. Kiest de goedkoopste verpakkingen die genoeg zijn. Wat je al in huis hebt, vink je weg. |
+| 🧾 **Bonnetje** | Upload een foto van je bon. Na jouw controle worden verpakkingen en prijzen van je ingrediënten bijgewerkt. |
 | 📖 **Receptenboek** | Importeer recepten van elke website of van een foto, met voedingswaarden en prijs per portie. |
 | ⚖️ **Dagboek & gewicht** | Je persoonlijke dagdoel, grafieken van je week en een gewichtstrend. |
 | 👨‍👩‍👧 **Accounts** | Iedereen in huis een eigen account, dagboek en maatje. Recepten, planner en boodschappen deel je samen. |

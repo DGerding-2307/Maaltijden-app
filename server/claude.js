@@ -734,6 +734,71 @@ const LABEL_SCHEMA = {
 };
 
 /** Lees naam, merk, verpakking en voedingswaarden per 100 g van een foto van een verpakking of voedingsetiket. */
+// ---------- Bonnetje lezen ----------
+
+const RECEIPT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['readable', 'store', 'date', 'items'],
+  properties: {
+    readable: { type: 'boolean' },
+    store: { type: 'string' },
+    date: { type: 'string' },
+    items: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['receipt_text', 'ingredient', 'count', 'unit_price_cents', 'grams_per_package', 'discount', 'is_food'],
+        properties: {
+          receipt_text: { type: 'string' },
+          ingredient: { type: 'string' },
+          count: { type: 'number' },
+          unit_price_cents: nullableNumber,
+          grams_per_package: nullableNumber,
+          discount: { type: 'boolean' },
+          is_food: { type: 'boolean' },
+        },
+      },
+    },
+  },
+};
+
+export async function readReceipt({ images }) {
+  const list = Array.isArray(images) ? images : [];
+  if (!list.length || list.length > 4 || list.some((i) => !i?.data || !/^image\/(jpeg|png|webp|gif)$/.test(i.media_type || ''))) {
+    throw Object.assign(new Error('Stuur 1 tot 4 foto\'s van het bonnetje (JPG, PNG of WebP)'), { status: 400 });
+  }
+  return structuredCall({
+    system: `${SYSTEM}
+
+Je leest kassabonnen en digitale bonnen van Nederlandse supermarkten, bijvoorbeeld van de Jumbo. Meerdere foto's zijn delen van één bon.
+Regels:
+- Neem elk gekocht product op als één regel. Sla totalen, btw, spaarpunten, zegels, statiegeld en tasjes over.
+- "receipt_text": de productnaam precies zoals op de bon.
+- "ingredient": de exacte naam uit de lijst bekende ingrediënten die echt hetzelfde product is, of een lege tekst als die er niet is. Verzin geen match.
+  Laat merknamen weg bij het vergelijken ("Jumbo Komkommer" is komkommer). Een bewerkt of samengesteld product is niet zijn hoofdingrediënt:
+  "Kaneel Deense Knoop" is geen kaneel, "Gerookte Zalm" is geen zalm en "Drink Framboos" is geen framboos.
+- "count": het aantal stuks. Bij "2 X 0,99" is dat 2.
+- "unit_price_cents": de normale prijs van één stuk in centen, vóór korting. Bij "2 X 0,99" is dat 99. Staat er alleen een regeltotaal, deel dat dan door het aantal.
+- "discount": true als er korting op dit product staat.
+- Staat er geen aantal, dan is "count" 1 en is het bedrag de prijs van één stuk. Een losse letter zoals "P" achter de naam hoort niet bij de prijs.
+- "grams_per_package": het gewicht of de inhoud van één verpakking in gram, alleen als dat letterlijk in de naam op de bon staat ("Gerookte Zalm 90g" = 90, "1.5l" = 1500). Anders null. Schat dit nooit.
+- Losse weegwaar (bv. "0,532 kg x 2,99"): "count" 1, "grams_per_package" 1000 en als prijs de kiloprijs.
+- "is_food": false voor alles wat geen eten of drinken is.
+- "store": de winkel. "date": de datum als JJJJ-MM-DD, of leeg.
+- Is er geen bon te lezen, zet "readable": false en laat "items" leeg.
+
+Bekende ingrediënten: ${knownIngredientList()}`,
+    content: [
+      ...list.map((i) => ({ type: 'image', source: { type: 'base64', media_type: i.media_type, data: i.data } })),
+      { type: 'text', text: 'Lees dit bonnetje. Geef het gevraagde JSON.' },
+    ],
+    schema: RECEIPT_SCHEMA,
+    effort: 'low',
+  });
+}
+
 export async function readLabel({ image }) {
   if (!image?.data || !/^image\/(jpeg|png|webp|gif)$/.test(image.media_type || '')) {
     throw Object.assign(new Error('Stuur een foto (JPG, PNG of WebP)'), { status: 400 });
