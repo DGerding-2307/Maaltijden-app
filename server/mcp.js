@@ -338,6 +338,7 @@ const TOOLS = {
       const open = list.items.filter((i) => !i.checked && !i.have && !i.pantry);
       return {
         week: `${list.start} t/m ${list.end}`,
+        gekozen_dagen: list.days.filter((d) => d.selected).map((d) => d.date),
         nog_halen: [
           ...open.map((i) => ({ naam: i.name, afdeling: i.category, hoeveelheid: label(i), prijs: euro(i.cost_cents) })),
           ...list.extras.filter((x) => !x.checked).map((x) => ({ naam: x.name, afdeling: 'Eigen artikelen' })),

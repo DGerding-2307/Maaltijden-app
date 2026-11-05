@@ -1,5 +1,5 @@
 // Data-toegang: recepten, ingrediënten, planning en boodschappen.
-import { getDb, tx } from './db.js';
+import { getDb, tx, getSetting, setSetting } from './db.js';
 import { computeRecipe, buildShoppingList, NUTRIENTS, effectiveAmount, gramsFor, pricePerGram, packageOptions } from './calc.js';
 import { addDays } from './seed.js';
 
@@ -628,18 +628,39 @@ export function clearWeek(start) {
 
 // ---------- Boodschappen ----------
 
+/** De dagen waarvoor je boodschappen doet in deze week, of null als dat de hele week is. */
+export function getShoppingDays(week) {
+  return getSetting('shopping_days', {})[week] || null;
+}
+
+/** Dagen kiezen voor de boodschappen van deze week. Alle dagen (of null) = geen keuze opslaan. */
+export function setShoppingDays(week, dates) {
+  const all = Array.from({ length: 7 }, (_, i) => addDays(week, i));
+  const chosen = Array.isArray(dates) ? all.filter((d) => dates.includes(d)) : null;
+  const saved = getSetting('shopping_days', {});
+  // Oude weken opruimen, zodat deze instelling niet blijft groeien
+  const keep = addDays(week, -56);
+  const next = Object.fromEntries(Object.entries(saved).filter(([w]) => w >= keep && w !== week));
+  if (chosen && chosen.length < 7) next[week] = chosen;
+  setSetting('shopping_days', next);
+  return chosen && chosen.length < 7 ? chosen : null;
+}
+
 export function getShoppingList(start, days = 7) {
   const db = getDb();
   const end = addDays(start, days - 1);
-  const plan = db.prepare('SELECT * FROM meal_plan WHERE date BETWEEN ? AND ? AND recipe_id IS NOT NULL AND leftover_of IS NULL AND no_shopping = 0').all(start, end);
+  const saved = days === 7 ? getShoppingDays(start) : null;
+  const isChosen = (date) => !saved || saved.includes(date);
+  const planned = db.prepare('SELECT * FROM meal_plan WHERE date BETWEEN ? AND ? AND recipe_id IS NOT NULL AND leftover_of IS NULL AND no_shopping = 0').all(start, end);
+  const plan = planned.filter((p) => isChosen(p.date));
   const entries = plan.map((p) => {
     const recipe = parseRecipe(db.prepare('SELECT * FROM recipes WHERE id = ?').get(p.recipe_id));
     return { servings: p.servings, recipe, rows: rowsFor(p.recipe_id) };
   });
   // Vlees/vis bij een maaltijd: hoeveelheid per persoon × aantal personen
   const ingStmt = db.prepare('SELECT * FROM ingredients WHERE id = ?');
-  const withExtras = db.prepare(`SELECT p.id, p.servings, COALESCE(r.title, p.title) AS title FROM meal_plan p LEFT JOIN recipes r ON r.id = p.recipe_id
-    WHERE p.date BETWEEN ? AND ? AND p.leftover_of IS NULL AND p.no_shopping = 0 AND EXISTS (SELECT 1 FROM plan_extras x WHERE x.plan_entry_id = p.id)`).all(start, end);
+  const withExtras = db.prepare(`SELECT p.id, p.date, p.servings, COALESCE(r.title, p.title) AS title FROM meal_plan p LEFT JOIN recipes r ON r.id = p.recipe_id
+    WHERE p.date BETWEEN ? AND ? AND p.leftover_of IS NULL AND p.no_shopping = 0 AND EXISTS (SELECT 1 FROM plan_extras x WHERE x.plan_entry_id = p.id)`).all(start, end).filter((p) => isChosen(p.date));
   for (const p of withExtras) {
     const extras = db.prepare('SELECT * FROM plan_extras WHERE plan_entry_id = ?').all(p.id);
     const rows = extras.filter((x) => !x.recipe_id).map((x) => ({ ...x, ingredient: x.ingredient_id ? ingStmt.get(x.ingredient_id) || null : null }));
@@ -664,7 +685,10 @@ export function getShoppingList(start, days = 7) {
     if (item.have && item.cost_cents != null && !item.pantry) list.total_cents -= item.cost_cents;
   }
   const extras = db.prepare('SELECT * FROM shopping_extras WHERE week = ? ORDER BY id').all(start).map((e) => ({ ...e, checked: !!e.checked }));
-  return { start, end, ...list, extras, meals: plan.length };
+  const dayList = Array.from({ length: days }, (_, i) => addDays(start, i)).map((date) => ({
+    date, selected: isChosen(date), meals: planned.filter((p) => p.date === date).length,
+  }));
+  return { start, end, ...list, extras, meals: plan.length, days: dayList };
 }
 
 export function setShoppingCheck(week, key, checked) {

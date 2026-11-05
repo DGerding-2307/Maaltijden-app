@@ -1224,6 +1224,9 @@ body.auth-only main { padding-bottom: 1.25rem; }
 .shop-tile .nm { font-weight: 800; margin-top: .4rem; line-height: 1.2; overflow-wrap: anywhere; }
 .shop-tile .am { color: var(--muted); font-size: .82rem; }
 .shop-tile .pack-pick { width: 100%; min-height: 2.75rem; margin: .15rem 0 .7rem; padding: .2rem .4rem; border: 1px solid var(--line, #ccc); border-radius: .5rem; background: var(--surface); color: var(--text); font: inherit; font-size: .82rem; }
+.shop-days { margin-bottom: .5rem; }
+.shop-days .filter-chips { flex-wrap: wrap; overflow: visible; }
+.shop-days .tag { min-height: 2.75rem; }
 .pack-list { list-style: none; margin: .4rem 0; padding: 0; }
 .pack-list li { display: flex; align-items: center; gap: .6rem; padding: .3rem 0; }
 .pack-add { display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: .5rem; align-items: end; }
