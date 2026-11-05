@@ -1,5 +1,5 @@
 import { api, liveSync } from '../api.js';
-import { $, esc, euro, num, qty, addDays, mondayOf, todayISO, fmtDate, weekNumber, toast, confirmDialog } from '../util.js';
+import { $, esc, euro, num, qty, addDays, mondayOf, todayISO, parseISO, fmtDate, weekNumber, toast, confirmDialog } from '../util.js';
 import { say } from '../say.js';
 import { chooseReceipt } from '../receipt.js';
 
@@ -22,6 +22,22 @@ function amount(item) {
     return `${num(v, 0)} ${isLiquid ? 'ml' : 'g'}`;
   }
   return `${qty(item.quantity)} ${esc(item.unit)}`;
+}
+
+/** Knoppen om te kiezen voor welke dagen je boodschappen doet. */
+function dayChips(days) {
+  const partly = days.some((d) => !d.selected);
+  const label = (date) => parseISO(date).toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric' });
+  const long = (date) => parseISO(date).toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' });
+  return `<div class="shop-days no-print" role="group" aria-label="Boodschappen voor deze dagen">
+    <span class="sec-k">Voor welke dagen?</span>
+    <div class="filter-chips">
+      ${days.map((d) => `<button type="button" class="tag ${d.selected ? 'active' : ''}" data-day="${d.date}" aria-pressed="${d.selected}"
+        aria-label="${esc(long(d.date))}, ${d.meals} ${d.meals === 1 ? 'maaltijd' : 'maaltijden'}${d.selected ? ', gekozen' : ', niet gekozen'}">
+        ${d.selected ? '✓ ' : ''}${esc(label(d.date))}${d.meals ? ` · ${d.meals}` : ''}</button>`).join('')}
+      ${partly ? '<button type="button" class="tag" data-all-days>Hele week</button>' : ''}
+    </div>
+  </div>`;
 }
 
 /** Bij meerdere verpakkingen: de app kiest de goedkoopste, of je kiest er zelf een voor deze week. */
@@ -62,7 +78,8 @@ export async function render(root, params) {
     const doneCount = data.items.filter((i) => i.checked && !i.have).length + data.extras.filter((x) => x.checked).length;
     const shown = cat ? [...groups.entries()].filter(([c]) => c === cat) : [...groups.entries()];
     const total = items.length;
-    const line = !data.items.length && !data.extras.length ? { mood: 'rust', text: 'Nog niets op de lijst. Plan eerst wat maaltijden, dan zet ik alles voor je klaar 🐾' }
+    const partly = data.days.some((d) => !d.selected);
+    const line = !data.items.length && !data.extras.length ? { mood: 'rust', text: partly ? 'Voor deze dagen staat er niets op de lijst. Kies hieronder andere dagen 🐾' : 'Nog niets op de lijst. Plan eerst wat maaltijden, dan zet ik alles voor je klaar 🐾' }
       : !open.length ? { mood: 'blij', text: 'Alles in je mandje! Goed gedaan 🎉 Vergeet niet ‘in huis zetten’ te tikken.' }
         : open.length < total ? { mood: 'trots', text: `Nog ${open.length} ${open.length === 1 ? 'dingetje' : 'dingetjes'}! Samen zijn we zo klaar 🛒` }
           : { mood: 'hongerig', text: `${open.length} dingen op je lijstje, samen ± ${euro(openCost)}. Zullen we gaan? 🛒` };
@@ -81,13 +98,14 @@ export async function render(root, params) {
           <button class="btn btn-ghost" data-print aria-label="Afdrukken">🖨️</button>
         </div>
       </div>
+      ${dayChips(data.days)}
       <div class="filter-chips no-print">
         <button class="tag ${cat ? '' : 'active'}" data-cat="">Alles · ${total}</button>
         ${[...groups.entries()].map(([c, list]) => `<button class="tag ${c === cat ? 'active' : ''}" data-cat="${esc(c)}" title="${esc(c)}">${CAT_EMOJI[c] || '🛒'} ${list.length}</button>`).join('')}
         <label class="tag ${showPantry ? 'active' : ''}" title="Voorraadkast tonen: zout, olie, kruiden…"><input type="checkbox" data-pantry ${showPantry ? 'checked' : ''} hidden> 🧂 Voorraad (${pantryCount})</label>
       </div>
 
-      ${!data.items.length && !data.extras.length ? `<div class="empty"><a class="btn btn-primary" href="#/planner?week=${start}">Naar de planner</a></div>` : ''}
+      ${!data.items.length && !data.extras.length && !partly ? `<div class="empty"><a class="btn btn-primary" href="#/planner?week=${start}">Naar de planner</a></div>` : ''}
 
       ${shown.map(([c, list]) => `
         <section class="shop-group">
@@ -165,6 +183,18 @@ export async function render(root, params) {
   view.addEventListener('click', async (e) => {
     const chip = e.target.closest('[data-cat]');
     if (chip) { cat = chip.dataset.cat; return draw(); }
+    const dayBtn = e.target.closest('[data-day]');
+    if (dayBtn || e.target.closest('[data-all-days]')) {
+      const dates = dayBtn
+        ? data.days.filter((d) => (d.date === dayBtn.dataset.day ? !d.selected : d.selected)).map((d) => d.date)
+        : null;
+      try {
+        await api.put('/shopping/days', { week: start, dates });
+        cat = '';
+        await load();
+      } catch (err) { toast(err.message, 'error'); }
+      return undefined;
+    }
     if (e.target.closest('[data-done-to-have]')) {
       const items = data.items.filter((i) => i.checked && !i.have).length;
       const extras = data.extras.filter((x) => x.checked).length;
@@ -194,7 +224,9 @@ export async function render(root, params) {
     if (e.target.closest('[data-receipt]')) return chooseReceipt(load);
     if (e.target.closest('[data-print]')) window.print();
     if (e.target.closest('[data-copy]')) {
-      const lines = [`Boodschappen week ${weekNumber(start)}`];
+      const chosen = data.days.filter((d) => d.selected);
+      const period = chosen.length < 7 ? ` (${chosen.map((d) => parseISO(d.date).toLocaleDateString('nl-NL', { weekday: 'short' })).join(', ')})` : '';
+      const lines = [`Boodschappen week ${weekNumber(start)}${period}`];
       const items = data.items.filter((i) => !i.checked && !i.have && (showPantry || !i.pantry));
       let cat = '';
       for (const i of items) {

@@ -160,6 +160,8 @@ Een ingrediënt kan meerdere verpakkingen hebben, elk met een eigen gewicht en p
 Met **🧾 Bonnetje** op de boodschappenlijst upload je een foto van je bon, of tot 4 foto's van een lange bon. Claude leest de regels (dat loopt via je eigen Claude-sleutel en kost dus een klein bedrag per bon). Jij controleert ze en alleen wat aangevinkt is, wordt opgeslagen. Een product dat nog niet in de app staat, kun je aanvinken als nieuw ingrediënt; de voedingswaarden en het gewicht zijn dan een schatting van Claude. Staat er korting op de bon, dan wordt de normale prijs bewaard. De foto zelf wordt niet bewaard.
 
 **Boodschappenlijst**
+
+Bovenaan kies je met *Voor welke dagen?* voor welke dagen van de week je boodschappen doet. Alleen maaltijden van die dagen tellen dan mee in de lijst en de kosten. De keuze geldt per week en is op al je apparaten hetzelfde. *Hele week* zet alles terug.
 - Automatisch uit de weekplanning, gegroepeerd per supermarktafdeling
 - Hoeveelheden opgeteld en omgerekend naar aantal verpakkingen + geschatte kosten
 - Voorraadkast-artikelen (zout, olie, kruiden) standaard verborgen
