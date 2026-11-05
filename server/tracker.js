@@ -338,19 +338,30 @@ export function getDay(personId, date) {
   const planned = repo.getPlan(date, 1).days[0].entries.filter((p) => p.recipe_id || p.extras?.length);
   const loggedPlan = new Set(entries.map((e) => e.plan_entry_id).filter(Boolean));
   const weight = getDb().prepare('SELECT * FROM weight_log WHERE person_id = ? AND date = ?').get(personId, date) || null;
+  const totals = totalsOf(entries);
+  const portion = (p) => plannedPortion(p.servings);
+  // Wat er nog bij komt als je alles eet wat gepland staat
+  const open = planned.filter((p) => !loggedPlan.has(p.id));
+  const plannedTotals = totalsOf(open.map((p) => Object.fromEntries(NUTRIENTS.map((k) => [k, (Number(p.nutrition_per_serving?.[k]) || 0) * portion(p)]))));
   return {
     date,
     person,
     targets: person.targets,
-    totals: totalsOf(entries),
+    totals,
+    planned_totals: plannedTotals,
+    expected_totals: totalsOf([totals, plannedTotals]),
     meals: MEALS.map((m) => ({ meal: m, entries: byMeal[m], totals: totalsOf(byMeal[m]) })),
     planned: planned.map((p) => ({
       id: p.id, meal: p.meal, recipe_id: p.recipe_id, kcal_per_serving: p.kcal_per_serving, logged: loggedPlan.has(p.id),
+      portion: portion(p), kcal: round((Number(p.kcal_per_serving) || 0) * portion(p), 0),
       title: [p.recipe_title || p.title, ...(p.extras || []).map((x) => x.name)].filter(Boolean).join(' + '),
     })),
     weight,
   };
 }
+
+/** Eén persoon eet 1 portie, ook als er voor meer personen gekookt wordt. Een halve portie blijft een halve portie. */
+const plannedPortion = (servings) => (Number(servings) > 0 && Number(servings) < 1 ? Number(servings) : 1);
 
 /** Planmoment → dagboekmoment ("extra" en eigen momenten tellen als tussendoor). */
 export const mealForPlan = (meal) => (MEALS.includes(meal) ? meal : 'tussendoor');
@@ -362,7 +373,7 @@ export function logPlannedDay(personId, date, onlyId = null) {
   tx(() => {
     for (const p of day.planned) {
       if (p.logged || (onlyId && p.id !== Number(onlyId))) continue;
-      if (p.recipe_id) addLogEntry({ person_id: personId, date, meal: mealForPlan(p.meal), type: 'recipe', recipe_id: p.recipe_id, servings: 1, plan_entry_id: p.id });
+      if (p.recipe_id) addLogEntry({ person_id: personId, date, meal: mealForPlan(p.meal), type: 'recipe', recipe_id: p.recipe_id, servings: p.portion, plan_entry_id: p.id });
       // Vlees, vis of losse ingrediënten die bij deze maaltijd gekozen is (1 portie)
       for (const x of repo.extrasFor(p.id)) {
         if (x.recipe_id) {

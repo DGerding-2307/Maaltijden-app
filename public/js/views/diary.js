@@ -76,15 +76,18 @@ export async function render(root, params) {
 
   // ---------- Calorieën ----------
 
-  function bar(value, target, cssVar, over = false) {
-    const pct = target ? Math.min(100, (value / target) * 100) : 0;
-    return `<div class="meter ${over ? 'over' : ''}"><span style="width:${pct}%;background:var(${over ? '--bad' : cssVar})"></span></div>`;
+  function bar(value, target, cssVar, over = false, after = value) {
+    const pctOf = (v) => (target ? Math.min(100, (v / target) * 100) : 0);
+    const color = `background:var(${over ? '--bad' : cssVar})`;
+    return `<div class="meter ${over ? 'over' : ''}">${after > value ? `<span class="plan" style="width:${pctOf(after)}%;${color}"></span>` : ''}<span style="width:${pctOf(value)}%;${color}"></span></div>`;
   }
 
   function drawDay(day, week) {
     const t = day.targets;
     const left = t.kcal - day.totals.kcal;
     const pct = Math.min(100, (day.totals.kcal / t.kcal) * 100);
+    const e = day.expected_totals || day.totals;
+    const hasPlan = e.kcal > day.totals.kcal;
     const notLogged = day.planned.filter((p) => !p.logged);
     root.innerHTML = `<div class="view diary">
       ${head()}
@@ -99,16 +102,19 @@ export async function render(root, params) {
           </div>
         </div>
         <div class="meter big ${left < 0 ? 'over' : ''}" role="progressbar" aria-valuemin="0" aria-valuemax="${t.kcal}" aria-valuenow="${day.totals.kcal}">
-          <span style="width:${pct}%"></span></div>
+          ${hasPlan ? `<span class="plan" style="width:${Math.min(100, (e.kcal / t.kcal) * 100)}%"></span>` : ''}<span style="width:${pct}%"></span></div>
+        ${hasPlan ? `<p class="plan-note">Eet je alles wat gepland staat: <strong class="${e.kcal > t.kcal ? 'bad' : ''}">${num(e.kcal, 0)} kcal</strong> (${e.kcal <= t.kcal ? `${num(t.kcal - e.kcal, 0)} over` : `${num(e.kcal - t.kcal, 0)} boven je doel`})</p>` : ''}
         <div class="macro-grid">
           ${MACROS.map(([k, label, c]) => `<div class="macro">
             <div class="macro-head"><span>${label}</span><span class="muted">${num(day.totals[k], 0)} / ${num(t[k], 0)} g</span></div>
-            ${bar(day.totals[k], t[k], c)}</div>`).join('')}
+            ${bar(day.totals[k], t[k], c, false, e[k])}
+            ${e[k] > day.totals[k] ? `<div class="plan-note">met planning ${num(e[k], 0)} g</div>` : ''}</div>`).join('')}
         </div>
         <p class="limits small muted">Max. per dag:
           ${LIMITS.map(([k, label]) => {
             const over = day.totals[k] > t[k];
-            return `<span class="${over ? 'bad' : ''}">${over ? '⚠️ ' : ''}${label} ${num(day.totals[k], 1)}/${num(t[k], 0)} g</span>`;
+            const later = e[k] > day.totals[k] ? ` <span class="${e[k] > t[k] ? 'bad' : ''}">(met planning ${num(e[k], 1)})</span>` : '';
+            return `<span class="${over ? 'bad' : ''}">${over ? '⚠️ ' : ''}${label} ${num(day.totals[k], 1)}/${num(t[k], 0)} g${later}</span>`;
           }).join(' · ')}</p>
         <p class="muted small target-src">Doel ${t.kcal} kcal (${esc(person.target_source)}${person.goal && person.goal !== 'onderhoud' && person.target_source === 'berekend' ? `, ${esc(person.goal)}` : ''}).
           ${person.target_source === 'standaard' ? '<a href="#/instellingen">Vul je lengte, leeftijd en gewicht in</a> voor een persoonlijk doel.' : ''}</p>
@@ -119,8 +125,8 @@ export async function render(root, params) {
           ${notLogged.length > 1 ? '<button class="btn small" data-action="plan-all">✓ Alles gegeten</button>' : ''}</div>
         ${day.planned.map((p) => `<div class="planned-item">
           <span><span>${MEAL_ICONS[p.meal] || '🍽️'} ${p.recipe_id ? `<a href="#/recept/${p.recipe_id}">${esc(p.title)}</a>` : esc(p.title)}</span>
-            <span class="muted small">${esc(p.meal)} · ${num(p.kcal_per_serving, 0)} kcal per portie</span></span>
-          ${p.logged ? '<span class="good small">✓ in dagboek</span>' : `<button class="btn small" data-plan="${p.id}">✓ Gegeten</button>`}
+            <span class="muted small">${esc(p.meal)}</span></span>
+          ${p.logged ? `<span class="good small">✓ in dagboek · ${num(p.kcal, 0)} kcal</span>` : `<button class="btn small" data-plan="${p.id}">✓ Gegeten · ${num(p.kcal, 0)} kcal</button>`}
         </div>`).join('')}
       </section>` : ''}
 
