@@ -91,6 +91,9 @@ test('recepten zoeken, bekijken, plannen, verplaatsen en verwijderen', async () 
   assert.ok(recipe.ingredienten.length > 3 && recipe.bereiding.length > 1);
 
   const date = '2031-03-03';
+  const lunch = await ok('maaltijd_plannen', { datum: date, moment: 'lunch', recept_id: nasi.id });
+  assert.equal(lunch.personen, 1, 'lunch is standaard voor 1 persoon');
+  await ok('maaltijd_verwijderen', { id: lunch.id });
   const planned = await ok('maaltijd_plannen', { datum: date, moment: 'diner', recept_id: nasi.id, personen: 3 });
   assert.equal(planned.titel, 'Nasi goreng');
   const out = await ok('maaltijd_plannen', { datum: date, moment: 'lunch', titel: 'Uit eten' });

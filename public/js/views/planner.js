@@ -3,7 +3,7 @@ import { meatDialog, extrasDialog, meatOptions, defaultPortion } from '../meat.j
 import { say } from '../say.js';
 import {
   $, $$, esc, euro, num, addDays, mondayOf, todayISO, fmtDate, weekNumber, DAY_NAMES, toast, modal, confirmDialog, debounce, minutes, meatOffered, PLAN_LINK_KEY,
-  savedPerson, rememberPerson,
+  savedPerson, rememberPerson, servingsForMeal,
 } from '../util.js';
 
 export async function render(root, params) {
@@ -229,7 +229,7 @@ export async function render(root, params) {
               await api.post('/plan', { date, meal, recipe_id: src.recipe_id, title: src.title, servings: src.servings });
             } else await api.put(`/plan/${entryId}`, { date, meal });
           } else if (recipeId) {
-            await api.post('/plan', { date, meal, recipe_id: Number(recipeId), servings: m.default_servings });
+            await api.post('/plan', { date, meal, recipe_id: Number(recipeId), servings: servingsForMeal(meal, m.default_servings) });
           }
           await load();
         } catch (err) { toast(err.message, 'error'); }
@@ -425,7 +425,7 @@ export async function render(root, params) {
       <h2>Toevoegen: ${esc(meal)} op ${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })}</h2>
       <div class="row">
         <input type="search" class="input grow" placeholder="Zoek recept…" data-q>
-        <label class="inline">👤 <input type="number" class="input narrow" min="1" value="${m.default_servings}" data-servings></label>
+        <label class="inline">👤 <input type="number" class="input narrow" min="1" value="${servingsForMeal(meal, m.default_servings)}" data-servings></label>
       </div>
       <div class="row wrap quick-plan">
         <button class="btn" type="button" data-eat-out>🍴 Uit eten</button>
@@ -461,7 +461,7 @@ export async function render(root, params) {
     };
     drawList();
     $('[data-q]', md.el).addEventListener('input', drawList);
-    const servings = () => Number($('[data-servings]', md.el).value) || m.default_servings;
+    const servings = () => Number($('[data-servings]', md.el).value) || servingsForMeal(meal, m.default_servings);
     md.el.addEventListener('click', async (e) => {
       if (e.target.closest('[data-eat-out]')) {
         await api.post('/plan', { date, meal, title: 'Uit eten', servings: servings() });
@@ -569,7 +569,7 @@ export async function render(root, params) {
       <div class="row end"><button class="btn btn-primary" data-apply>Geselecteerde inplannen</button></div>`;
     $('[data-apply]', box).addEventListener('click', async () => {
       const chosen = $$('[data-sugg]:checked', box).map((c) => result.entries[Number(c.dataset.sugg)]);
-      for (const s of chosen) await api.post('/plan', { date: s.date, meal: s.meal, recipe_id: s.recipe_id, servings });
+      for (const s of chosen) await api.post('/plan', { date: s.date, meal: s.meal, recipe_id: s.recipe_id, servings: servingsForMeal(s.meal, servings) });
       toast(`${chosen.length} maaltijden ingepland`, 'success');
       md.close();
       load();

@@ -234,6 +234,9 @@ export function debounce(fn, ms = 250) {
   };
 }
 
+/** Ontbijt en lunch zijn standaard voor 1 persoon, de rest voor het ingestelde aantal personen. */
+export const servingsForMeal = (meal, fallback) => (['ontbijt', 'lunch'].includes(String(meal).toLowerCase()) ? 1 : fallback);
+
 export const NUTRIENT_LABELS = {
   kcal: ['Energie', 'kcal'],
   protein: ['Eiwit', 'g'],

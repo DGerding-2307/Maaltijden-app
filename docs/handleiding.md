@@ -153,6 +153,10 @@ en receptenapps verwachten. Zie het [UAT-rapport](UAT-rapport.md).
 - **Laat Claude bedenken**: ‘iets met kip en prei’, ‘vegetarische stamppot onder €2 p.p.’
 - Claude koppelt ingrediënten aan de database en schat voedingswaarden en prijs voor onbekende ingrediënten. Je kijkt het concept na voordat het wordt opgeslagen.
 
+**Ontbijt en lunch**
+
+Zet je een ontbijt of lunch in de planner, dan staat die standaard op 1 persoon. Andere maaltijden staan op het aantal personen uit de instellingen. Je kunt het aantal altijd zelf aanpassen.
+
 **Dag vooruit bekijken**
 
 In de planner zie je onder elke dag waar je uitkomt als je alles eet wat gepland staat: calorieën, eiwit, koolhydraten, vet, vezels, verzadigd vet, suikers en zout, tegen de doelen van de gekozen persoon. Doorzichtig is wat nog gepland staat, vol is wat al in het dagboek staat.
