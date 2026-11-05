@@ -168,7 +168,7 @@ test('bonnetje: gewicht komt van het ingrediënt en er wordt niets opgeslagen vo
   assert.equal(line.count, 2);
   assert.equal(line.selected, true);
   assert.equal(repo.getIngredient(c.id).price_cents, 89, 'nog niet opgeslagen');
-  assert.deepEqual(repo.applyReceipt({ store: r.store, date: r.date, lines: [{ ingredient_id: c.id, grams: 90, price_cents: 99 }] }), { updated: 1 });
+  assert.deepEqual(repo.applyReceipt({ store: r.store, date: r.date, lines: [{ ingredient_id: c.id, grams: 90, price_cents: 99 }] }), { updated: 1, created: 0 });
   const saved = repo.getIngredient(c.id);
   assert.equal(saved.price_cents, 99);
   assert.equal(saved.price_source, 'handmatig');
@@ -210,4 +210,35 @@ test('bonnetje: een product met een ingrediënt in de naam wordt niet aan dat in
     { receipt_text: 'Drink Framboos 1.5l', ingredient: 'bestaat niet', count: 1, unit_price_cents: 279, grams_per_package: 1500, discount: false, is_food: true },
   ] });
   assert.deepEqual(r.lines.map((l) => [l.ingredient_name, l.selected]), [['', false], ['testkaneel', true], ['', false]]);
+});
+
+test('bonnetje: onbekend product wordt alleen na aanvinken een nieuw ingrediënt', () => {
+  const per100 = { kcal: 180, protein: 20, carbs: 1, sugar: 1, fat: 11, sat_fat: 2, fiber: 0, salt: 3 };
+  const r = repo.prepareReceipt({ readable: true, store: 'Jumbo', date: '2026-10-31', items: [
+    { receipt_text: 'Gerookte Zalm 90g', ingredient: '', count: 1, unit_price_cents: 399, grams_per_package: 90, discount: false, is_food: true, new_name: 'Testzalm Gerookt', category: 'Vlees, vis & vega', estimated_grams: 100, per100 },
+    { receipt_text: 'Doppinda', ingredient: '', count: 1, unit_price_cents: 189, grams_per_package: null, discount: false, is_food: true, new_name: 'testdoppinda', category: 'Overig', estimated_grams: 200, per100 },
+    { receipt_text: 'Wc-papier', ingredient: '', count: 1, unit_price_cents: 399, grams_per_package: null, discount: false, is_food: false, new_name: '', category: 'Overig', estimated_grams: null, per100 },
+  ] });
+  const [zalm, pinda, wc] = r.lines;
+  assert.equal(zalm.selected, false);
+  assert.equal(zalm.ingredient_name, 'testzalm gerookt');
+  assert.equal(zalm.grams, 90, 'gewicht van de bon gaat voor op de schatting');
+  assert.equal(pinda.grams, 200);
+  assert.equal(pinda.grams_on_receipt, false);
+  assert.equal(wc.new_ingredient, null);
+  assert.equal(repo.matchIngredient('testzalm gerookt'), null, 'nog niets opgeslagen');
+  const res = repo.applyReceipt({ store: 'Jumbo', date: '2026-10-31', lines: [
+    { new_ingredient: { ...zalm.new_ingredient, name: zalm.ingredient_name }, grams: 90, price_cents: 399 },
+    { new_ingredient: { ...zalm.new_ingredient, name: 'TESTZALM GEROOKT' }, grams: 200, price_cents: 699 },
+  ] });
+  assert.deepEqual(res, { updated: 1, created: 1 });
+  const ing = repo.matchIngredient('testzalm gerookt');
+  assert.equal(ing.kcal, 180);
+  assert.equal(ing.category, 'Vlees, vis & vega');
+  assert.equal(ing.package_grams, 90);
+  assert.equal(ing.unit_weight_g, 90);
+  assert.equal(ing.price_cents, 399);
+  assert.match(ing.nutrition_source, /schatting/);
+  assert.deepEqual(repo.getPackages(ing.id).map((o) => o.grams), [90, 200]);
+  assert.throws(() => repo.applyReceipt({ lines: [{ new_ingredient: { name: ' ' }, grams: 1, price_cents: 1 }] }), /naam/);
 });

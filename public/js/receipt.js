@@ -11,8 +11,8 @@ function lineHtml(l, i) {
   const notes = [
     was,
     l.discount ? 'Korting op de bon: normale prijs wordt bewaard' : '',
-    l.ingredient_id && !l.grams_on_receipt ? '⚠️ Gewicht staat niet op de bon, controleer het' : '',
-    !l.ingredient_id && l.is_food ? 'Geen ingrediënt gevonden: kies er een of laat dit uit' : '',
+    l.grams && !l.grams_on_receipt ? '⚠️ Gewicht staat niet op de bon, controleer het' : '',
+    l.new_ingredient ? 'Staat nog niet in de app. Vink aan om dit als nieuw ingrediënt toe te voegen; voedingswaarden en gewicht zijn een schatting van Claude' : '',
   ].filter(Boolean);
   return `<div class="receipt-line" data-line="${i}">
     <label class="check"><input type="checkbox" data-use ${l.selected ? 'checked' : ''}>
@@ -79,19 +79,21 @@ function review(result, ingredients, onDone) {
     for (const row of $$('.receipt-line', md.el)) {
       if (!$('[data-use]', row).checked) continue;
       const line = result.lines[Number(row.dataset.line)];
-      const id = byName.get($('[data-ing]', row).value.trim().toLowerCase())?.id;
+      const typed = $('[data-ing]', row).value.trim();
+      const id = byName.get(typed.toLowerCase())?.id;
       const grams = Number($('[data-grams]', row).value);
       const price = Math.round(Number($('[data-price]', row).value) * 100);
-      if (!id) return toast(`Kies bij “${line.receipt_text}” een bestaand ingrediënt, of vink de regel uit.`, 'error');
+      const fresh = !id && line.new_ingredient && typed ? { ...line.new_ingredient, name: typed } : null;
+      if (!id && !fresh) return toast(`Kies bij “${line.receipt_text}” een ingrediënt, of vink de regel uit.`, 'error');
       if (!(grams > 0) || !(price > 0)) return toast(`Vul bij “${line.receipt_text}” een gewicht en prijs in.`, 'error');
-      lines.push({ ingredient_id: id, grams, price_cents: price });
+      lines.push(fresh ? { new_ingredient: fresh, grams, price_cents: price } : { ingredient_id: id, grams, price_cents: price });
     }
     if (!lines.length) return toast('Er is niets aangevinkt.', 'error');
     e.target.disabled = true;
     try {
       const r = await api.post('/receipt/apply', { store: result.store, date: result.date, lines });
       md.close();
-      toast(`${r.updated} ${r.updated === 1 ? 'ingrediënt' : 'ingrediënten'} bijgewerkt`, 'success');
+      toast(`${r.updated} ${r.updated === 1 ? 'ingrediënt' : 'ingrediënten'} bijgewerkt${r.created ? `, waarvan ${r.created} nieuw` : ''}`, 'success');
       onDone?.();
     } catch (err) {
       e.target.disabled = false;

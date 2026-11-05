@@ -193,11 +193,13 @@ export function prepareReceipt(read) {
     const ing = item.is_food ? matchExact(item.ingredient) : null;
     const options = ing ? getPackages(ing.id) : [];
     const onReceipt = Number(item.grams_per_package) > 0;
-    const grams = onReceipt ? Number(item.grams_per_package) : (options[0]?.grams ?? null);
+    const grams = onReceipt ? Number(item.grams_per_package) : (options[0]?.grams ?? (Number(item.estimated_grams) > 0 ? Number(item.estimated_grams) : null));
     const price = Number(item.unit_price_cents) > 0 ? Math.round(Number(item.unit_price_cents)) : null;
     return {
       receipt_text: item.receipt_text, count: Number(item.count) || 1, discount: !!item.discount, is_food: !!item.is_food,
-      ingredient_id: ing?.id ?? null, ingredient_name: ing?.name ?? '',
+      ingredient_id: ing?.id ?? null, ingredient_name: ing?.name ?? (item.is_food ? String(item.new_name || '').trim().toLowerCase() : ''),
+      // Staat nog niet in de app: kan een nieuw ingrediënt worden, als je de regel aanvinkt
+      new_ingredient: !ing && item.is_food ? { category: item.category || 'Overig', per100: item.per100 || {} } : null,
       grams, grams_on_receipt: onReceipt, price_cents: price,
       old_price_cents: options.find((o) => o.grams === grams)?.price_cents ?? null,
       selected: !!(ing && grams && price),
@@ -215,12 +217,29 @@ function matchExact(name) {
 export function applyReceipt({ store, date, lines }) {
   if (!Array.isArray(lines) || !lines.length) throw Object.assign(new Error('Er is niets aangevinkt'), { status: 400 });
   for (const l of lines) {
-    if (!getIngredient(Number(l.ingredient_id))) throw Object.assign(new Error('Ingrediënt niet gevonden'), { status: 404 });
+    if (l.new_ingredient) {
+      if (!String(l.new_ingredient.name || '').trim()) throw Object.assign(new Error('Geef het nieuwe ingrediënt een naam'), { status: 400 });
+    } else if (!getIngredient(Number(l.ingredient_id))) throw Object.assign(new Error('Ingrediënt niet gevonden'), { status: 404 });
     if (!(Number(l.grams) > 0) || !(Number(l.price_cents) > 0)) throw Object.assign(new Error('Elke regel heeft een gewicht en prijs nodig'), { status: 400 });
   }
   const note = ['Bonnetje', store, date].filter(Boolean).join(' ');
-  for (const l of lines) savePackage(Number(l.ingredient_id), { grams: l.grams, price_cents: l.price_cents, price_note: note });
-  return { updated: new Set(lines.map((l) => Number(l.ingredient_id))).size };
+  const ids = new Set();
+  let created = 0;
+  for (const l of lines) {
+    let id = Number(l.ingredient_id);
+    if (l.new_ingredient) {
+      const name = String(l.new_ingredient.name).trim().toLowerCase();
+      id = matchExact(name)?.id;
+      if (!id) {
+        const per100 = Object.fromEntries(NUTRIENTS.map((n) => [n, Number.isFinite(Number(l.new_ingredient.per100?.[n])) ? Number(l.new_ingredient.per100[n]) : null]));
+        id = saveIngredient({ ...per100, name, category: l.new_ingredient.category || 'Overig', unit_weight_g: Number(l.grams), nutrition_source: 'Claude (schatting, van bonnetje)' }).id;
+        created++;
+      }
+    }
+    savePackage(id, { grams: l.grams, price_cents: l.price_cents, price_note: note });
+    ids.add(id);
+  }
+  return { updated: ids.size, created };
 }
 
 export function deleteIngredient(id) {

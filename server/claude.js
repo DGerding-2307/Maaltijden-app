@@ -749,7 +749,7 @@ const RECEIPT_SCHEMA = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['receipt_text', 'ingredient', 'count', 'unit_price_cents', 'grams_per_package', 'discount', 'is_food'],
+        required: ['receipt_text', 'ingredient', 'count', 'unit_price_cents', 'grams_per_package', 'discount', 'is_food', 'new_name', 'category', 'estimated_grams', 'per100'],
         properties: {
           receipt_text: { type: 'string' },
           ingredient: { type: 'string' },
@@ -758,6 +758,10 @@ const RECEIPT_SCHEMA = {
           grams_per_package: nullableNumber,
           discount: { type: 'boolean' },
           is_food: { type: 'boolean' },
+          new_name: { type: 'string' },
+          category: { type: 'string', enum: CATEGORIES },
+          estimated_grams: nullableNumber,
+          per100: PER100_SCHEMA,
         },
       },
     },
@@ -786,6 +790,8 @@ Regels:
 - "grams_per_package": het gewicht of de inhoud van één verpakking in gram, alleen als dat letterlijk in de naam op de bon staat ("Gerookte Zalm 90g" = 90, "1.5l" = 1500). Anders null. Schat dit nooit.
 - Losse weegwaar (bv. "0,532 kg x 2,99"): "count" 1, "grams_per_package" 1000 en als prijs de kiloprijs.
 - "is_food": false voor alles wat geen eten of drinken is.
+- "new_name": een korte Nederlandse naam voor dit product als nieuw ingrediënt, in kleine letters, zonder merk en gewicht (bv. "gerookte zalm").
+- "category": de afdeling van dit product. "per100": realistische voedingswaarden per 100 g van dit product. "estimated_grams": je schatting van het gewicht van één verpakking in gram.
 - "store": de winkel. "date": de datum als JJJJ-MM-DD, of leeg.
 - Is er geen bon te lezen, zet "readable": false en laat "items" leeg.
 
