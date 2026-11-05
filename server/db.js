@@ -217,6 +217,7 @@ function backupBeforeUpgrade(file, appVersion) {
 
 // Kolommen die in latere versies zijn toegevoegd; bestaande databases worden automatisch bijgewerkt.
 const MIGRATIONS = [
+  ['people', 'target_overrides', 'TEXT'],
   ['ingredients', 'off_code', 'TEXT'],
   ['ingredients', 'nutriscore', 'TEXT'],
   ['ingredients', 'nutrition_updated_at', 'TEXT'],

@@ -236,10 +236,11 @@ Met de koppeling kan Claude (op claude.ai of in de Claude-app op je telefoon) re
 | Onderdeel | Hulpmiddelen |
 |---|---|
 | Planner | `planning_bekijken`, `maaltijd_plannen`, `maaltijd_wijzigen`, `maaltijd_verwijderen` |
-| Recepten | `recepten_zoeken`, `recept_bekijken`, `recept_opslaan` |
+| Recepten | `recepten_zoeken`, `recept_bekijken`, `recept_opslaan`, `recept_wijzigen`, `recept_verwijderen` |
 | Boodschappen | `boodschappenlijst`, `boodschap_toevoegen`, `boodschap_afvinken` |
 | Dagboek | `dagboek_bekijken`, `eten_loggen`, `dagboek_verwijderen` |
 | Gewicht | `gewicht_loggen`, `gewicht_bekijken` |
+| Doelen | `doelen_bekijken`, `doelen_aanpassen` |
 
 Planner, recepten en boodschappen zijn van het hele huishouden; het dagboek en gewicht gaan over de persoon van de link.
 Elke persoon kan een eigen link hebben. Wijzigingen staan meteen in de app (en in Home Assistant).

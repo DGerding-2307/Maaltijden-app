@@ -17,6 +17,19 @@ function haPreview(md) {
 
 const GOALS = [['afvallen', 'Afvallen (−500 kcal per dag)'], ['onderhoud', 'Gewicht behouden'], ['aankomen', 'Aankomen (+300 kcal per dag)']];
 
+const TARGET_FIELDS = [['protein', 'Eiwit'], ['carbs', 'Koolhydraten'], ['fat', 'Vet'], ['sat_fat', 'Verzadigd vet'], ['sugar', 'Suikers'], ['fiber', 'Vezels'], ['salt', 'Zout']];
+
+/** Formuliervelden naar wat de server verwacht: de eigen dagdoelen samen in één veld. */
+function personBody(form) {
+  const body = {};
+  const target_overrides = {};
+  for (const [name, value] of new FormData(form)) {
+    if (name.startsWith('t_')) target_overrides[name.slice(2)] = value;
+    else body[name] = value;
+  }
+  return { ...body, target_overrides };
+}
+
 function personForm(p, activity) {
   const v = (x) => (x == null ? '' : esc(x));
   return `<form class="person-form" data-person-form="${p.id}">
@@ -33,6 +46,7 @@ function personForm(p, activity) {
       <label>Startgewicht (kg) <input class="input" type="number" step="0.1" min="20" max="400" name="start_weight_kg" value="${v(p.start_weight_kg)}"></label>
       <label>Doelgewicht (kg) <input class="input" type="number" step="0.1" min="20" max="400" name="target_weight_kg" value="${v(p.target_weight_kg)}"></label>
       <label class="span-2">Eigen kcal-doel <input class="input" type="number" min="800" max="6000" name="kcal_target_override" value="${v(p.kcal_target_override)}" placeholder="leeg = automatisch berekenen"></label>
+      ${TARGET_FIELDS.map(([key, label]) => `<label>${label} (g) <input class="input" type="number" step="0.1" min="0" name="t_${key}" value="${v(p.target_overrides?.[key])}" placeholder="auto: ${v(p.targets_auto?.[key])}"></label>`).join('')}
     </div>
     <div class="row end">
       <button type="button" class="btn btn-ghost danger-text" data-del-person="${p.id}">Verwijderen</button>
@@ -362,7 +376,7 @@ export async function render(root) {
   root.querySelectorAll('[data-person-form]').forEach((f) => f.addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
-      const p = await api.put(`/people/${f.dataset.personForm}`, Object.fromEntries(new FormData(f)));
+      const p = await api.put(`/people/${f.dataset.personForm}`, personBody(f));
       toast(`${p.name}: doel ${p.targets.kcal} kcal per dag`, 'success');
       render(root);
     } catch (err) { toast(err.message, 'error'); }

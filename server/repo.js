@@ -287,6 +287,11 @@ export function setRating(id, rating) {
   getDb().prepare('UPDATE recipes SET rating = ? WHERE id = ?').run(rating || null, id);
 }
 
+/** Datums vanaf `from` waarop een recept gepland staat. */
+export function plannedDates(recipeId, from) {
+  return getDb().prepare('SELECT DISTINCT date FROM meal_plan WHERE recipe_id = ? AND date >= ? ORDER BY date').all(recipeId, from).map((r) => r.date);
+}
+
 export function deleteRecipe(id) {
   getDb().prepare('DELETE FROM recipes WHERE id = ?').run(id);
 }
