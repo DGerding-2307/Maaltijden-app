@@ -157,3 +157,30 @@ test('agenda-abonnement (ICS) met maaltijden, dagtotaal en gewicht', async () =>
   assert.ok(!JSON.stringify(backup.settings || {}).includes('calendar_token'));
   assert.ok(backup.people?.length >= 1 || backup.tables?.people?.length >= 1 || JSON.stringify(backup).includes('weight_log'));
 });
+
+test('dag: planning telt mee in wat je zou eten, en verdwijnt als het gegeten is', async () => {
+  const tracker = await import('../server/tracker.js');
+  const repo = await import('../server/repo.js');
+  const person = tracker.savePerson({ name: 'Planner', sex: 'm', birth_year: 1990, height_cm: 180, activity: 1.2, goal: 'onderhoud' });
+  const id = person.id ?? person;
+  const date = '2031-05-05';
+  const ing = repo.saveIngredient({ name: 'testplanrijst', kcal: 100, protein: 10, carbs: 20, fat: 1, fiber: 2, salt: 0.5 });
+  const recipe = repo.saveRecipe({ title: 'Plan test', servings: 2, ingredients: [{ ingredient_id: ing.id, name: 'testplanrijst', quantity: 200, unit: 'g', auto_match: false }] });
+  const whole = repo.addPlanEntry({ date, meal: 'diner', recipe_id: recipe, servings: 4 });
+  const half = repo.addPlanEntry({ date, meal: 'lunch', recipe_id: recipe, servings: 0.5 });
+  let day = tracker.getDay(id, date);
+  assert.equal(day.totals.kcal, 0);
+  assert.equal(day.planned_totals.kcal, 150, 'hele portie voor 1 persoon plus een halve');
+  assert.equal(day.expected_totals.kcal, 150);
+  assert.equal(day.planned.find((p) => p.id === whole).kcal, 100);
+  assert.equal(day.planned.find((p) => p.id === half).kcal, 50);
+  assert.equal(tracker.logPlannedDay(id, date, half), 1);
+  day = tracker.getDay(id, date);
+  assert.equal(day.totals.kcal, 50, 'halve portie wordt ook als halve portie gelogd');
+  assert.equal(day.planned_totals.kcal, 100);
+  assert.equal(day.expected_totals.kcal, 150);
+  tracker.logPlannedDay(id, date);
+  day = tracker.getDay(id, date);
+  assert.equal(day.planned_totals.kcal, 0);
+  assert.equal(day.expected_totals.kcal, day.totals.kcal);
+});

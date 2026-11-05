@@ -12,11 +12,13 @@ const timeOf = (created) => {
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
 };
 
-function ring(eaten, target) {
+function ring(eaten, target, expected = eaten) {
   const size = 140; const r = 58; const c = 2 * Math.PI * r;
   const f = Math.min(eaten / (target || 1), 1);
+  const g = Math.min(expected / (target || 1), 1);
   return `<svg width="100%" height="100%" viewBox="0 0 ${size} ${size}" aria-hidden="true">
     <circle class="ring-bg" cx="70" cy="70" r="${r}" fill="none" stroke-width="13"/>
+    ${g > f ? `<circle class="ring-plan" cx="70" cy="70" r="${r}" fill="none" stroke-width="13" stroke-linecap="round" stroke-dasharray="${(c * g).toFixed(1)} ${c.toFixed(1)}"/>` : ''}
     <circle class="ring-fg" cx="70" cy="70" r="${r}" fill="none" stroke-width="13" stroke-linecap="round" stroke-dasharray="${(c * f).toFixed(1)} ${c.toFixed(1)}" ${f > 0 ? '' : 'opacity="0"'}/></svg>`;
 }
 const hearts = (n) => `<span class="hearts" aria-label="${n} van 5 hartjes">${'♥'.repeat(n)}<i>${'♥'.repeat(5 - n)}</i></span>`;
@@ -83,12 +85,19 @@ export async function render(root, params) {
   function drawDay(day) {
     const t = day.targets; const n = day.totals;
     const left = Math.round(t.kcal - n.kcal);
-    const mac = (label, v, target, color) => `<div class="mac"><div class="t">${label} <span>${num(v, 0)} / ${num(target, 0)} g</span></div>
-      <div class="bar"><i style="width:${Math.min(100, (v / (target || 1)) * 100)}%;background:var(${color})"></i></div></div>`;
-    $('[data-day]', root).innerHTML = `<div class="ring ${left < 0 ? 'over' : ''}">${ring(n.kcal, t.kcal)}
+    const e = day.expected_totals || n;
+    const hasPlan = e.kcal > n.kcal;
+    const pctOf = (v, target) => Math.min(100, (v / (target || 1)) * 100);
+    const mac = (label, key, target, color) => {
+      const v = n[key]; const after = e[key];
+      return `<div class="mac"><div class="t">${label} <span>${num(v, 0)} / ${num(target, 0)} g</span></div>
+      <div class="bar">${after > v ? `<i class="plan" style="width:${pctOf(after, target)}%;background:var(${color})"></i>` : ''}<i style="width:${pctOf(v, target)}%;background:var(${color})"></i></div>
+      ${after > v ? `<div class="plan-note">met planning ${num(after, 0)} g</div>` : ''}</div>`;
+    };
+    $('[data-day]', root).innerHTML = `<div class="ring ${left < 0 ? 'over' : ''}">${ring(n.kcal, t.kcal, e.kcal)}
         <div class="v"><b>${num(Math.abs(left), 0)}</b><small>${left >= 0 ? 'kcal over' : 'kcal te veel'}</small></div></div>
-      <div>${mac('Eiwit', n.protein, t.protein, '--m-p')}${mac('Koolhydraten', n.carbs, t.carbs, '--m-c')}${mac('Vet', n.fat, t.fat, '--m-f')}
-        <p class="muted small" style="margin:.3rem 0 0">${num(n.kcal, 0)} van ${num(t.kcal, 0)} kcal gegeten</p></div>`;
+      <div>${mac('Eiwit', 'protein', t.protein, '--m-p')}${mac('Koolhydraten', 'carbs', t.carbs, '--m-c')}${mac('Vet', 'fat', t.fat, '--m-f')}
+        <p class="muted small" style="margin:.3rem 0 0">${num(n.kcal, 0)} van ${num(t.kcal, 0)} kcal gegeten${hasPlan ? `<br>Eet je alles wat gepland staat: <strong class="${e.kcal > t.kcal ? 'bad' : ''}">${num(e.kcal, 0)} kcal</strong>` : ''}</p></div>`;
   }
 
   function drawMeals(day) {
@@ -106,7 +115,7 @@ export async function render(root, params) {
       for (const p of planned) {
         rows.push(`<div class="meal-row"><span class="meal-thumb">${MEAL_ICONS[m]}</span>
           <span class="m"><span class="k">${m} · gepland</span><span class="n">${esc(p.title)}</span></span>
-          <button type="button" class="planned-chip" data-eaten="${p.id}">✓ Gegeten</button></div>`);
+          <button type="button" class="planned-chip" data-eaten="${p.id}">✓ Gegeten · ${num(p.kcal, 0)} kcal</button></div>`);
       }
       if (!block.entries.length && !planned.length && m !== 'tussendoor') {
         rows.push(`<button type="button" class="meal-row add" data-add="${m}"><span class="meal-thumb">＋</span>
