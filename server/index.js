@@ -314,6 +314,10 @@ export function createApp() {
   }));
   api.put('/ingredients/:id', wrap((req) => repo.saveIngredient(req.body, Number(req.params.id)) || Promise.reject(notFound())));
   api.delete('/ingredients/:id', wrap((req) => repo.deleteIngredient(Number(req.params.id))));
+  api.get('/ingredients/:id/packages', wrap((req) => repo.getPackages(Number(req.params.id)) || Promise.reject(notFound())));
+  api.post('/ingredients/:id/packages', wrap((req) => repo.savePackage(Number(req.params.id), req.body || {})));
+  api.put('/ingredients/:id/packages/:packageId', wrap((req) => repo.updatePackage(Number(req.params.id), Number(req.params.packageId), req.body || {})));
+  api.delete('/ingredients/:id/packages/:key', wrap((req) => repo.deletePackage(Number(req.params.id), req.params.key)));
   api.post('/ingredients/:id/alias', wrap((req) => repo.addIngredientAlias(Number(req.params.id), req.body.name) || Promise.reject(notFound())));
   api.post('/ingredients/:id/estimate', wrap(async (req) => {
     const ing = repo.getIngredient(Number(req.params.id));
@@ -539,6 +543,7 @@ export function createApp() {
   api.get('/shopping', wrap((req) => repo.getShoppingList(week(req.query.week), 7)));
   api.put('/shopping/check', wrap((req) => repo.setShoppingCheck(week(req.body.week), req.body.key, req.body.checked)));
   api.put('/shopping/have', wrap((req) => repo.setShoppingHave(week(req.body.week), req.body.key, req.body.have)));
+  api.put('/shopping/package', wrap((req) => repo.setShoppingPackage(week(req.body.week), req.body.key, req.body.choice)));
   api.post('/shopping/checked-to-have', wrap((req) => repo.shoppingCheckedToHave(week(req.body.week))));
   api.post('/shopping/extras', wrap((req) => repo.addShoppingExtra(week(req.body.week), String(req.body.name || '').trim())));
   api.put('/shopping/extras/:id', wrap((req) => repo.updateShoppingExtra(Number(req.params.id), req.body.checked)));
@@ -570,6 +575,8 @@ export function createApp() {
   api.post('/ai/import', wrap((req) => ai.importRecipe(req.body)));
   api.post('/ai/generate', wrap((req) => ai.generateRecipe(req.body)));
   api.post('/ai/label', wrap((req) => ai.readLabel(req.body)));
+  api.post('/receipt/read', wrap(async (req) => repo.prepareReceipt(await ai.readReceipt(req.body || {}))));
+  api.post('/receipt/apply', wrap((req) => repo.applyReceipt(req.body || {})));
   api.post('/ai/photo', wrap(async (req) => {
     const result = await ai.analyzeMealPhoto(req.body);
     if (!result.is_food) return { ...result, items: [], preview: null };

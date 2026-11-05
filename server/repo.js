@@ -1,6 +1,6 @@
 // Data-toegang: recepten, ingrediënten, planning en boodschappen.
 import { getDb, tx } from './db.js';
-import { computeRecipe, buildShoppingList, NUTRIENTS, effectiveAmount, gramsFor, pricePerGram } from './calc.js';
+import { computeRecipe, buildShoppingList, NUTRIENTS, effectiveAmount, gramsFor, pricePerGram, packageOptions } from './calc.js';
 import { addDays } from './seed.js';
 
 const ING_FIELDS = [
@@ -106,6 +106,140 @@ export function linkRecipeIngredient(recipeId, rowId, ingredientId) {
   const res = getDb().prepare('UPDATE recipe_ingredients SET ingredient_id = ? WHERE id = ? AND recipe_id = ?')
     .run(ingredientId ? Number(ingredientId) : null, rowId, recipeId);
   return res.changes > 0;
+}
+
+// ---------- Verpakkingen ----------
+
+export function listExtraPackages(ingredientId) {
+  return getDb().prepare('SELECT * FROM ingredient_packages WHERE ingredient_id = ? ORDER BY grams').all(ingredientId);
+}
+
+/** Hoofdverpakking en extra verpakkingen van een ingrediënt, of null als het ingrediënt niet bestaat. */
+export function getPackages(ingredientId) {
+  const ing = getIngredient(ingredientId);
+  return ing ? packageOptions(ing, listExtraPackages(ingredientId)) : null;
+}
+
+/**
+ * Verpakking opslaan. Bestaat dit gewicht al bij het ingrediënt, dan wordt die verpakking bijgewerkt.
+ * Zonder prijs blijft een bestaande prijs staan. Heeft het ingrediënt nog geen verpakking, dan wordt dit de hoofdverpakking.
+ */
+export function savePackage(ingredientId, { grams, label = null, price_cents = null, price_source = 'handmatig', price_note = 'Zelf ingevuld' }) {
+  const g = Number(grams);
+  if (!(g > 0)) throw Object.assign(new Error('Geef het gewicht van de verpakking op'), { status: 400 });
+  const price = price_cents === '' || price_cents == null ? null : Math.round(Number(price_cents));
+  if (price != null && !(price >= 0)) throw Object.assign(new Error('De prijs klopt niet'), { status: 400 });
+  return tx((db) => {
+    const ing = getIngredient(ingredientId);
+    if (!ing) throw Object.assign(new Error('Ingrediënt niet gevonden'), { status: 404 });
+    const main = Number(ing.package_grams);
+    if (!(main > 0) || main === g) {
+      const update = { package_grams: g };
+      if (label) update.package_label = label;
+      if (price != null) Object.assign(update, { price_cents: price, price_source, price_note, price_count: null, price_updated_at: new Date().toISOString().slice(0, 10) });
+      saveIngredient(update, ingredientId);
+    } else {
+      db.prepare(`INSERT INTO ingredient_packages (ingredient_id, grams, label, price_cents, price_source) VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(ingredient_id, grams) DO UPDATE SET label = COALESCE(excluded.label, label), price_cents = COALESCE(excluded.price_cents, price_cents),
+        price_source = CASE WHEN excluded.price_cents IS NULL THEN price_source ELSE excluded.price_source END, updated_at = datetime('now')`)
+        .run(ingredientId, g, label || null, price, price_source);
+    }
+    return getPackages(ingredientId);
+  });
+}
+
+/** Extra verpakking wijzigen; ook het gewicht mag veranderen. */
+export function updatePackage(ingredientId, packageId, { grams, label, price_cents }) {
+  const g = Number(grams);
+  if (!(g > 0)) throw Object.assign(new Error('Geef het gewicht van de verpakking op'), { status: 400 });
+  const price = price_cents === '' || price_cents == null ? null : Math.round(Number(price_cents));
+  try {
+    const res = getDb().prepare(`UPDATE ingredient_packages SET grams = ?, label = ?, price_cents = ?, price_source = 'handmatig', updated_at = datetime('now')
+      WHERE id = ? AND ingredient_id = ?`).run(g, label || null, price, packageId, ingredientId);
+    if (!res.changes) throw Object.assign(new Error('Verpakking niet gevonden'), { status: 404 });
+  } catch (err) {
+    if (/UNIQUE/.test(err.message)) throw Object.assign(new Error('Deze verpakkingsgrootte bestaat al'), { status: 400 });
+    throw err;
+  }
+  return getPackages(ingredientId);
+}
+
+/** Verpakking weghalen. Gaat de hoofdverpakking weg, dan schuift de volgende door. */
+export function deletePackage(ingredientId, key) {
+  return tx((db) => {
+    const ing = getIngredient(ingredientId);
+    if (!ing) throw Object.assign(new Error('Ingrediënt niet gevonden'), { status: 404 });
+    if (key === 'main') {
+      const next = listExtraPackages(ingredientId)[0];
+      if (next) {
+        db.prepare('DELETE FROM ingredient_packages WHERE id = ?').run(next.id);
+        db.prepare('UPDATE ingredients SET package_grams = ?, package_label = ?, price_cents = ?, price_source = ? WHERE id = ?')
+          .run(next.grams, next.label, next.price_cents, next.price_source, ingredientId);
+      } else {
+        db.prepare('UPDATE ingredients SET package_grams = NULL, package_label = NULL, price_cents = NULL WHERE id = ?').run(ingredientId);
+      }
+    } else {
+      const res = db.prepare('DELETE FROM ingredient_packages WHERE id = ? AND ingredient_id = ?').run(Number(String(key).replace(/^p/, '')), ingredientId);
+      if (!res.changes) throw Object.assign(new Error('Verpakking niet gevonden'), { status: 404 });
+    }
+    return getPackages(ingredientId);
+  });
+}
+
+/** Wat Claude van een bonnetje las, klaarzetten voor het controlescherm. Slaat nog niets op. */
+export function prepareReceipt(read) {
+  const lines = (read.items || []).map((item) => {
+    // Alleen een exacte naam: losse woorden zijn te riskant (‘Kaneel Deense Knoop’ is geen kaneel)
+    const ing = item.is_food ? matchExact(item.ingredient) : null;
+    const options = ing ? getPackages(ing.id) : [];
+    const onReceipt = Number(item.grams_per_package) > 0;
+    const grams = onReceipt ? Number(item.grams_per_package) : (options[0]?.grams ?? (Number(item.estimated_grams) > 0 ? Number(item.estimated_grams) : null));
+    const price = Number(item.unit_price_cents) > 0 ? Math.round(Number(item.unit_price_cents)) : null;
+    return {
+      receipt_text: item.receipt_text, count: Number(item.count) || 1, discount: !!item.discount, is_food: !!item.is_food,
+      ingredient_id: ing?.id ?? null, ingredient_name: ing?.name ?? (item.is_food ? String(item.new_name || '').trim().toLowerCase() : ''),
+      // Staat nog niet in de app: kan een nieuw ingrediënt worden, als je de regel aanvinkt
+      new_ingredient: !ing && item.is_food ? { category: item.category || 'Overig', per100: item.per100 || {} } : null,
+      grams, grams_on_receipt: onReceipt, price_cents: price,
+      old_price_cents: options.find((o) => o.grams === grams)?.price_cents ?? null,
+      selected: !!(ing && grams && price),
+    };
+  });
+  return { readable: !!read.readable, store: read.store || '', date: read.date || '', lines };
+}
+
+function matchExact(name) {
+  const n = String(name || '').trim();
+  return n ? getDb().prepare('SELECT * FROM ingredients WHERE name = ? COLLATE NOCASE').get(n) || null : null;
+}
+
+/** De gecontroleerde regels van een bonnetje opslaan als verpakking en prijs. */
+export function applyReceipt({ store, date, lines }) {
+  if (!Array.isArray(lines) || !lines.length) throw Object.assign(new Error('Er is niets aangevinkt'), { status: 400 });
+  for (const l of lines) {
+    if (l.new_ingredient) {
+      if (!String(l.new_ingredient.name || '').trim()) throw Object.assign(new Error('Geef het nieuwe ingrediënt een naam'), { status: 400 });
+    } else if (!getIngredient(Number(l.ingredient_id))) throw Object.assign(new Error('Ingrediënt niet gevonden'), { status: 404 });
+    if (!(Number(l.grams) > 0) || !(Number(l.price_cents) > 0)) throw Object.assign(new Error('Elke regel heeft een gewicht en prijs nodig'), { status: 400 });
+  }
+  const note = ['Bonnetje', store, date].filter(Boolean).join(' ');
+  const ids = new Set();
+  let created = 0;
+  for (const l of lines) {
+    let id = Number(l.ingredient_id);
+    if (l.new_ingredient) {
+      const name = String(l.new_ingredient.name).trim().toLowerCase();
+      id = matchExact(name)?.id;
+      if (!id) {
+        const per100 = Object.fromEntries(NUTRIENTS.map((n) => [n, Number.isFinite(Number(l.new_ingredient.per100?.[n])) ? Number(l.new_ingredient.per100[n]) : null]));
+        id = saveIngredient({ ...per100, name, category: l.new_ingredient.category || 'Overig', unit_weight_g: Number(l.grams), nutrition_source: 'Claude (schatting, van bonnetje)' }).id;
+        created++;
+      }
+    }
+    savePackage(id, { grams: l.grams, price_cents: l.price_cents, price_note: note });
+    ids.add(id);
+  }
+  return { updated: ids.size, created };
 }
 
 export function deleteIngredient(id) {
@@ -516,8 +650,14 @@ export function getShoppingList(start, days = 7) {
       if (r) entries.push({ servings: p.servings * (Number(x.quantity) || 1), recipe: parseRecipe(r), rows: rowsFor(x.recipe_id) });
     }
   }
-  const list = buildShoppingList(entries);
-  const states = new Map(db.prepare('SELECT item_key, checked, have FROM shopping_state WHERE week = ?').all(start).map((r) => [r.item_key, r]));
+  const states = new Map(db.prepare('SELECT item_key, checked, have, package_choice FROM shopping_state WHERE week = ?').all(start).map((r) => [r.item_key, r]));
+  const choices = new Map([...states].filter(([, s]) => s.package_choice).map(([key, s]) => [key, s.package_choice]));
+  const extraPackages = new Map();
+  const packagesFor = (id) => {
+    if (!extraPackages.has(id)) extraPackages.set(id, listExtraPackages(id));
+    return extraPackages.get(id);
+  };
+  const list = buildShoppingList(entries, { packagesFor, choices });
   for (const item of list.items) {
     item.checked = !!states.get(item.key)?.checked;
     item.have = !!states.get(item.key)?.have;
@@ -538,6 +678,12 @@ export function setShoppingHave(week, key, have) {
     ON CONFLICT(week, item_key) DO UPDATE SET have = excluded.have`).run(week, key, have ? 1 : 0);
 }
 
+/** Zelf een verpakking kiezen voor deze week; leeg = de app kiest de goedkoopste. */
+export function setShoppingPackage(week, key, choice) {
+  getDb().prepare(`INSERT INTO shopping_state (week, item_key, package_choice) VALUES (?, ?, ?)
+    ON CONFLICT(week, item_key) DO UPDATE SET package_choice = excluded.package_choice`).run(week, key, choice || null);
+}
+
 /** Alles wat is afgevinkt (gekocht) naar ‘Al in huis’; afgevinkte extra boodschappen zijn klaar en gaan van de lijst. */
 export function shoppingCheckedToHave(week) {
   return tx((db) => {
@@ -551,7 +697,7 @@ export function shoppingCheckedToHave(week) {
 
 // Geheimen gaan nooit mee in een back-up en blijven bij terugzetten behouden.
 const SECRET_SETTINGS = ['anthropic_api_key', 'calendar_token', 'ha_token', 'homeassistant_token', 'homeassistant_url', 'homeassistant_app_url', 'homeassistant_images', 'mcp_tokens'];
-const BACKUP_TABLES = ['ingredients', 'recipes', 'recipe_ingredients', 'meal_plan', 'plan_extras', 'shopping_state', 'shopping_extras', 'settings', 'people', 'food_log', 'weight_log'];
+const BACKUP_TABLES = ['ingredients', 'ingredient_packages', 'recipes', 'recipe_ingredients', 'meal_plan', 'plan_extras', 'shopping_state', 'shopping_extras', 'settings', 'people', 'food_log', 'weight_log'];
 
 export function exportAll() {
   const db = getDb();

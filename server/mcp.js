@@ -57,6 +57,7 @@ const moment = (m, fallback = 'diner') => {
   return v;
 };
 const round = (n) => (n == null ? null : Math.round(n));
+const packageOut = (o) => ({ gram: o.grams, naam: o.label, prijs: euro(o.price_cents), hoofdverpakking: o.key === 'main' });
 
 function planItem(e) {
   return {
@@ -291,13 +292,49 @@ const TOOLS = {
       return { verwijderd: true, id: r.id, titel: r.title, uit_planning: planned };
     },
   },
+  verpakkingen_bekijken: {
+    description: 'De verpakkingen van een ingrediënt met gewicht en prijs. De boodschappenlijst kiest hieruit de goedkoopste combinatie.',
+    input: { ingredient: str('Naam van het ingrediënt') },
+    required: ['ingredient'],
+    run: ({ ingredient }) => {
+      const ing = repo.matchIngredient(ingredient);
+      if (!ing) throw fail(`Ingrediënt ‘${ingredient}’ niet gevonden.`);
+      return { ingredient: ing.name, verpakkingen: repo.getPackages(ing.id).map(packageOut) };
+    },
+  },
+  verpakking_opslaan: {
+    description: 'Voeg een verpakkingsgrootte toe aan een ingrediënt, of werk de prijs bij als dit gewicht al bestaat. Alleen doen met een echte prijs, niet met een schatting.',
+    input: { ingredient: str('Naam van het ingrediënt'), gram: num('Gewicht of inhoud van de verpakking in gram'), prijs: num('Prijs in euro, bv. 3.49'), label: str('Naam van de verpakking, bv. ‘6 stuks’. Leeg = het gewicht.') },
+    required: ['ingredient', 'gram'],
+    changes: true,
+    run: ({ ingredient, gram, prijs, label }) => {
+      const ing = repo.matchIngredient(ingredient);
+      if (!ing) throw fail(`Ingrediënt ‘${ingredient}’ niet gevonden.`);
+      if (!(Number(gram) > 0)) throw fail('Geef het gewicht van de verpakking op.');
+      const list = repo.savePackage(ing.id, { grams: Number(gram), label: label || null, price_cents: prijs == null ? null : Math.round(Number(prijs) * 100), price_note: 'Via Claude' });
+      return { opgeslagen: true, ingredient: ing.name, verpakkingen: list.map(packageOut) };
+    },
+  },
+  verpakking_verwijderen: {
+    description: 'Haal een verpakkingsgrootte weg bij een ingrediënt. Gaat de hoofdverpakking weg, dan schuift de volgende door.',
+    input: { ingredient: str('Naam van het ingrediënt'), gram: num('Gewicht van de verpakking in gram') },
+    required: ['ingredient', 'gram'],
+    changes: true,
+    run: ({ ingredient, gram }) => {
+      const ing = repo.matchIngredient(ingredient);
+      if (!ing) throw fail(`Ingrediënt ‘${ingredient}’ niet gevonden.`);
+      const option = repo.getPackages(ing.id).find((o) => o.grams === Number(gram));
+      if (!option) throw fail(`${ing.name} heeft geen verpakking van ${gram} g.`);
+      return { verwijderd: true, ingredient: ing.name, verpakkingen: repo.deletePackage(ing.id, option.key).map(packageOut) };
+    },
+  },
   boodschappenlijst: {
     description: 'De boodschappenlijst van een week (maandag t/m zondag) volgens de planner: wat nog gehaald moet worden, '
       + 'wat al is afgevinkt of in huis is, en eigen artikelen.',
     input: { week: str('Een datum in de week (JJJJ-MM-DD). Leeg = deze week.') },
     run: ({ week }) => {
       const list = repo.getShoppingList(weekOf(week), 7);
-      const label = (i) => (i.packages && i.package_label ? `${i.packages}× ${i.package_label}` : i.grams ? `${Math.round(i.grams)} g` : null);
+      const label = (i) => (i.package_text ? i.package_text : i.grams ? `${Math.round(i.grams)} g` : null);
       const open = list.items.filter((i) => !i.checked && !i.have && !i.pantry);
       return {
         week: `${list.start} t/m ${list.end}`,

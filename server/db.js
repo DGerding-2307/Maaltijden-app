@@ -88,6 +88,18 @@ CREATE TABLE IF NOT EXISTS shopping_state (
   PRIMARY KEY (week, item_key)
 );
 
+-- Extra verpakkingsgroottes van een ingrediënt. De hoofdverpakking staat in ingredients (package_grams, price_cents).
+CREATE TABLE IF NOT EXISTS ingredient_packages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ingredient_id INTEGER NOT NULL REFERENCES ingredients(id) ON DELETE CASCADE,
+  grams REAL NOT NULL,
+  label TEXT,
+  price_cents INTEGER,
+  price_source TEXT NOT NULL DEFAULT 'handmatig',
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (ingredient_id, grams)
+);
+
 CREATE TABLE IF NOT EXISTS shopping_extras (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   week TEXT NOT NULL,
@@ -224,6 +236,7 @@ const MIGRATIONS = [
   ['meal_plan', 'leftover_of', 'INTEGER'],
   ['meal_plan', 'no_shopping', 'INTEGER NOT NULL DEFAULT 0'],
   ['shopping_state', 'have', 'INTEGER NOT NULL DEFAULT 0'],
+  ['shopping_state', 'package_choice', 'TEXT'],
   ['ingredients', 'off_category', 'TEXT'],
   ['ingredients', 'price_count', 'INTEGER'],
   ['ingredients', 'price_note', 'TEXT'],

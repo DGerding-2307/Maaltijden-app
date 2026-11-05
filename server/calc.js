@@ -158,11 +158,100 @@ export function computeRecipe(recipe, rows, factor = 1) {
   };
 }
 
+/** "500 g", "1,5 kg" */
+export function packageLabel(grams) {
+  const g = Number(grams);
+  return g >= 1000 ? `${String(round(g / 1000, 3)).replace('.', ',')} kg` : `${round(g, 1)} g`;
+}
+
+/** Alle verpakkingen van een ingrediënt: eerst de hoofdverpakking, dan de extra opties. */
+export function packageOptions(ing, extras = []) {
+  const options = [];
+  if (Number(ing?.package_grams) > 0) {
+    options.push({
+      key: 'main', grams: Number(ing.package_grams), label: ing.package_label || packageLabel(ing.package_grams),
+      price_cents: Number(ing.price_cents) > 0 ? Number(ing.price_cents) : null,
+    });
+  }
+  for (const x of extras) {
+    if (!(Number(x.grams) > 0)) continue;
+    options.push({
+      key: `p${x.id}`, id: x.id, grams: Number(x.grams), label: x.label || packageLabel(x.grams),
+      price_cents: Number(x.price_cents) > 0 ? Number(x.price_cents) : null,
+    });
+  }
+  return options;
+}
+
+const packageResult = (need, chosen) => {
+  const picks = chosen.map(([o, count]) => ({
+    key: o.key, label: o.label, grams: o.grams, count, price_cents: o.price_cents,
+    cost_cents: o.price_cents == null ? null : o.price_cents * count,
+  }));
+  const grams = picks.reduce((s, p) => s + p.grams * p.count, 0);
+  return {
+    picks, grams, packages: picks.reduce((s, p) => s + p.count, 0),
+    cost_cents: picks.some((p) => p.cost_cents == null) ? null : picks.reduce((s, p) => s + p.cost_cents, 0),
+    leftover_grams: Math.max(0, round(grams - need, 0)),
+    text: picks.map((p) => `${p.count}× ${p.label}`).join(' + '),
+  };
+};
+
+/** Zo vaak als nodig precies deze verpakking kopen. Een klein tekort (2% van de verpakking) telt niet mee. */
+export function packagesOfOption(need, option) {
+  return packageResult(need, [[option, Math.max(1, Math.ceil(need / option.grams - 0.02))]]);
+}
+
+/**
+ * De goedkoopste combinatie verpakkingen waarmee je genoeg hebt. Bij gelijke prijs: de minste rest,
+ * daarna de minste verpakkingen. Opties zonder prijs tellen alleen mee als geen enkele optie een prijs heeft.
+ */
+export function cheapestPackages(need, options) {
+  const usable = (options || []).filter((o) => Number(o.grams) > 0);
+  if (!usable.length || !(need > 0)) return null;
+  const priced = usable.filter((o) => o.price_cents > 0);
+  const pool = priced.length ? priced : usable;
+  if (pool.length === 1) return packagesOfOption(need, pool[0]);
+  // Dezelfde marge als bij één verpakking, gerekend op de kleinste optie
+  const smallest = Math.min(...pool.map((o) => o.grams));
+  const target = Math.max(1, Math.ceil(need - 0.02 * smallest));
+  const sizes = pool.map((o) => Math.max(1, Math.round(o.grams)));
+  const limit = target + Math.max(...sizes);
+  // Te grote hoeveelheid om door te rekenen: de voordeligste prijs per gram is dan vrijwel altijd het beste
+  if (limit > 200000) return packagesOfOption(need, [...pool].sort((a, b) => ((a.price_cents || 0) / a.grams) - ((b.price_cents || 0) / b.grams))[0]);
+  const cost = new Float64Array(limit + 1).fill(Infinity);
+  const count = new Int32Array(limit + 1);
+  const from = new Int32Array(limit + 1).fill(-1);
+  cost[0] = 0;
+  for (let t = 0; t < target; t++) {
+    if (cost[t] === Infinity) continue;
+    pool.forEach((o, i) => {
+      const next = t + sizes[i];
+      const c = cost[t] + (priced.length ? o.price_cents : 0);
+      if (c < cost[next] || (c === cost[next] && count[t] + 1 < count[next])) {
+        cost[next] = c;
+        count[next] = count[t] + 1;
+        from[next] = i;
+      }
+    });
+  }
+  let best = -1;
+  for (let t = target; t <= limit; t++) {
+    if (cost[t] !== Infinity && (best < 0 || cost[t] < cost[best])) best = t;
+  }
+  const counts = pool.map(() => 0);
+  for (let t = best; t > 0; t -= sizes[from[t]]) counts[from[t]]++;
+  const chosen = pool.map((o, i) => [o, counts[i]]).filter(([, n]) => n > 0).sort((a, b) => b[0].grams - a[0].grams);
+  return packageResult(need, chosen);
+}
+
 /**
  * Boodschappenlijst: aggregeer benodigde grammen per ingrediënt over meerdere geplande maaltijden.
  * @param entries [{servings, recipe: {servings}, rows: [...]}]
+ * @param packagesFor (ingredientId) => extra verpakkingen van dat ingrediënt
+ * @param choices Map artikelsleutel → zelf gekozen verpakking voor deze week
  */
-export function buildShoppingList(entries) {
+export function buildShoppingList(entries, { packagesFor = () => [], choices = new Map() } = {}) {
   const items = new Map();
   for (const entry of entries) {
     const factor = (Number(entry.servings) || entry.recipe.servings) / (Number(entry.recipe.servings) || 1);
@@ -196,12 +285,13 @@ export function buildShoppingList(entries) {
   let total = 0;
   const list = [...items.values()].map((item) => {
     const ing = item.ingredient;
-    let packages = null;
-    let cost = null;
-    if (ing && Number(ing.package_grams) > 0 && item.grams > 0) {
-      packages = Math.max(1, Math.ceil(item.grams / Number(ing.package_grams) - 0.02));
-      if (Number(ing.price_cents) > 0) cost = packages * Number(ing.price_cents);
-    }
+    const options = ing ? packageOptions(ing, packagesFor(ing.id)) : [];
+    const chosen = options.find((o) => o.key === choices.get(item.key));
+    const pick = item.grams > 0 && options.length
+      ? (chosen ? packagesOfOption(item.grams, chosen) : cheapestPackages(item.grams, options))
+      : null;
+    const packages = pick?.packages ?? null;
+    const cost = pick?.cost_cents ?? null;
     if (cost != null && !item.pantry) total += cost;
     const { ingredient, recipes, ...rest } = item;
     return {
@@ -210,7 +300,12 @@ export function buildShoppingList(entries) {
       quantity: round(item.quantity, 2),
       packages,
       density: Number(ing?.density) || 1,
-      package_label: ing?.package_label || (ing?.package_grams ? `${ing.package_grams} g` : null),
+      package_label: pick?.picks.length === 1 ? pick.picks[0].label : ing?.package_label || (ing?.package_grams ? `${ing.package_grams} g` : null),
+      package_text: pick?.text ?? null,
+      package_picks: pick?.picks ?? [],
+      package_options: options,
+      package_choice: chosen?.key ?? null,
+      leftover_grams: pick?.leftover_grams ?? null,
       image_url: ing?.image_url || null,
       cost_cents: cost,
       recipes: [...recipes],
