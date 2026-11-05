@@ -121,7 +121,8 @@ const TOOLS = {
       if (!rid && !String(titel || '').trim()) throw fail('Geef een recept_id of een titel.');
       const recipe = rid ? repo.getRecipe(Number(rid)) : null;
       if (rid && !recipe) throw fail(`Recept ${rid} bestaat niet. Zoek het id met recepten_zoeken.`);
-      const servings = Number(personen) || getSetting('default_servings', 2);
+      // Ontbijt en lunch zijn standaard voor 1 persoon
+      const servings = Number(personen) || (['ontbijt', 'lunch'].includes(moment(m)) ? 1 : getSetting('default_servings', 2));
       const id = repo.addPlanEntry({ date: isoDate(datum), meal: moment(m), recipe_id: recipe?.id || null, title: recipe ? null : String(titel).trim(), servings });
       return { gepland: true, id, datum: isoDate(datum), moment: moment(m), titel: recipe?.title || String(titel).trim(), personen: servings };
     },
