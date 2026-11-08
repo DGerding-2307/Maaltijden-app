@@ -57,6 +57,10 @@ geeft hij een tip, maar boos wordt hij nooit. Geef hem zelf een naam: Bolletje, 
 - **Nederlands.** Nederlandse recepten, Nederlandse supermarktprijzen en voedingswaarden uit NEVO en Open Food Facts.
 - **Voor het hele huishouden.** Samen plannen en boodschappen doen, en ieder een eigen dagboek en maatje.
 
+## Nieuw in versie 4.10.2
+
+- ⏲ **Kookmodus: een timer voor elke tijd in een stap.** Staan er meerdere tijden in één stap (zoals ‘kook de aardappels 8 minuten en de broccoli 3 minuten’), dan krijg je nu voor elke tijd een eigen timerknop, niet alleen voor de eerste. Lopende timers laten zien bij welke stap en hoeveel minuten ze horen. Tijden als ‘8-10 minuten’ en ‘1,5 uur’ worden goed herkend.
+
 ## Nieuw in versie 4.10.1
 
 - 📱 **Telefoon: de app past weer precies op je scherm.** Je kon op sommige schermen (zoals Recepten en een geopend recept) zijwaarts en scheef schuiven, omdat de onderste menubalk en de kaarten Ingrediënten en Voedingswaarden net breder waren dan het scherm. Alles blijft nu binnen de schermbreedte, de tabel met voedingswaarden heeft wat meer ruimte, en als er een venster open is schuift de pagina erachter niet meer mee.

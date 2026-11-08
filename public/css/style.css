@@ -413,6 +413,8 @@ body.cooking main { padding-top: calc(.9rem + var(--sat)); }
 .cook-ingredients li { padding: .3rem 0; break-inside: avoid; }
 .cook-ingredients label { font-weight: 400; display: flex; gap: .5rem; align-items: baseline; }
 .cook-timers { display: flex; gap: .5rem; flex-wrap: wrap; margin: 1rem 0; }
+.cook-timer-btns { display: flex; flex-wrap: wrap; gap: .6rem; }
+.cook-timer-btns .btn { flex: 1 1 14rem; }
 .timer { background: var(--ai-soft); padding: .5rem .8rem; border-radius: 10px; font-size: 1.2rem; font-variant-numeric: tabular-nums; }
 .timer.done { background: #fde3c8; animation: blink 1s infinite; }
 .cook-nav { display: flex; justify-content: space-between; gap: 1rem; padding: 1rem 0; }
