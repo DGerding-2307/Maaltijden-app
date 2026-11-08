@@ -57,6 +57,10 @@ geeft hij een tip, maar boos wordt hij nooit. Geef hem zelf een naam: Bolletje, 
 - **Nederlands.** Nederlandse recepten, Nederlandse supermarktprijzen en voedingswaarden uit NEVO en Open Food Facts.
 - **Voor het hele huishouden.** Samen plannen en boodschappen doen, en ieder een eigen dagboek en maatje.
 
+## Nieuw in versie 4.10.1
+
+- 📱 **Telefoon: de app past weer precies op je scherm.** Je kon op sommige schermen (zoals Recepten en een geopend recept) zijwaarts en scheef schuiven, omdat de onderste menubalk en de kaarten Ingrediënten en Voedingswaarden net breder waren dan het scherm. Alles blijft nu binnen de schermbreedte, de tabel met voedingswaarden heeft wat meer ruimte, en als er een venster open is schuift de pagina erachter niet meer mee.
+
 ## Nieuw in versie 4.10.0
 
 - 🖼️ **Claude kan een foto bij een recept zetten**: haalt Claude een recept uit een YouTube- of Instagram-video, dan zet hij de thumbnail er meteen bij
