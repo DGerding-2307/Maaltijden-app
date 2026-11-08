@@ -127,7 +127,7 @@ const I = [
   ['zuurkool', AGF, 20, 1.1, 1.9, 0.5, 0.2, 0, 2.5, 1.4, null, 520, 129, 0, 'zuurkool naturel', 1, '520 g'],
   ['andijvie gesneden', AGF, 15, 1.3, 1.0, 0.3, 0.2, 0, 2.4, 0.05, null, 400, 189, 0, 'andijvie', 1, '400 g'],
   ['wortel', AGF, 34, 0.7, 6.3, 5.8, 0.2, 0, 2.7, 0.1, 80, 1000, 129, 0, 'wortels,winterpeen,peen,wortelen,winterwortel', 1, '1 kg'],
-  ['ui', AGF, 32, 1.2, 5.9, 4.0, 0.1, 0, 1.7, 0, 100, 1000, 139, 0, 'uien,gele ui,gele uien,sjalot,sjalotten', 1, '1 kg'],
+  ['ui', AGF, 32, 1.2, 5.9, 4.0, 0.1, 0, 1.7, 0, 100, 1000, 139, 0, 'uien,gele ui,gele uien', 1, '1 kg'],
   ['rode ui', AGF, 34, 1.1, 6.5, 4.5, 0.1, 0, 1.7, 0, 100, 500, 129, 0, 'rode uien', 1, '500 g'],
   ['knoflook', AGF, 135, 6.4, 27, 1.0, 0.5, 0.1, 2.1, 0, 5, 150, 129, 0, 'teentje knoflook,knoflookteen,knoflookteentjes', 1, '3 bollen'],
   ['prei', AGF, 27, 1.6, 3.6, 2.6, 0.3, 0, 2.9, 0, 200, 400, 149, 0, 'preien', 1, '2 stuks'],
@@ -206,7 +206,7 @@ const I = [
   ['kokosmelk', WK, 190, 1.8, 3, 2, 19, 17, 0, 0.05, 400, 400, 169, 0, 'kokosmelk blik', 1, '400 ml'],
 
   ['tomatenpuree', CO, 90, 4.5, 15, 13, 0.5, 0.1, 3.5, 0.2, 70, 140, 79, 0, 'tomatenpuree blikje', 1, '2 x 70 g'],
-  ['tomatenblokjes', CO, 22, 1.2, 3.5, 3.2, 0.2, 0, 1, 0.1, 400, 400, 89, 0, 'gepelde tomaten,tomaten blik,tomatenblokjes blik', 1, '400 g'],
+  ['tomatenblokjes', CO, 22, 1.2, 3.5, 3.2, 0.2, 0, 1, 0.1, 400, 400, 89, 0, 'gepelde tomaten,tomaten blik,tomatenblokjes blik,tomaten uit blik,gepelde tomaten uit blik,pelati,tomatenblik', 1, '400 g'],
   ['passata', CO, 30, 1.4, 5, 4.5, 0.2, 0, 1.3, 0.3, null, 500, 129, 0, 'gezeefde tomaten,tomatensaus', 1, '500 g'],
   ['kidneybonen', CO, 100, 7, 13, 1, 0.5, 0.1, 6.5, 0.5, 250, 250, 89, 0, 'kidney bonen,rode bonen,bruine bonen', 1, '400 g (250 g uitgelekt)'],
   ['kikkererwten', CO, 120, 7, 15, 0.5, 2.5, 0.3, 5, 0.4, 240, 240, 89, 0, '', 1, '400 g (240 g uitgelekt)'],
@@ -214,7 +214,7 @@ const I = [
   ['spliterwten', CO, 340, 24, 50, 2, 1.6, 0.2, 23, 0, null, 500, 129, 0, 'groene spliterwten,erwten gedroogd', 1, '500 g'],
   ['appelmoes', CO, 75, 0.2, 17, 15, 0, 0, 1.2, 0, null, 360, 109, 0, '', 1, '360 g'],
   ['pesto', CO, 450, 5, 5, 3, 45, 6, 2, 2.5, null, 190, 229, 0, 'groene pesto,pesto genovese', 1, '190 g'],
-  ['bouillonblokje', CO, 250, 10, 20, 5, 15, 8, 1, 45, 10, 120, 129, 1, 'bouillon,runderbouillon,kippenbouillon,groentebouillon,bouillonblokjes', 1, '12 stuks'],
+  ['bouillonblokje', CO, 250, 10, 20, 5, 15, 8, 1, 45, 10, 120, 129, 1, 'bouillonblokjes,bouillontablet,bouillonpoeder,bouillonkorrels', 1, '12 stuks'],
   ['mayonaise', CO, 700, 1, 2, 2, 77, 6, 0, 1.2, null, 450, 199, 1, 'mayo', 1, '450 ml'],
   ['mosterd', CO, 150, 7, 6, 3, 10, 0.6, 3, 5.0, null, 370, 129, 1, 'grove mosterd,zaanse mosterd', 1, '370 g'],
 
@@ -255,7 +255,7 @@ const I = [
   ['kaneel', KR, 247, 4, 81, 2, 1.2, 0.3, 53, 0, null, 35, 129, 1, 'kaneelpoeder', 0.5, '35 g'],
   ['vermicelli', WK, 355, 12.5, 71, 3, 1.5, 0.3, 3, 0, null, 250, 89, 0, '', 1, '250 g'],
   ['zwarte olijven', CO, 145, 1, 3, 0, 15, 2, 3, 2.2, null, 150, 179, 0, 'olijven,kalamata olijven', 1, '150 g (uitgelekt)'],
-  ['komijn', KR, 375, 18, 44, 2, 22, 1.5, 11, 0.4, null, 35, 129, 1, 'komijnpoeder,djinten,cumin', 0.5, '35 g'],
+  ['komijn', KR, 375, 18, 44, 2, 22, 1.5, 11, 0.4, null, 35, 129, 1, 'komijnpoeder,komijnzaad,djinten,cumin', 0.5, '35 g'],
   ['honing', BR, 304, 0.3, 82, 82, 0, 0, 0, 0, null, 350, 299, 1, '', 1.4, '350 g'],
   // v2.8: vlees en vis om bij een maaltijd te kiezen
   ['gehaktbal', VV, 230, 16, 6, 1, 16, 6.5, 0.5, 1.3, 100, 400, 449, 0, 'gehaktballen', 1, '4 stuks'],
@@ -268,6 +268,24 @@ const I = [
   ['kipdrumsticks', VV, 170, 19, 0, 0, 10, 3, 0, 0.2, 110, 1000, 549, 0, 'drumsticks,kippenpoten,kippenboutjes', 1, '1 kg'],
   ['braadworst', VV, 290, 13, 2, 1, 26, 10, 0, 1.8, 100, 400, 399, 0, 'braadworsten,saucijs', 1, '4 stuks'],
   ['vegaburger', VV, 200, 15, 8, 1, 11, 1.5, 4, 1.2, 90, 360, 399, 0, 'vegetarische burger,vega burger,plantaardige burger', 1, '4 stuks'],
+  // v4.9: vloeibare bouillon los van blokjes/poeder, en ingrediënten die vaak ontbraken (waarden per 100 g, NEVO/USDA-benadering)
+  ['bouillon', CO, 5, 0.6, 0.3, 0.2, 0.2, 0.1, 0, 0.8, null, 1000, 25, 1, 'kippenbouillon,runderbouillon,groentebouillon,vleesbouillon,visbouillon,kalfsbouillon,bouillon vloeibaar,fond,kippenfond,runderfond,groentefond,visfond,bouillon (vloeibaar)', 1, '1 liter (van blokjes)'],
+  ['sjalot', AGF, 72, 2.5, 14, 7.9, 0.1, 0, 3.2, 0, 30, 250, 129, 0, 'sjalotten,sjalotje,sjalotjes', 1, '250 g'],
+  ['citroengras', AGF, 99, 1.8, 25, 0, 0.5, 0.1, 0, 0, 10, 30, 129, 0, 'citroengrasstengel,citroengrasstengels,stengel citroengras,sereh,serai,lemongrass', 1, '3 stengels'],
+  ['bleekselderij', AGF, 15, 0.7, 2.2, 1.8, 0.2, 0, 1.6, 0.2, 50, 500, 149, 0, 'stengel bleekselderij,bleekselderijstengel,selderijstengel,selderijstengels,stengelselderij,selderij', 1, '500 g'],
+  ['limoen', AGF, 30, 0.7, 7.7, 1.7, 0.2, 0, 2.8, 0, 65, 260, 149, 0, 'limoenen,limoensap,limoenpartjes,limoenrasp,limoentje', 1, '4 stuks'],
+  ['rawit', AGF, 40, 1.9, 8.8, 5.3, 0.4, 0, 1.5, 0, 4, 50, 99, 0, "rawitpeper,rawitpepers,cabe rawit,bird's eye chili,thaise chilipeper,vingerchilipeper,vingerchilipepers,vingerpeper", 1, '50 g'],
+  ['rozemarijn', AGF, 131, 3.3, 6.6, 0, 5.9, 2.8, 14, 0.1, 1.5, 15, 99, 0, 'verse rozemarijn,takje rozemarijn,rozemarijntakje,rozemarijntakjes', 1, '15 g'],
+  ['verse tijm', AGF, 101, 5.6, 10, 0, 1.7, 0.5, 14, 0, 1, 15, 99, 0, 'takje tijm,tijmtakje,tijmtakjes,takjes tijm', 1, '15 g'],
+  ['varkensschouder', VV, 230, 17, 0, 0, 18, 6.5, 0, 0.15, null, 1000, 899, 0, 'varkensschouderlap,varkensschouderlappen,varkensnek,procureur,varkensvlees,varkensstoofvlees,pulled pork,schouderstuk varken', 1, '1 kg'],
+  ['pancetta', VV, 300, 15, 0.5, 0.5, 27, 10, 0, 3.3, null, 125, 299, 0, 'pancettablokjes,pancetta blokjes,pancetta plakjes', 1, '125 g'],
+  ['rode wijn', DR, 70, 0.1, 0.3, 0.3, 0, 0, 0, 0, null, 750, 499, 1, 'droge rode wijn,wijn rood', 0.99, '75 cl'],
+  ['witte wijn', DR, 68, 0.1, 0.6, 0.6, 0, 0, 0, 0, null, 750, 499, 1, 'droge witte wijn,wijn wit', 0.99, '75 cl'],
+  ['appelciderazijn', OL, 21, 0, 0.9, 0.4, 0, 0, 0, 0, null, 500, 199, 1, 'appelazijn,ciderazijn,apple cider vinegar', 1.01, '500 ml'],
+  ['kurkuma', KR, 312, 9.7, 44, 3.2, 3.3, 1.8, 22.7, 0.1, null, 35, 129, 1, 'kurkumapoeder,geelwortel,koenjit,turmeric', 0.5, '35 g'],
+  ['gochugaru', KR, 282, 12, 25, 10, 14, 2.5, 35, 0.1, null, 100, 399, 1, 'koreaanse pepervlokken,koreaans chilipoeder,gochugaru pepervlokken,chilivlokken,pepervlokken', 0.4, '100 g'],
+  ['garam masala', KR, 379, 15, 45, 3, 15, 2, 23, 0.2, null, 35, 149, 1, 'garam masala kruiden', 0.5, '35 g'],
+  ['korianderzaad', KR, 298, 12.4, 13, 0, 17.8, 1, 41.9, 0.1, null, 30, 129, 1, 'gemalen koriander,korianderpoeder,ketoembar,koriander gemalen', 0.4, '30 g'],
 ];
 
 // Jumbo bake-off broodjes en snacks (zie seed-bakeoff.js): per stuk verkocht

@@ -118,10 +118,22 @@ export function computeRecipe(recipe, rows, factor = 1) {
   let costCents = 0;
   let missingNutrition = 0;
   let missingPrice = 0;
+  // Dekking: welk deel van het gewicht telt mee in de voedingswaarden?
+  const cov = { linked: 0, unlinked: 0, unlinkedNames: [], unknownWeight: [] };
   const lines = rows.map((row) => {
     const ing = row.ingredient || null;
     const amount = effectiveAmount(row, ing, factor);
     const grams = amount.grams;
+    const counts = !row.optional && normalizeUnit(row.unit) !== 'naar smaak'
+      && ((Number(row.quantity) > 0) || Number(row.grams) > 0);
+    if (counts) {
+      if (ing && grams > 0) cov.linked += grams;
+      else if (ing) cov.unknownWeight.push(row.name);
+      else {
+        cov.unlinked += gramsFor(row, null) * factor;
+        cov.unlinkedNames.push(row.name);
+      }
+    }
     let lineCost = null;
     if (ing && grams > 0) {
       for (const n of NUTRIENTS) total[n] += (Number(ing[n]) || 0) * grams / 100;
@@ -154,6 +166,13 @@ export function computeRecipe(recipe, rows, factor = 1) {
     cost_per_serving_cents: Math.round(costCents / servings),
     missing_nutrition: missingNutrition,
     missing_price: missingPrice,
+    coverage: {
+      percent: cov.linked + cov.unlinked > 0 ? Math.round((cov.linked / (cov.linked + cov.unlinked)) * 100) : (cov.unlinkedNames.length ? 0 : 100),
+      linked_grams: Math.round(cov.linked),
+      unlinked_grams: Math.round(cov.unlinked),
+      unlinked: cov.unlinkedNames,
+      unknown_weight: cov.unknownWeight,
+    },
     lines,
   };
 }

@@ -2,6 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
 import { syncBuiltins, OFF_CATEGORY_BY_NAME } from './seed.js';
+import { fixIngredientLinksV49 } from './repo.js';
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS ingredients (
@@ -202,7 +203,12 @@ export function openDatabase(file = process.env.DB_FILE || path.resolve('data/ma
   migrate(db);
   const count = db.prepare('SELECT COUNT(*) AS c FROM ingredients').get().c;
   // Nieuwe database: alles invullen. Bestaande database: nieuwe standaardrecepten en -ingrediënten toevoegen.
-  if (process.env.SKIP_SEED !== '1') lastSync = syncBuiltins(db, { fresh: count === 0 });
+  if (process.env.SKIP_SEED !== '1') {
+    lastSync = syncBuiltins(db, { fresh: count === 0 });
+    // v4.9: verkeerd gekoppelde ingrediënten (bouillon, sjalot, citroengras …) herstellen
+    const fixed = fixIngredientLinksV49();
+    if (fixed.relinked || fixed.linked) console.log(`Koppelingen hersteld: ${fixed.relinked} omgezet, ${fixed.linked} nieuw gekoppeld`);
+  }
   if (appVersion) setSetting('app_version', appVersion);
   return db;
 }

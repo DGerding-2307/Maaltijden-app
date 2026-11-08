@@ -198,6 +198,7 @@ const TOOLS = {
         per_portie: { kcal: round(n.kcal), eiwit: n.protein, koolhydraten: n.carbs, vet: n.fat, verzadigd_vet: n.sat_fat, suiker: n.sugar, vezels: n.fiber, zout: n.salt },
         prijs_totaal: euro(r.cost_total_cents), prijs_pp: euro(r.cost_per_serving_cents),
         notities: r.notes || undefined,
+        dekking: coverageOut(r),
       };
     },
   },
@@ -291,6 +292,66 @@ const TOOLS = {
       if (planned.length && !ook_uit_planning) throw fail(`‘${r.title}’ staat nog gepland op ${planned.join(', ')}. Haal het daar eerst weg of zet ook_uit_planning aan.`);
       repo.deleteRecipe(r.id);
       return { verwijderd: true, id: r.id, titel: r.title, uit_planning: planned };
+    },
+  },
+  ingredient_zoeken: {
+    description: 'Zoek ingrediënten in de database op naam of alias. Geeft voedingswaarden per 100 g, gram per stuk en gram per el/tl. '
+      + 'Gebruik dit vóór ingredient_toevoegen, zodat je geen dubbele ingrediënten maakt.',
+    input: { naam: str('Bv. ‘sjalot’ of ‘varkensschouder’'), limiet: int('Maximaal aantal resultaten (standaard 5)', { minimum: 1, maximum: 25 }) },
+    required: ['naam'],
+    run: ({ naam, limiet }) => {
+      const max = Number(limiet) || 5;
+      const hit = repo.matchIngredient(naam);
+      const rest = repo.suggestIngredients(naam, max + 1).filter((i) => i.id !== hit?.id).slice(0, hit ? max - 1 : max);
+      return {
+        gevonden: hit ? ingredientOut(hit) : null,
+        melding: hit ? undefined : `‘${naam}’ niet gevonden${rest.length ? `, bedoel je: ${rest.map((i) => i.name).join(', ')}?` : '.'}`,
+        andere: rest.map(ingredientOut),
+      };
+    },
+  },
+  ingredient_toevoegen: {
+    description: 'Voeg een ingrediënt toe aan de database (waarden per 100 g; zout in gram, niet natrium), of werk een bestaand ingrediënt bij '
+      + 'met bijwerken: true. Receptregels met deze naam of een alias die nog niet gekoppeld waren, worden daarna automatisch gekoppeld. '
+      + 'Gebruik echte waarden (NEVO of het etiket). Vul gram_per_stuk alleen in als het realistische gewicht bekend is.',
+    input: {
+      naam: str('Naam in het Nederlands, enkelvoud, bv. ‘varkensschouder’'),
+      kcal: num('kcal per 100 g'), eiwit: num('Eiwit in g per 100 g'), koolhydraten: num('Koolhydraten in g per 100 g'), vet: num('Vet in g per 100 g'),
+      verzadigd_vet: num('Verzadigd vet in g per 100 g'), suiker: num('Suikers in g per 100 g'), vezels: num('Vezels in g per 100 g'),
+      zout: num('Zout in g per 100 g (natrium × 2,5)'),
+      gram_per_stuk: num('Gewicht van 1 stuk/stengel/teen/takje in gram'),
+      gram_per_el: num('Gewicht van 1 eetlepel in gram (water ≈ 15)'),
+      gram_per_tl: num('Gewicht van 1 theelepel in gram (water ≈ 5); alleen nodig zonder gram_per_el'),
+      aliassen: { type: 'array', items: { type: 'string' }, description: 'Andere namen, bv. [‘sjalotten’, ‘sjalotje’]' },
+      afdeling: str('Afdeling in de winkel, bv. ‘Vlees, vis & vega’ of ‘Kruiden, specerijen & bakken’'),
+      voorraadkast: { type: 'boolean', description: 'Staat meestal in huis (zout, olie, kruiden): niet standaard op de boodschappenlijst' },
+      bijwerken: { type: 'boolean', description: 'Een bestaand ingrediënt met deze naam of alias bijwerken in plaats van een fout geven' },
+    },
+    required: ['naam'],
+    changes: true,
+    run: (a) => {
+      const name = String(a.naam || '').trim().toLowerCase();
+      if (!name) throw fail('Geef een naam.');
+      const found = repo.matchIngredient(name);
+      const exact = found && aliasesOf(found).includes(name) ? found : null;
+      if (exact && !a.bijwerken) throw fail(`‘${name}’ bestaat al als ‘${exact.name}’ (id ${exact.id}). Gebruik bijwerken: true om de waarden aan te passen.`);
+      for (const k of ['kcal', 'eiwit', 'koolhydraten', 'vet', 'verzadigd_vet', 'suiker', 'vezels', 'zout', 'gram_per_stuk', 'gram_per_el', 'gram_per_tl']) {
+        if (a[k] != null && !(Number(a[k]) >= 0)) throw fail(`${k} moet een getal van 0 of meer zijn.`);
+      }
+      for (const k of ['eiwit', 'koolhydraten', 'vet', 'verzadigd_vet', 'suiker', 'vezels', 'zout']) {
+        if (a[k] != null && Number(a[k]) > 100) throw fail(`${k} is in gram per 100 g en kan niet boven 100 liggen.`);
+      }
+      if (!exact && a.kcal == null) throw fail('Geef voor een nieuw ingrediënt minstens kcal (en liefst alle voedingswaarden) per 100 g.');
+      const density = a.gram_per_el != null ? Number(a.gram_per_el) / 15 : a.gram_per_tl != null ? Number(a.gram_per_tl) / 5 : undefined;
+      const data = Object.fromEntries(Object.entries({
+        name: exact ? undefined : name, category: a.afdeling, kcal: a.kcal, protein: a.eiwit, carbs: a.koolhydraten, fat: a.vet,
+        sat_fat: a.verzadigd_vet, sugar: a.suiker, fiber: a.vezels, salt: a.zout, unit_weight_g: a.gram_per_stuk, density,
+        pantry: a.voorraadkast, nutrition_source: a.kcal != null ? 'Claude (via MCP)' : undefined,
+      }).filter(([, v]) => v !== undefined));
+      let ing = exact ? repo.saveIngredient(data, exact.id) : repo.saveIngredient({ category: 'Overig', ...data });
+      for (const alias of a.aliassen || []) ing = repo.addIngredientAlias(ing.id, alias);
+      const linked = repo.relinkUnlinked();
+      return { [exact ? 'bijgewerkt' : 'toegevoegd']: true, ingredient: ingredientOut(ing), nieuw_gekoppelde_receptregels: linked };
     },
   },
   verpakkingen_bekijken: {
@@ -534,19 +595,51 @@ function goalsOut(person) {
   };
 }
 
-function recipeOut(id) {
-  const r = repo.getRecipe(id);
-  const missing = r.ingredients.filter((l) => !l.ingredient_id).map((l) => l.name);
+/** Hoe betrouwbaar zijn de voedingswaarden? Deel van het gewicht dat gekoppeld is, plus wat ontbreekt (met suggesties). */
+function coverageOut(r) {
+  const c = r.coverage || { percent: 100, linked_grams: 0, unlinked_grams: 0, unlinked: [], unknown_weight: [] };
+  const niet = c.unlinked.map((name) => {
+    const s = repo.suggestIngredients(name).map((i) => i.name);
+    return { naam: name, ...(s.length ? { bedoel_je: s } : {}) };
+  });
+  const tips = [];
+  if (niet.length) tips.push('Voeg ontbrekende ingrediënten toe met ingredient_toevoegen; de receptregels koppelen daarna vanzelf.');
+  if (c.unknown_weight.length) tips.push('Van gewicht_onbekend is het gewicht per stuk niet bekend: geef de hoeveelheid in gram, of vul gram_per_stuk in met ingredient_toevoegen (bijwerken: true).');
   return {
-    id, titel: r.title, kcal_pp: round(r.nutrition_per_serving.kcal), prijs_pp: euro(r.cost_per_serving_cents),
-    niet_gekoppeld: missing.length ? missing : undefined,
-    tip: missing.length ? 'Deze ingrediënten staan nog niet in de database; voeg ze toe in de app voor kcal en prijs.' : undefined,
+    procent: c.percent,
+    gekoppeld_gram: c.linked_grams,
+    niet_gekoppeld_gram: c.unlinked_grams,
+    niet_gekoppeld: niet.length ? niet : undefined,
+    gewicht_onbekend: c.unknown_weight.length ? c.unknown_weight : undefined,
+    betrouwbaar: c.percent >= 90 && !c.unknown_weight.length,
+    tip: tips.length ? tips.join(' ') : undefined,
   };
 }
 
+function recipeOut(id) {
+  const r = repo.getRecipe(id);
+  const n = r.nutrition_per_serving;
+  return {
+    id, titel: r.title, kcal_pp: round(n.kcal), eiwit_pp: n.protein, zout_pp: n.salt, prijs_pp: euro(r.cost_per_serving_cents),
+    dekking: coverageOut(r),
+  };
+}
+
+const ingredientOut = (i) => ({
+  id: i.id, naam: i.name, aliassen: String(i.aliases || '').split(',').map((a) => a.trim()).filter(Boolean), afdeling: i.category,
+  per_100g: { kcal: i.kcal, eiwit: i.protein, koolhydraten: i.carbs, suiker: i.sugar, vet: i.fat, verzadigd_vet: i.sat_fat, vezels: i.fiber, zout: i.salt },
+  gram_per_stuk: i.unit_weight_g ?? null,
+  gram_per_el: i.density ? Math.round(i.density * 15 * 10) / 10 : null,
+  gram_per_tl: i.density ? Math.round(i.density * 5 * 10) / 10 : null,
+  voorraadkast: !!i.pantry, bron: i.nutrition_source || undefined,
+});
+
+const aliasesOf = (i) => [i.name, ...String(i.aliases || '').split(',')].map((x) => x.trim().toLowerCase()).filter(Boolean);
+
 const INSTRUCTIONS = 'Maaltijden is de maaltijdplanner van het huishouden: weekplanner, receptenboek, boodschappenlijst en een '
   + 'calorieëndagboek met gewicht. Antwoord in het Nederlands. Datums zijn JJJJ-MM-DD; momenten zijn ontbijt, lunch, diner en tussendoor. '
-  + 'Zoek eerst een recept met recepten_zoeken voordat je het plant. Het dagboek en gewicht zijn van de persoon van deze koppeling.';
+  + 'Zoek eerst een recept met recepten_zoeken voordat je het plant. Het dagboek en gewicht zijn van de persoon van deze koppeling. '
+  + 'Kijk bij recepten naar dekking: ontbreken ingrediënten, zoek ze met ingredient_zoeken en voeg ze toe met ingredient_toevoegen.';
 
 /** Eén JSON-RPC-bericht afhandelen. Geeft het antwoord, of null voor een melding (notification). */
 export async function handleRpc(msg, ctx) {

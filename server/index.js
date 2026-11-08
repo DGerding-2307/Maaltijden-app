@@ -260,7 +260,7 @@ export function createApp() {
     const created = [];
     for (const row of rows) {
       if (row.ingredient_id || !row.estimate) continue;
-      const existing = repo.matchIngredient(row.name);
+      const existing = repo.matchIngredient(row.name, row.unit);
       if (existing) {
         row.ingredient_id = existing.id;
         continue;

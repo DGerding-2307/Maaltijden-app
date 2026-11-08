@@ -39,8 +39,29 @@ function singular(s) {
   return s.replace(/(en|s)$/, '');
 }
 
-/** Zoek het best passende ingrediënt bij een (vrije) naam. */
-export function matchIngredient(name) {
+/**
+ * Hoe goed past een ingrediëntnaam (of alias) bij een gezochte naam? 0 = niet.
+ * Een samenstelling telt alleen als het ingrediënt het laatste deel is (het ‘hoofd’ in het Nederlands):
+ * ‘kippenbouillon’ → bouillon, maar ‘citroengras’ is géén citroen en ‘appelciderazijn’ géén appel.
+ */
+function nameScore(n, target) {
+  if (n === target) return 100;
+  if (singular(n) === singular(target)) return 95;
+  const words = target.split(' ');
+  if (words.includes(n) || words.map(singular).includes(singular(n))) return 60 + n.length;
+  const last = words[words.length - 1];
+  if (n.length >= 4 && (last.endsWith(n) || singular(last).endsWith(singular(n)))) return 40 + n.length;
+  // Snijvorm achter de naam: ‘kipfiletblokjes’, ‘uiringen’, ‘paprikareepjes’ blijven kipfilet, ui, paprika
+  if (n.length >= 2 && last.startsWith(n) && CUT_SUFFIXES.includes(last.slice(n.length))) return 50 + n.length;
+  return 0;
+}
+
+const CUT_SUFFIXES = ['blokjes', 'blokje', 'reepjes', 'reepje', 'stukjes', 'stukken', 'plakjes', 'plakken', 'schijfjes', 'ringen', 'partjes', 'snippers', 'kubusjes'];
+
+// Eenheden waarbij ‘bouillon’ een blokje of zakje poeder is in plaats van vloeibare bouillon
+const CUBE_UNITS = new Set(['blokje', 'blokjes', 'tablet', 'tabletten', 'stuk', 'stuks', 'st', 'zakje', 'zakjes', 'kuipje', 'cup']);
+
+export function matchIngredient(name, unit = '') {
   const target = normalizeName(name);
   if (!target) return null;
   const all = getDb().prepare('SELECT * FROM ingredients').all();
@@ -49,15 +70,96 @@ export function matchIngredient(name) {
   for (const ing of all) {
     const names = [ing.name, ...String(ing.aliases || '').split(',')].map(normalizeName).filter(Boolean);
     for (const n of names) {
-      let score = 0;
-      if (n === target) score = 100;
-      else if (singular(n) === singular(target)) score = 95;
-      else if (target.split(' ').includes(n) || target.split(' ').map(singular).includes(singular(n))) score = 60 + n.length;
-      else if (target.includes(n) && n.length >= 4) score = 40 + n.length;
+      const score = nameScore(n, target);
       if (score > bestScore) { bestScore = score; best = ing; }
     }
   }
-  return bestScore >= 45 ? best : null;
+  if (bestScore < 45) return null;
+  // ‘2 blokjes runderbouillon’ is bouillonpoeder, ‘250 ml runderbouillon’ vloeibare bouillon
+  if (best?.name === 'bouillon' && CUBE_UNITS.has(String(unit || '').trim().toLowerCase())) {
+    return all.find((i) => i.name === 'bouillonblokje') || best;
+  }
+  return best;
+}
+
+/** Ingrediënten die ongeveer zo heten (voor ‘niet gevonden, bedoel je …?’). */
+export function suggestIngredients(name, limit = 3) {
+  const target = normalizeName(name);
+  if (!target) return [];
+  const words = target.split(' ').filter((w) => w.length >= 3);
+  const scored = [];
+  for (const ing of getDb().prepare('SELECT * FROM ingredients').all()) {
+    let best = 0;
+    for (const n of [ing.name, ...String(ing.aliases || '').split(',')].map(normalizeName).filter(Boolean)) {
+      let s = nameScore(n, target);
+      // Gedeeltelijke overeenkomst: gedeeld begin (‘varkens…’) of een woord dat in de ander voorkomt
+      const common = commonPrefix(n, target);
+      if (common >= 4) s = Math.max(s, 20 + common);
+      if (words.some((w) => n.includes(w) || (n.length >= 4 && w.includes(n)))) s = Math.max(s, 25);
+      best = Math.max(best, s);
+    }
+    if (best > 0) scored.push([best, ing]);
+  }
+  return scored.sort((a, b) => b[0] - a[0]).slice(0, limit).map(([, ing]) => ing);
+}
+
+function commonPrefix(a, b) {
+  let i = 0;
+  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  return i;
+}
+
+/**
+ * Eenmalig (v4.9): verkeerde koppelingen herstellen. ‘kippenbouillon’ (ml) hing aan bouillonblokjes (45 g zout per 100 g),
+ * ‘sjalot’ aan ui (100 g per stuk), ‘citroengras’ aan citroen (120 g per stuk), ‘appelciderazijn’ aan appel enz.
+ * Regels die aan zo'n ingrediënt hangen maar nu beter bij een ander passen, gaan over; losse regels worden opnieuw gekoppeld.
+ */
+export function fixIngredientLinksV49() {
+  const db = getDb();
+  if (getSetting('fix_links_v49', false)) return { relinked: 0, linked: 0 };
+  const dropAliases = { ui: ['sjalot', 'sjalotten'], bouillonblokje: ['bouillon', 'runderbouillon', 'kippenbouillon', 'groentebouillon'] };
+  for (const [name, drop] of Object.entries(dropAliases)) {
+    const ing = db.prepare('SELECT id, aliases FROM ingredients WHERE name = ?').get(name);
+    if (!ing) continue;
+    const list = String(ing.aliases || '').split(',').map((a) => a.trim()).filter((a) => a && !drop.includes(a.toLowerCase()));
+    db.prepare('UPDATE ingredients SET aliases = ? WHERE id = ?').run(list.join(','), ing.id);
+  }
+  // Nieuwe aliassen bij bestaande standaardingrediënten
+  const addAliases = {
+    komijn: ['komijnzaad'],
+    tomatenblokjes: ['tomaten uit blik', 'gepelde tomaten uit blik', 'pelati', 'tomatenblik'],
+    bouillonblokje: ['bouillontablet', 'bouillonpoeder', 'bouillonkorrels'],
+  };
+  for (const [name, extra] of Object.entries(addAliases)) {
+    const ing = db.prepare('SELECT id FROM ingredients WHERE name = ?').get(name);
+    if (ing) for (const a of extra) addIngredientAlias(ing.id, a);
+  }
+  const suspects = ['bouillonblokje', 'ui', 'citroen', 'appel', 'koriander', 'italiaanse kruiden', 'tomaat'];
+  const rows = db.prepare(`SELECT ri.id, ri.name, ri.unit, ri.ingredient_id, i.name AS ing_name FROM recipe_ingredients ri
+    JOIN ingredients i ON i.id = ri.ingredient_id WHERE i.name IN (${suspects.map(() => '?').join(',')})`).all(...suspects);
+  const upd = db.prepare('UPDATE recipe_ingredients SET ingredient_id = ? WHERE id = ?');
+  let relinked = 0;
+  for (const r of rows) {
+    if (normalizeName(r.name) === normalizeName(r.ing_name)) continue;
+    const m = matchIngredient(r.name, r.unit);
+    if (m && m.id !== r.ingredient_id) { upd.run(m.id, r.id); relinked++; }
+  }
+  const linked = relinkUnlinked();
+  setSetting('fix_links_v49', true);
+  return { relinked, linked };
+}
+
+/** Receptregels zonder koppeling opnieuw proberen te koppelen (bv. na een nieuw ingrediënt). Geeft het aantal. */
+export function relinkUnlinked() {
+  const db = getDb();
+  const rows = db.prepare('SELECT id, name, unit FROM recipe_ingredients WHERE ingredient_id IS NULL').all();
+  const upd = db.prepare('UPDATE recipe_ingredients SET ingredient_id = ? WHERE id = ?');
+  let n = 0;
+  for (const r of rows) {
+    const m = matchIngredient(r.name, r.unit);
+    if (m) { upd.run(m.id, r.id); n++; }
+  }
+  return n;
 }
 
 export function saveIngredient(data, id = null) {
@@ -399,7 +501,7 @@ export function saveRecipe(data, id = null) {
       if (!name) return;
       let ingredientId = row.ingredient_id ? Number(row.ingredient_id) : null;
       if (ingredientId && !getIngredient(ingredientId)) ingredientId = null;
-      if (!ingredientId && row.auto_match !== false) ingredientId = matchIngredient(name)?.id ?? null;
+      if (!ingredientId && row.auto_match !== false) ingredientId = matchIngredient(name, row.unit)?.id ?? null;
       ins.run(
         recipeId, ingredientId, name,
         row.quantity === '' || row.quantity == null ? null : Number(row.quantity),
