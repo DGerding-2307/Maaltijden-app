@@ -18,11 +18,16 @@ export async function render(root, params) {
   root.innerHTML = '<div class="view cook-mode"></div>';
   const view = $('.view', root);
 
+  // Alle tijden uit een stap ("10 minuten koken, daarna 5 minuten laten rusten" → 10 en 5)
   function findMinutes(text) {
-    const m = text.match(/(\d+)(?:\s*[–-]\s*(\d+))?\s*(minuten|minuut|min|uur)/i);
-    if (!m) return null;
-    const n = Number(m[2] || m[1]);
-    return /uur/i.test(m[3]) ? n * 60 : n;
+    const found = [];
+    const re = /(\d+(?:[.,]\d+)?)(?:\s*(?:[–-]|tot)\s*(\d+(?:[.,]\d+)?))?\s*(minuten|minuut|min|uur|uren)\b/gi;
+    for (const m of text.matchAll(re)) {
+      const n = Number((m[2] || m[1]).replace(',', '.'));
+      const mins = Math.round(/uur|uren/i.test(m[3]) ? n * 60 : n);
+      if (mins > 0 && !found.includes(mins)) found.push(mins);
+    }
+    return found;
   }
 
   function draw() {
@@ -36,7 +41,7 @@ export async function render(root, params) {
       const mins = findMinutes(text);
       body = `<div class="cook-step-num">Stap ${step + 1} van ${total}</div>
         <p class="cook-step">${esc(text)}</p>
-        ${mins ? `<button class="btn btn-ai big" data-timer="${mins}">⏲ Start timer ${mins} min</button>` : ''}`;
+        ${mins.length ? `<div class="cook-timer-btns">${mins.map((m) => `<button class="btn btn-ai big" data-timer="${m}">⏲ Start timer ${m} min</button>`).join('')}</div>` : ''}`;
     }
     view.innerHTML = `
       <div class="cook-top">
@@ -84,7 +89,7 @@ export async function render(root, params) {
     if (e.target.closest('[data-prev]')) { step = Math.max(-1, step - 1); draw(); }
     const timer = e.target.closest('[data-timer]');
     if (timer) {
-      timers.push({ left: Number(timer.dataset.timer) * 60, label: `stap ${step + 1}` });
+      timers.push({ left: Number(timer.dataset.timer) * 60, label: `stap ${step + 1} · ${timer.dataset.timer} min` });
       draw();
     }
     const stop = e.target.closest('[data-stop]');
