@@ -585,7 +585,7 @@ function recipeOut(id) {
 
 const INSTRUCTIONS = 'Maaltijden is de maaltijdplanner van het huishouden: weekplanner, receptenboek, boodschappenlijst en een '
   + 'calorieëndagboek met gewicht. Antwoord in het Nederlands. Datums zijn JJJJ-MM-DD; momenten zijn ontbijt, lunch, diner en tussendoor. '
-  + 'Zoek eerst een recept met recepten_zoeken voordat je het plant. Het dagboek en gewicht zijn van de persoon van deze koppeling.';
+  + 'Zoek eerst een recept met recepten_zoeken voordat je het plant. Recepten hebben een oordeel (lekker/niet lekker) en notities: stel geen ‘niet lekker’-recepten voor zonder dat te zeggen, houd rekening met notities, en leg een oordeel of notitie vast met recept_beoordelen. Het dagboek en gewicht zijn van de persoon van deze koppeling.';
 
 /** Eén JSON-RPC-bericht afhandelen. Geeft het antwoord, of null voor een melding (notification). */
 export async function handleRpc(msg, ctx) {

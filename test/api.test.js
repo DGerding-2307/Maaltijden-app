@@ -294,3 +294,22 @@ test('Home Assistant: overzicht van vandaag en kant-en-klare YAML', async () => 
   assert.equal((await fetch(base.replace(/\/api$/, '') + path)).status, 404);
   await send('DELETE', `/plan/${id}`);
 });
+
+test('recept beoordelen in de app: lekker, notities en filter', async () => {
+  const saved = await send('POST', '/recipes', { title: 'Smaaktest', servings: 2, steps: ['Kook.'], ingredients: [{ name: 'ui', quantity: 1, unit: 'stuk' }] });
+  assert.equal(saved.taste, null);
+  let r = await send('PATCH', `/recipes/${saved.id}`, { taste: 1, notes: 'Extra knoflook' });
+  assert.equal(r.taste, 1);
+  assert.equal(r.notes, 'Extra knoflook');
+  assert.ok((await get('/recipes?taste=lekker')).some((x) => x.id === saved.id));
+  assert.ok(!(await get('/recipes?taste=niet_lekker')).some((x) => x.id === saved.id));
+  assert.ok(!(await get('/recipes?taste=onbeoordeeld')).some((x) => x.id === saved.id));
+  // Opslaan vanuit een oudere app zonder ‘taste’ laat het oordeel staan
+  r = await send('PUT', `/recipes/${saved.id}`, { title: 'Smaaktest', servings: 2, steps: ['Kook.'], notes: 'Extra knoflook', ingredients: [{ name: 'ui', quantity: 1, unit: 'stuk' }] });
+  assert.equal(r.taste, 1);
+  r = await send('PATCH', `/recipes/${saved.id}`, { taste: -1 });
+  assert.equal(r.taste, -1);
+  assert.equal(r.notes, 'Extra knoflook');
+  r = await send('PATCH', `/recipes/${saved.id}`, { taste: null });
+  assert.equal(r.taste, null);
+});
