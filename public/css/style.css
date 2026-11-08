@@ -336,6 +336,16 @@ a.plan-entry-title[href]:hover { text-decoration: underline; }
 .steps li::before { content: counter(s); width: 2rem; height: 2rem; border-radius: 50%; background: var(--primary); color: var(--primary-ink); display: flex; align-items: center; justify-content: center; font-weight: 700; }
 .steps p { margin: .2rem 0 0; }
 .notes { background: var(--surface-2); padding: .8rem 1rem; border-radius: 10px; }
+.taste-card { margin-bottom: 1rem; }
+.taste-card h2 { margin-top: 0; }
+.taste-btns { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: .8rem; }
+.taste-btn { flex: 1 1 8rem; min-height: 2.75rem; border: 2px solid var(--border); background: var(--surface); color: inherit; border-radius: 999px; font: inherit; font-weight: 600; cursor: pointer; }
+.taste-btn.yes.on { border-color: #3a9a5b; background: color-mix(in srgb, #3a9a5b 15%, transparent); }
+.taste-btn.no.on { border-color: #c0504d; background: color-mix(in srgb, #c0504d 15%, transparent); }
+.notes-edit { display: grid; gap: .3rem; font-weight: 600; }
+.notes-edit textarea { font-weight: 400; resize: vertical; }
+.notes-actions { gap: .5rem; align-items: center; margin-top: .4rem; min-height: 1.5rem; }
+.taste-badge { font-size: .85rem; }
 .chat-card .chat-log { display: flex; flex-direction: column; gap: .6rem; margin: .8rem 0; }
 .msg { padding: .6rem .9rem; border-radius: 12px; max-width: 85%; }
 .msg p { margin: .2rem 0; }
@@ -469,7 +479,7 @@ body.cooking main { padding-top: calc(.9rem + var(--sat)); }
 }
 /* ---------- Print ---------- */
 @media print {
-  .topbar, .actions, .no-print, .recipe-dock, .slot-add, .chat-card, .quick-persons, .portion-ctl button, [data-add-shopping], .rating, .fav-big, .mini, .week-nav .btn { display: none !important; }
+  .topbar, .actions, .no-print, .recipe-dock, .slot-add, .chat-card, .quick-persons, .portion-ctl button, [data-add-shopping], .rating, .fav-big, .taste-btns, .notes-actions, .mini, .week-nav .btn { display: none !important; }
   body { background: #fff; color: #000; }
   main { padding: 0; max-width: none; }
   .card, .day, .stat, .shop-list { box-shadow: none; border-color: #ccc; }

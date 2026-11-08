@@ -15,11 +15,11 @@ export function recipeThumb(r) {
 export async function render(root, params) {
   const m = await meta(true);
   const state = {
-    q: params.q || '', tag: params.tag || '', category: params.category || '', favorite: params.favorite === '1',
+    q: params.q || '', tag: params.tag || '', category: params.category || '', favorite: params.favorite === '1', taste: params.taste || '',
     maxMinutes: params.maxMinutes || '', sort: params.sort || 'title', maxPrice: params.maxPrice || '', have: params.have || '',
   };
 
-  const active = () => state.q || state.tag || state.category || state.favorite || state.maxMinutes || state.maxPrice || state.have;
+  const active = () => state.q || state.tag || state.category || state.favorite || state.taste || state.maxMinutes || state.maxPrice || state.have;
   root.innerHTML = `<div class="view recipes-c">
     <div data-say></div>
     <div class="head-row">
@@ -41,6 +41,7 @@ export async function render(root, params) {
     </div>
     <div class="filter-chips">
       <label class="tag ${state.favorite ? 'active' : ''}" data-fav-chip><input type="checkbox" data-f="favorite" ${state.favorite ? 'checked' : ''} hidden> ♥ Favorieten</label>
+      <button class="tag ${state.taste === 'lekker' ? 'active' : ''}" data-quick="lekker">😋 Lekker</button>
       <button class="tag ${String(state.maxMinutes) === '30' ? 'active' : ''}" data-quick="fast">⚡ Snel</button>
       <button class="tag ${state.tag === 'vegetarisch' ? 'active' : ''}" data-quick="veg">🌱 Vega</button>
       <button class="tag ${String(state.maxPrice) === '250' ? 'active' : ''}" data-quick="cheap">💶 Goedkoop</button>
@@ -115,6 +116,8 @@ export async function render(root, params) {
             ${r.total_minutes ? `<span>⏱ ${minutes(r.total_minutes)}</span>` : ''}
             <span>🔥 ${num(r.kcal_per_serving, 0)} kcal</span>
             <span title="geschatte prijs per persoon">💶 ${euro(r.cost_per_serving_cents)}</span>
+            ${r.taste === 1 ? '<span class="taste-badge" title="Lekker">😋</span>' : r.taste === -1 ? '<span class="taste-badge" title="Niet lekker">🙅</span>' : ''}
+            ${r.notes && r.notes !== 'Toegevoegd door Claude' ? '<span class="taste-badge" title="Heeft notities">📝</span>' : ''}
           </div>
           ${r.pantry_match ? `<div class="pantry-match ${r.pantry_match.missing.length ? '' : 'all'}">
             <strong>${r.pantry_match.matched}/${r.pantry_match.total} in huis</strong>
@@ -192,6 +195,7 @@ export async function render(root, params) {
       const k = quick.dataset.quick;
       if (k === 'veg') state.tag = state.tag === 'vegetarisch' ? '' : 'vegetarisch';
       if (k === 'fast') state.maxMinutes = String(state.maxMinutes) === '30' ? '' : '30';
+      if (k === 'lekker') state.taste = state.taste === 'lekker' ? '' : 'lekker';
       if (k === 'cheap') state.maxPrice = String(state.maxPrice) === '250' ? '' : '250';
       quick.classList.toggle('active');
       view.querySelector('[data-f="maxMinutes"]').value = state.maxMinutes;

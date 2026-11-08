@@ -274,12 +274,15 @@ export function getRecipe(id, persons = null) {
   return { ...recipe, ...computed, servings: recipe.servings, persons: computed.servings, ingredients: computed.lines, lines: undefined };
 }
 
-export function listRecipes({ q = '', tag = '', category = '', favorite = false, maxMinutes = 0, maxPrice = 0, have = [], sort = 'title' } = {}) {
+export function listRecipes({ q = '', tag = '', category = '', favorite = false, taste = '', maxMinutes = 0, maxPrice = 0, have = [], sort = 'title' } = {}) {
   const db = getDb();
   const all = db.prepare('SELECT * FROM recipes').all().map(parseRecipe);
   const term = normalizeName(q);
   let list = all.filter((r) => {
     if (favorite && !r.favorite) return false;
+    if (taste === 'lekker' && r.taste !== 1) return false;
+    if (taste === 'niet_lekker' && r.taste !== -1) return false;
+    if (taste === 'onbeoordeeld' && r.taste != null) return false;
     if (category && r.category !== category) return false;
     if (tag && !r.tags.includes(tag)) return false;
     const total = (r.prep_minutes || 0) + (r.cook_minutes || 0);
@@ -374,7 +377,10 @@ export function saveRecipe(data, id = null) {
       is_side: data.is_side ? 1 : 0,
       rating: data.rating ? Number(data.rating) : null,
       notes: data.notes || '',
+      taste: normTaste(data.taste),
     };
+    // Een oudere app (zonder ‘lekker’) laat de beoordeling staan
+    if (id && !('taste' in data)) delete fields.taste;
     if (id) {
       // Bronvermelding van een meegeleverde foto blijft alleen staan zolang die foto niet is vervangen
       const old = db.prepare('SELECT image_url, image_credit FROM recipes WHERE id = ?').get(id);
@@ -419,6 +425,21 @@ export function setFavorite(id, favorite) {
 
 export function setRating(id, rating) {
   getDb().prepare('UPDATE recipes SET rating = ? WHERE id = ?').run(rating || null, id);
+}
+
+/** Lekker = 1, niet lekker = -1, al het andere = nog niet beoordeeld (null). */
+export function normTaste(v) {
+  if (v === 1 || v === '1' || v === 'lekker' || v === true) return 1;
+  if (v === -1 || v === '-1' || v === 'niet_lekker' || v === 'niet lekker') return -1;
+  return null;
+}
+
+export function setTaste(id, taste) {
+  getDb().prepare('UPDATE recipes SET taste = ? WHERE id = ?').run(normTaste(taste), id);
+}
+
+export function setNotes(id, notes) {
+  getDb().prepare("UPDATE recipes SET notes = ?, updated_at = datetime('now') WHERE id = ?").run(String(notes ?? '').slice(0, 5000), id);
 }
 
 /** Datums vanaf `from` waarop een recept gepland staat. */
