@@ -254,6 +254,8 @@ const MIGRATIONS = [
   ['recipe_ingredients', 'amount_rule', 'TEXT'],
   ['recipe_ingredients', 'min_quantity', 'REAL'],
   ['recipes', 'is_side', 'INTEGER NOT NULL DEFAULT 0'],
+  // Lekker (1) of niet lekker (-1); leeg = nog niet beoordeeld
+  ['recipes', 'taste', 'INTEGER'],
   ['plan_extras', 'recipe_id', 'INTEGER REFERENCES recipes(id) ON DELETE CASCADE'],
   ['ingredients', 'image_credit', 'TEXT'],
   ['ingredients', 'allergens', 'TEXT'],

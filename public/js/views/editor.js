@@ -339,6 +339,7 @@ export async function render(root, params) {
       favorite: recipe.favorite,
       is_side: fd.has('is_side'),
       rating: recipe.rating,
+      taste: recipe.taste,
       ingredients: rows.filter((r) => r.name.trim()),
     };
     const btn = $('button[type=submit]', form);

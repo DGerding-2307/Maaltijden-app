@@ -105,6 +105,18 @@ export async function render(root, params) {
         </div>
       </div>
 
+      <section class="card taste-card">
+        <h2>Wat vind je ervan?</h2>
+        <div class="taste-btns" role="group" aria-label="Lekker of niet lekker">
+          <button class="taste-btn yes ${r.taste === 1 ? 'on' : ''}" data-taste="1" aria-pressed="${r.taste === 1}">😋 Lekker</button>
+          <button class="taste-btn no ${r.taste === -1 ? 'on' : ''}" data-taste="-1" aria-pressed="${r.taste === -1}">🙅 Niet lekker</button>
+        </div>
+        <label class="notes-edit">Notities
+          <textarea class="input" data-notes rows="3" placeholder="Bv. ‘minder zout’, ‘lekker met rijst’, ‘Michel vond het te pittig’">${esc(r.notes || '')}</textarea>
+        </label>
+        <div class="row notes-actions"><button class="btn btn-ghost" data-save-notes hidden>Notities opslaan</button><span class="muted small" data-notes-status></span></div>
+      </section>
+
       <div class="recipe-columns">
         <section class="card ingredients-card">
           <div class="card-head">
@@ -167,7 +179,6 @@ export async function render(root, params) {
       <section class="card steps-card">
         <h2>Bereiding</h2>
         <ol class="steps">${r.steps.map((s) => `<li><p>${esc(s)}</p></li>`).join('')}</ol>
-        ${r.notes ? `<div class="notes"><h3>Notities</h3><p>${esc(r.notes)}</p></div>` : ''}
       </section>
 
       <section class="card chat-card">
@@ -285,6 +296,30 @@ export async function render(root, params) {
     });
   }
 
+  // Notities: opslaan bij verlaten van het veld of met de knop
+  async function saveNotes() {
+    const ta = $('[data-notes]', view);
+    if (!ta || ta.value === (r.notes || '')) return;
+    const prev = r.notes || '';
+    r.notes = ta.value; // meteen, zodat een nieuwe weergave de tekst niet kwijtraakt
+    try {
+      await api.patch(`/recipes/${r.id}`, { notes: r.notes });
+      const btn = $('[data-save-notes]', view);
+      if (btn) btn.hidden = true;
+      const status = $('[data-notes-status]', view);
+      if (status) status.textContent = 'Opgeslagen ✓';
+    } catch (err) {
+      r.notes = prev;
+      toast(`Notities niet opgeslagen: ${err.message}`, 'error');
+    }
+  }
+  view.addEventListener('input', (e) => {
+    if (!e.target.matches('[data-notes]')) return;
+    $('[data-save-notes]', view).hidden = e.target.value === (r.notes || '');
+    $('[data-notes-status]', view).textContent = '';
+  });
+  view.addEventListener('focusout', (e) => { if (e.target.matches('[data-notes]')) saveNotes(); });
+
   view.addEventListener('click', async (e) => {
     const t = e.target;
     try {
@@ -292,6 +327,14 @@ export async function render(root, params) {
       if (t.closest('[data-setpersons]')) { persons = Number(t.closest('[data-setpersons]').dataset.setpersons); return rescale(); }
       if (t.closest('[data-nmode]')) { nutritionMode = t.closest('[data-nmode]').dataset.nmode; return draw(); }
       if (t.closest('[data-fav]')) { r.favorite = !r.favorite; await api.patch(`/recipes/${r.id}`, { favorite: r.favorite }); return draw(); }
+      if (t.closest('[data-taste]')) {
+        const v = Number(t.closest('[data-taste]').dataset.taste);
+        r.taste = r.taste === v ? null : v;
+        await api.patch(`/recipes/${r.id}`, { taste: r.taste });
+        if (r.taste) toast(r.taste === 1 ? 'Opgeslagen als lekker 😋' : 'Opgeslagen als niet lekker', 'success');
+        return draw();
+      }
+      if (t.closest('[data-save-notes]')) return saveNotes();
       if (t.closest('[data-rate]')) {
         const v = Number(t.closest('[data-rate]').dataset.rate);
         r.rating = r.rating === v ? null : v;
