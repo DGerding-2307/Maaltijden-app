@@ -67,7 +67,7 @@ export async function render(root, params) {
     const figures = [e.kcal_per_serving != null ? `${num(e.kcal_per_serving, 0)} kcal p.p.` : '', (e.recipe_id || e.extras?.length) && !rest ? euro(e.cost_cents) : ''].filter(Boolean).join(' · ');
     return `<article class="tile ${rest ? 'leftover' : ''}" draggable="true" data-entry="${e.id}">
       <a class="tile-photo ${e.image_url ? '' : 'noimg'}" ${href}>
-        ${e.image_url ? `<img src="${esc(e.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}
+        ${e.image_url ? `<img src="${esc(e.image_thumb || e.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}
         <span class="tile-ov"><span class="k">${esc(e.meal)}</span><b>${esc(title)}</b>${figures ? `<small>${figures}</small>` : ''}</span>
       </a>
       <div class="tile-tools">
@@ -185,7 +185,7 @@ export async function render(root, params) {
               ${plan.days.filter((x) => x.date !== selected).map((x) => {
                 const pic = [...x.entries].reverse().find((e) => e.image_url);
                 const n = plan.days.indexOf(x);
-                return `<button class="rest-day" data-day="${x.date}"><span class="ph">${pic ? `<img src="${esc(pic.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : x.entries.length ? '🍽️' : '＋'}</span>
+                return `<button class="rest-day" data-day="${x.date}"><span class="ph">${pic ? `<img src="${esc(pic.image_thumb || pic.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : x.entries.length ? '🍽️' : '＋'}</span>
                   <small>${DAY_NAMES[n].slice(0, 2)} ${Number(x.date.slice(8))}${x.entries.length ? '' : ' · leeg'}</small></button>`;
               }).join('')}
             </div>

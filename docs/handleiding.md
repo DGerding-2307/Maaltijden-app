@@ -252,7 +252,7 @@ Met de koppeling kan Claude (op claude.ai of in de Claude-app op je telefoon) re
 | Onderdeel | Hulpmiddelen |
 |---|---|
 | Planner | `planning_bekijken`, `maaltijd_plannen`, `maaltijd_wijzigen`, `maaltijd_verwijderen` |
-| Recepten | `recepten_zoeken`, `recept_bekijken`, `recept_opslaan`, `recept_wijzigen`, `recept_verwijderen` |
+| Recepten | `recepten_zoeken`, `recept_bekijken`, `recept_opslaan` (ook met `foto_url`), `recept_wijzigen`, `recept_beoordelen`, `recept_foto_instellen`, `recept_foto_verwijderen`, `recept_verwijderen` |
 | Boodschappen | `boodschappenlijst`, `boodschap_toevoegen`, `boodschap_afvinken` |
 | Verpakkingen | `verpakkingen_bekijken`, `verpakking_opslaan`, `verpakking_verwijderen` |
 | Dagboek | `dagboek_bekijken`, `eten_loggen`, `dagboek_verwijderen` |

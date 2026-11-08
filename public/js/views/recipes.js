@@ -6,9 +6,11 @@ const CATEGORY_EMOJI = {
   Ontbijt: '🥣', Lunch: '🥪', Hoofdgerecht: '🍽️', Soep: '🍲', Bijgerecht: '🥗', Salade: '🥗', Nagerecht: '🍮', Snack: '🥨', Bakken: '🥧',
 };
 
-export function recipeThumb(r) {
-  return r.image_url
-    ? `<img src="${esc(r.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer">`
+/** Foto van een recept; klein = de lichte variant van 400 px (als die er is) voor lijsten. */
+export function recipeThumb(r, { klein = false } = {}) {
+  const src = (klein && r.image_thumb) || r.image_url;
+  return src
+    ? `<img src="${esc(src)}" alt="" loading="lazy" referrerpolicy="no-referrer">`
     : `<span class="thumb-emoji">${CATEGORY_EMOJI[r.category] || '🍽️'}</span>`;
 }
 
@@ -108,7 +110,7 @@ export async function render(root, params) {
     $('.recipe-grid', view).innerHTML = list.map((r) => `
       <article class="recipe-card" data-id="${r.id}">
         <label class="pick" aria-label="${esc(r.title)} selecteren"><input type="checkbox" data-pick></label>
-        <a href="#/recept/${r.id}" class="recipe-thumb">${recipeThumb(r)}</a>
+        <a href="#/recept/${r.id}" class="recipe-thumb">${recipeThumb(r, { klein: true })}</a>
         <button class="fav ${r.favorite ? 'on' : ''}" data-fav="${r.id}" aria-label="Favoriet">${r.favorite ? '★' : '☆'}</button>
         <div class="recipe-body">
           <a href="#/recept/${r.id}" class="recipe-title">${esc(r.title)}</a>
@@ -141,7 +143,7 @@ export async function render(root, params) {
       ? { mood: list.length ? 'blij' : 'bezorgd', text: list.length ? `Ik vond ${list.length} ${list.length === 1 ? 'recept' : 'recepten'} voor je! 🐾` : 'Hmm, daar vind ik niets bij. Probeer iets anders, of laat Claude een recept bedenken ✨' }
       : { mood: 'hongerig', text: 'Wat eten we vandaag? Ik heb al een paar ideetjes!' });
     $('[data-for-you]', view).innerHTML = !f && pick.length ? `<div class="sec-k">✨ ${favs.length >= 3 ? 'Jouw favorieten' : 'Voor jou'}</div>
-      <div class="for-you">${pick.map((r) => `<a href="#/recept/${r.id}"><img src="${esc(r.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer">
+      <div class="for-you">${pick.map((r) => `<a href="#/recept/${r.id}"><img src="${esc(r.image_thumb || r.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer">
         <span class="tile-ov"><b>${esc(r.title)}</b><small>${r.total_minutes ? `${minutes(r.total_minutes)} · ` : ''}${num(r.kcal_per_serving, 0)} kcal</small></span></a>`).join('')}</div>` : '';
     $('[data-all-label]', view).textContent = f ? `${list.length} gevonden` : 'Alles';
   }

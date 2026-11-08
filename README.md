@@ -57,6 +57,13 @@ geeft hij een tip, maar boos wordt hij nooit. Geef hem zelf een naam: Bolletje, 
 - **Nederlands.** Nederlandse recepten, Nederlandse supermarktprijzen en voedingswaarden uit NEVO en Open Food Facts.
 - **Voor het hele huishouden.** Samen plannen en boodschappen doen, en ieder een eigen dagboek en maatje.
 
+## Nieuw in versie 4.10.0
+
+- 🖼️ **Claude kan een foto bij een recept zetten**: haalt Claude een recept uit een YouTube- of Instagram-video, dan zet hij de thumbnail er meteen bij
+  (`recept_foto_instellen`, of `foto_url` bij `recept_opslaan`; weghalen met `recept_foto_verwijderen`). De app haalt de foto zelf op,
+  verkleint hem (max. 1200 px, plus een lichte versie van 400 px voor lijsten en de planner) en bewaart hem bij je gegevens, dus een verlopen link is geen probleem.
+  Alleen https-links naar JPEG, PNG of WebP tot 5 MB; interne adressen worden geweigerd
+
 ## Nieuw in versie 4.2.0
 
 - **Eigen dagdoelen:** naast calorieën kun je nu ook eiwit, koolhydraten, vet, verzadigd vet, suikers, vezels en zout zelf instellen (**Instellingen**, bij de persoon). Laat je een veld leeg, dan berekent de app het automatisch.

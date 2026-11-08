@@ -269,6 +269,8 @@ const MIGRATIONS = [
   ['people', 'username', 'TEXT'],
   ['people', 'password_hash', 'TEXT'],
   ['people', 'is_admin', 'INTEGER NOT NULL DEFAULT 0'],
+  // Kleine variant (400 px) van een receptfoto voor lijsten en de planner
+  ['recipes', 'image_thumb', 'TEXT'],
 ];
 
 function migrate(db) {

@@ -448,6 +448,21 @@ export function listRecipes({ q = '', tag = '', category = '', favorite = false,
   return summaries;
 }
 
+/** Foto van een recept zetten (of met null weghalen). Geeft de vorige foto terug, of undefined als het recept niet bestaat. */
+export function setRecipePhoto(id, { image_url = null, image_thumb = null } = {}) {
+  const db = getDb();
+  const old = db.prepare('SELECT image_url FROM recipes WHERE id = ?').get(id);
+  if (!old) return undefined;
+  db.prepare("UPDATE recipes SET image_url = ?, image_thumb = ?, image_credit = NULL, updated_at = datetime('now') WHERE id = ?")
+    .run(image_url, image_thumb, id);
+  return old.image_url || null;
+}
+
+/** Gebruikt een recept deze foto nog? */
+export function recipePhotoInUse(url) {
+  return !!getDb().prepare('SELECT 1 FROM recipes WHERE image_url = ? LIMIT 1').get(url);
+}
+
 export function listTags() {
   const tags = new Map();
   for (const r of getDb().prepare('SELECT tags FROM recipes').all()) {
@@ -485,8 +500,10 @@ export function saveRecipe(data, id = null) {
     if (id && !('taste' in data)) delete fields.taste;
     if (id) {
       // Bronvermelding van een meegeleverde foto blijft alleen staan zolang die foto niet is vervangen
-      const old = db.prepare('SELECT image_url, image_credit FROM recipes WHERE id = ?').get(id);
+      const old = db.prepare('SELECT image_url, image_credit, image_thumb FROM recipes WHERE id = ?').get(id);
       fields.image_credit = old && old.image_url === fields.image_url ? old.image_credit : null;
+      // Net zo voor de kleine variant van de foto
+      fields.image_thumb = old && old.image_url === fields.image_url ? old.image_thumb : null;
     }
     const keys = Object.keys(fields);
     let recipeId = id;
@@ -567,7 +584,7 @@ export function deleteRecipes(ids) {
 
 export function getPlan(start, days = 7) {
   const end = addDays(start, days - 1);
-  const rows = getDb().prepare(`SELECT p.*, r.title AS recipe_title, r.servings AS recipe_servings, r.image_url, r.prep_minutes, r.cook_minutes
+  const rows = getDb().prepare(`SELECT p.*, r.title AS recipe_title, r.servings AS recipe_servings, r.image_url, r.image_thumb, r.prep_minutes, r.cook_minutes
     FROM meal_plan p LEFT JOIN recipes r ON r.id = p.recipe_id
     WHERE p.date BETWEEN ? AND ? ORDER BY p.date, p.position, p.id`).all(start, end);
   const cache = new Map();
@@ -644,6 +661,7 @@ export function extrasFor(entryId) {
         ...x,
         name: r.title,
         image_url: r.image_url || null,
+        image_thumb: r.image_thumb || null,
         grams_per_person: null,
         nutrition: Object.fromEntries(NUTRIENTS.map((k) => [k, (c.nutrition_per_serving[k] || 0) * portions])),
         cost_cents: c.cost_per_serving_cents * portions,
