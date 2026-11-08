@@ -131,7 +131,8 @@ test('recept opslaan met ingrediënten uit de database', async () => {
     bereiding: ['Fruit de ui.', 'Voeg de passata toe en laat 10 minuten koken.'],
   });
   assert.ok(saved.id && saved.kcal_pp > 0);
-  assert.deepEqual(saved.niet_gekoppeld, ['drakenfruitpoeder']);
+  assert.deepEqual(saved.dekking.niet_gekoppeld.map((x) => x.naam), ['drakenfruitpoeder']);
+  assert.ok(saved.dekking.procent > 90 && saved.dekking.procent < 100);
   const r = await api('GET', `/recipes/${saved.id}`);
   assert.equal(r.title, 'Snelle tomatensoep');
   assert.equal(r.steps.length, 2);
