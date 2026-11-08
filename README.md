@@ -57,6 +57,10 @@ geeft hij een tip, maar boos wordt hij nooit. Geef hem zelf een naam: Bolletje, 
 - **Nederlands.** Nederlandse recepten, Nederlandse supermarktprijzen en voedingswaarden uit NEVO en Open Food Facts.
 - **Voor het hele huishouden.** Samen plannen en boodschappen doen, en ieder een eigen dagboek en maatje.
 
+## Nieuw in versie 4.11.0
+
+- ▶️ **Naar de video met één knop.** Staat er een link in de beschrijving van een recept (meestal de YouTube-, Instagram- of TikTok-video waar het recept uit komt), dan staat er onder de beschrijving een knop **Bekijk video**. Andere links krijgen een knop **Open link**. In de beschrijving zelf zie je de link als korte, klikbare naam (bijv. youtube.com) in plaats van een lange URL. In de Android-app opent de link in de browser of de app van de video.
+
 ## Nieuw in versie 4.10.2
 
 - ⏲ **Kookmodus: een timer voor elke tijd in een stap.** Staan er meerdere tijden in één stap (zoals ‘kook de aardappels 8 minuten en de broccoli 3 minuten’), dan krijg je nu voor elke tijd een eigen timerknop, niet alleen voor de eerste. Lopende timers laten zien bij welke stap en hoeveel minuten ze horen. Tijden als ‘8-10 minuten’ en ‘1,5 uur’ worden goed herkend.

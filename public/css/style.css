@@ -1316,3 +1316,9 @@ html:has(.modal-backdrop) { overflow: hidden; }
 .nutrition th, .nutrition td { padding-right: .6rem; }
 .nutrition th:last-child, .nutrition td:last-child { padding-right: 0; }
 @media (max-width: 420px) { .nutrition td:last-child { width: 32%; } }
+
+/* Links uit de receptbeschrijving (meestal de video) */
+.recipe-links { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .7rem; }
+.recipe-links .btn { max-width: 100%; }
+.recipe-links small { opacity: .75; font-weight: 600; margin-left: .25rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recipe-c-head .lead a { overflow-wrap: anywhere; }

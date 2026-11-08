@@ -1,7 +1,7 @@
 import { api, meta, askClaude } from '../api.js';
 import {
   $, $$, esc, euro, num, qty, minutes, toast, modal, confirmDialog, miniMarkdown, todayISO, fmtDate, addDays,
-  NUTRIENT_LABELS, REFERENCE_INTAKE, meatOffered, servingsForMeal,
+  NUTRIENT_LABELS, REFERENCE_INTAKE, meatOffered, servingsForMeal, openExternal,
 } from '../util.js';
 import { recipeThumb } from './recipes.js';
 import { linkIngredientDialog } from '../link-ingredient.js';
@@ -24,6 +24,36 @@ function photoCredit(r) {
   if (!c) return '';
   const license = c.license_url ? `<a href="${esc(c.license_url)}" target="_blank" rel="noopener">${esc(c.license)}</a>` : esc(c.license);
   return `<figcaption class="photo-credit">Voorbeeldfoto: <a href="${esc(c.page)}" target="_blank" rel="noopener">${esc(c.author)}</a>, ${license}</figcaption>`;
+}
+
+// Links in de beschrijving: meestal de video waar het recept uit komt
+const URL_RE = /https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)\]]/gi;
+const VIDEO_HOSTS = /(^|\.)(youtube\.com|youtu\.be|instagram\.com|tiktok\.com|vimeo\.com|facebook\.com|fb\.watch)$/i;
+function hostOf(url) {
+  try { return new URL(url).hostname.replace(/^www\.|^m\./, ''); } catch { return ''; }
+}
+export function recipeLinks(r) {
+  const urls = [...String(r.description || '').matchAll(URL_RE)].map((m) => m[0]);
+  if (r.source_url && VIDEO_HOSTS.test(hostOf(r.source_url))) urls.push(r.source_url);
+  return [...new Set(urls)].filter(hostOf).map((url) => ({ url, host: hostOf(url), video: VIDEO_HOSTS.test(hostOf(url)) }));
+}
+const PLATFORMS = { 'youtube.com': 'YouTube', 'youtu.be': 'YouTube', 'instagram.com': 'Instagram', 'tiktok.com': 'TikTok', 'vimeo.com': 'Vimeo', 'facebook.com': 'Facebook', 'fb.watch': 'Facebook' };
+function linkButtons(links) {
+  if (!links.length) return '';
+  return `<div class="recipe-links">${links.map((l) => {
+    const name = PLATFORMS[l.host.split('.').slice(-2).join('.')] || PLATFORMS[l.host] || l.host;
+    return `<button class="btn ${l.video ? 'btn-primary' : ''}" data-open-url="${esc(l.url)}">${l.video ? '▶ Bekijk video' : '🔗 Open link'} <small>${esc(name)}</small></button>`;
+  }).join('')}</div>`;
+}
+/** Beschrijving met de links als korte, klikbare tekst in plaats van een lange URL. */
+function descriptionHtml(text) {
+  let out = '';
+  let last = 0;
+  for (const m of String(text).matchAll(URL_RE)) {
+    out += esc(text.slice(last, m.index)) + `<a href="${esc(m[0])}" data-open-url="${esc(m[0])}" rel="noopener">${esc(hostOf(m[0]) || m[0])}</a>`;
+    last = m.index + m[0].length;
+  }
+  return out + esc(text.slice(last));
 }
 
 // Meervoud van telbare eenheden: 1 stuk, 2 stuks; 1 teen, 3 tenen …
@@ -75,7 +105,8 @@ export async function render(root, params) {
       ${photoCredit(r).replace('<figcaption', '<p').replace('</figcaption>', '</p>')}
       <div class="recipe-c-head">
         <h1>${esc(r.title)} <button class="fav-big ${r.favorite ? 'on' : ''}" data-fav aria-label="Favoriet">${r.favorite ? '★' : '☆'}</button></h1>
-        ${r.description ? `<p class="lead">${esc(r.description)}</p>` : ''}
+        ${r.description ? `<p class="lead">${descriptionHtml(r.description)}</p>` : ''}
+        ${linkButtons(recipeLinks(r))}
       </div>
       ${r.health ? `<div class="recipe-say"><div class="bubble">${HEALTH_LINES[r.health.level]} <span class="score s-${esc(r.health.level)}">🐾 ${esc(r.health.label)} · ${r.health.score}</span></div></div>` : ''}
       <div class="stat-pills">
@@ -322,6 +353,8 @@ export async function render(root, params) {
 
   view.addEventListener('click', async (e) => {
     const t = e.target;
+    const link = t.closest('[data-open-url]');
+    if (link) { e.preventDefault(); return openExternal(link.dataset.openUrl); }
     try {
       if (t.closest('[data-persons]')) { persons = Math.max(1, persons + Number(t.closest('[data-persons]').dataset.persons)); return rescale(); }
       if (t.closest('[data-setpersons]')) { persons = Number(t.closest('[data-setpersons]').dataset.setpersons); return rescale(); }
