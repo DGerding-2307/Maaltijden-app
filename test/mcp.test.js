@@ -272,3 +272,44 @@ test('nieuwe link: oude stopt; uitzetten', async () => {
   assert.equal((await api('POST', '/mcp/disconnect', {})).url, null);
   assert.equal((await rpc('ping', {}, fresh.url)).status, 404);
 });
+
+test('recept beoordelen: lekker of niet, sterren en notities', async () => {
+  mcpUrl = (await api('POST', '/mcp/new-link', {})).url; // een eerdere test trekt de link in
+  const made = await ok('recept_opslaan', {
+    titel: 'Proefsoep', personen: 2, bereiding: ['Kook'], ingredienten: [{ naam: 'ui', hoeveelheid: 100, eenheid: 'g' }],
+  });
+  const first = await ok('recept_beoordelen', { id: made.id, oordeel: 'lekker', sterren: 4, notitie_toevoegen: 'Minder zout' });
+  assert.equal(first.oordeel, 'lekker');
+  assert.equal(first.sterren, 4);
+  assert.equal(first.notities, 'Minder zout', 'de standaardtekst ‘Toegevoegd door Claude’ valt weg');
+  const more = await ok('recept_beoordelen', { id: made.id, notitie_toevoegen: 'Lekker met rijst' });
+  assert.equal(more.notities, 'Minder zout\nLekker met rijst');
+  assert.equal(more.oordeel, 'lekker', 'oordeel blijft staan');
+
+  const seen = await ok('recept_bekijken', { id: made.id });
+  assert.equal(seen.oordeel, 'lekker');
+  assert.equal(seen.sterren, 4);
+  assert.equal(seen.notities, 'Minder zout\nLekker met rijst');
+
+  // Zoeken op oordeel
+  const lekker = await ok('recepten_zoeken', { zoekterm: 'Proefsoep', oordeel: 'lekker' });
+  assert.equal(lekker.aantal, 1);
+  assert.equal(lekker.recepten[0].oordeel, 'lekker');
+  assert.equal((await ok('recepten_zoeken', { zoekterm: 'Proefsoep', oordeel: 'niet_lekker' })).aantal, 0);
+
+  // Recept wijzigen laat oordeel en notities staan
+  await ok('recept_wijzigen', { id: made.id, titel: 'Proefsoep 2' });
+  const after1 = await api('GET', `/recipes/${made.id}`);
+  assert.equal(after1.taste, 1);
+  assert.equal(after1.notes, 'Minder zout\nLekker met rijst');
+
+  const changed = await ok('recept_beoordelen', { id: made.id, oordeel: 'niet_lekker', sterren: 0, notities: 'Te flauw' });
+  assert.equal(changed.oordeel, 'niet lekker');
+  assert.equal(changed.sterren, null);
+  assert.equal(changed.notities, 'Te flauw');
+  assert.equal((await ok('recepten_zoeken', { zoekterm: 'Proefsoep', oordeel: 'niet_lekker' })).aantal, 1);
+  assert.equal((await ok('recept_beoordelen', { id: made.id, oordeel: 'geen' })).oordeel, 'nog niet beoordeeld');
+
+  assert.equal((await call('recept_beoordelen', { id: made.id })).isError, true, 'niets meegegeven');
+  assert.equal((await call('recept_beoordelen', { id: 999999, oordeel: 'lekker' })).isError, true);
+});

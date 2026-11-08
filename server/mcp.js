@@ -57,6 +57,9 @@ const moment = (m, fallback = 'diner') => {
   return v;
 };
 const round = (n) => (n == null ? null : Math.round(n));
+const TASTE_OUT = { 1: 'lekker', '-1': 'niet lekker' };
+const tasteOut = (t) => TASTE_OUT[t] || 'nog niet beoordeeld';
+const notesOut = (n) => (n && n !== 'Toegevoegd door Claude' ? n : undefined);
 const packageOut = (o) => ({ gram: o.grams, naam: o.label, prijs: euro(o.price_cents), hoofdverpakking: o.key === 'main' });
 
 function planItem(e) {
@@ -160,21 +163,24 @@ const TOOLS = {
     },
   },
   recepten_zoeken: {
-    description: 'Zoek in het receptenboek op naam, ingrediënt of label. Geeft id, titel, categorie, tijd, kcal en prijs per portie.',
+    description: 'Zoek in het receptenboek op naam, ingrediënt of label. Geeft id, titel, categorie, tijd, kcal, prijs per portie, '
+      + 'of het lekker gevonden is (oordeel), sterren en notities. Houd rekening met ‘niet lekker’ en notities bij het voorstellen of plannen.',
     input: {
       zoekterm: str('Bv. ‘kip’, ‘stamppot’ of ‘vegetarisch’. Leeg = alles.'),
       categorie: str('Bv. Hoofdgerecht, Ontbijt, Lunch, Soep, Bijgerecht, Nagerecht'),
       max_minuten: int('Maximale bereidingstijd in minuten'),
       alleen_favorieten: { type: 'boolean', description: 'Alleen favorieten' },
+      oordeel: { type: 'string', enum: ['lekker', 'niet_lekker', 'onbeoordeeld'], description: 'Alleen recepten die lekker of niet lekker gevonden zijn, of nog niet beoordeeld' },
       limiet: int('Maximaal aantal resultaten (standaard 20)', { minimum: 1, maximum: 100 }),
     },
-    run: ({ zoekterm, categorie, max_minuten: max, alleen_favorieten: fav, limiet }) => {
-      const list = repo.listRecipes({ q: zoekterm || '', category: categorie || '', maxMinutes: Number(max) || 0, favorite: !!fav });
+    run: ({ zoekterm, categorie, max_minuten: max, alleen_favorieten: fav, oordeel, limiet }) => {
+      const list = repo.listRecipes({ q: zoekterm || '', category: categorie || '', maxMinutes: Number(max) || 0, favorite: !!fav, taste: oordeel || '' });
       return {
         aantal: list.length,
         recepten: list.slice(0, Number(limiet) || 20).map((r) => ({
           id: r.id, titel: r.title, categorie: r.category, minuten: r.total_minutes || null,
           kcal_pp: round(r.kcal_per_serving), prijs_pp: euro(r.cost_per_serving_cents), favoriet: !!r.favorite,
+          oordeel: tasteOut(r.taste), sterren: r.rating || undefined, notities: notesOut(r.notes),
         })),
       };
     },
@@ -197,6 +203,7 @@ const TOOLS = {
         bereiding: r.steps,
         per_portie: { kcal: round(n.kcal), eiwit: n.protein, koolhydraten: n.carbs, vet: n.fat, verzadigd_vet: n.sat_fat, suiker: n.sugar, vezels: n.fiber, zout: n.salt },
         prijs_totaal: euro(r.cost_total_cents), prijs_pp: euro(r.cost_per_serving_cents),
+        oordeel: tasteOut(r.taste), sterren: r.rating || null, favoriet: !!r.favorite,
         notities: r.notes || undefined,
       };
     },
@@ -235,7 +242,7 @@ const TOOLS = {
   },
   recept_wijzigen: {
     description: 'Wijzig een bestaand recept (id uit recepten_zoeken). Alleen wat je meegeeft verandert; een nieuwe lijst ingrediënten '
-      + 'of stappen vervangt de oude helemaal. Foto, beoordeling en koppelingen blijven staan.',
+      + 'of stappen vervangt de oude helemaal. Foto, beoordeling (lekker/sterren), notities en koppelingen blijven staan; gebruik recept_beoordelen voor oordeel en notities.',
     input: {
       id: int('Id van het recept'),
       titel: str('Nieuwe naam'),
@@ -273,6 +280,38 @@ const TOOLS = {
         steps: a.bereiding ?? r.steps, favorite: a.favoriet ?? r.favorite, ingredients,
       }, r.id);
       return { gewijzigd: true, ...recipeOut(r.id) };
+    },
+  },
+  recept_beoordelen: {
+    description: 'Geef aan of een recept lekker is of niet, geef sterren (1–5) en/of pas de notities aan (id uit recepten_zoeken). '
+      + 'Alleen wat je meegeeft verandert. Met notitie_toevoegen komt er een regel bij; met notities vervang je alles.',
+    input: {
+      id: int('Id van het recept'),
+      oordeel: { type: 'string', enum: ['lekker', 'niet_lekker', 'geen'], description: '‘geen’ wist het oordeel' },
+      sterren: int('1–5 sterren, 0 wist de sterren', { minimum: 0, maximum: 5 }),
+      notities: str('Vervangt alle notities (leeg = notities wissen)'),
+      notitie_toevoegen: str('Voegt een regel toe aan de bestaande notities'),
+    },
+    required: ['id'],
+    changes: true,
+    run: ({ id, oordeel, sterren, notities, notitie_toevoegen: extra }) => {
+      const r = repo.getRecipe(Number(id));
+      if (!r) throw fail(`Recept ${id} bestaat niet.`);
+      if (oordeel == null && sterren == null && notities == null && !String(extra || '').trim()) throw fail('Geef een oordeel, sterren of notities.');
+      if (oordeel != null) {
+        if (!['lekker', 'niet_lekker', 'geen'].includes(oordeel)) throw fail('Oordeel is lekker, niet_lekker of geen.');
+        repo.setTaste(r.id, oordeel);
+      }
+      if (sterren != null) {
+        const n = Number(sterren);
+        if (!Number.isInteger(n) || n < 0 || n > 5) throw fail('Sterren zijn 0 t/m 5.');
+        repo.setRating(r.id, n || null);
+      }
+      let notes = notities != null ? String(notities) : notesOut(r.notes) || '';
+      if (String(extra || '').trim()) notes = [notes.trim(), String(extra).trim()].filter(Boolean).join(String.fromCharCode(10));
+      if (notities != null || String(extra || '').trim()) repo.setNotes(r.id, notes);
+      const u = repo.getRecipe(r.id);
+      return { opgeslagen: true, id: u.id, titel: u.title, oordeel: tasteOut(u.taste), sterren: u.rating || null, notities: u.notes || '' };
     },
   },
   recept_verwijderen: {
@@ -546,7 +585,7 @@ function recipeOut(id) {
 
 const INSTRUCTIONS = 'Maaltijden is de maaltijdplanner van het huishouden: weekplanner, receptenboek, boodschappenlijst en een '
   + 'calorieëndagboek met gewicht. Antwoord in het Nederlands. Datums zijn JJJJ-MM-DD; momenten zijn ontbijt, lunch, diner en tussendoor. '
-  + 'Zoek eerst een recept met recepten_zoeken voordat je het plant. Het dagboek en gewicht zijn van de persoon van deze koppeling.';
+  + 'Zoek eerst een recept met recepten_zoeken voordat je het plant. Recepten hebben een oordeel (lekker/niet lekker) en notities: stel geen ‘niet lekker’-recepten voor zonder dat te zeggen, houd rekening met notities, en leg een oordeel of notitie vast met recept_beoordelen. Het dagboek en gewicht zijn van de persoon van deze koppeling.';
 
 /** Eén JSON-RPC-bericht afhandelen. Geeft het antwoord, of null voor een melding (notification). */
 export async function handleRpc(msg, ctx) {

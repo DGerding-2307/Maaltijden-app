@@ -241,7 +241,7 @@ export function createApp() {
   // ---- Recepten ----
   api.get('/recipes', wrap((req) => repo.listRecipes({
     q: req.query.q || '', tag: req.query.tag || '', category: req.query.category || '',
-    favorite: req.query.favorite === '1', maxMinutes: Number(req.query.maxMinutes) || 0, sort: req.query.sort || 'title',
+    favorite: req.query.favorite === '1', taste: req.query.taste || '', maxMinutes: Number(req.query.maxMinutes) || 0, sort: req.query.sort || 'title',
     maxPrice: Number(req.query.maxPrice) || 0,
     have: String(req.query.have || '').split(',').map((s) => s.trim()).filter(Boolean),
   })));
@@ -289,6 +289,8 @@ export function createApp() {
     const id = Number(req.params.id);
     if ('favorite' in req.body) repo.setFavorite(id, req.body.favorite);
     if ('rating' in req.body) repo.setRating(id, req.body.rating);
+    if ('taste' in req.body) repo.setTaste(id, req.body.taste);
+    if ('notes' in req.body) repo.setNotes(id, req.body.notes);
     return repo.getRecipe(id);
   }));
   api.delete('/recipes/:id', wrap((req) => repo.deleteRecipe(Number(req.params.id))));
