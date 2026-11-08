@@ -9,6 +9,7 @@ import * as repo from './repo.js';
 import * as tracker from './tracker.js';
 import { mondayOf } from './seed.js';
 import { todayISO } from './homeassistant.js';
+import * as photos from './recipe-photos.js';
 
 const PROTOCOLS = ['2025-06-18', '2025-03-26', '2024-11-05'];
 const MOMENTS = ['ontbijt', 'lunch', 'diner', 'tussendoor'];
@@ -92,6 +93,31 @@ const int = (description, extra = {}) => ({ type: 'integer', description, ...ext
 const num = (description) => ({ type: 'number', description });
 const DATE = str('Datum als JJJJ-MM-DD. Leeg = vandaag.');
 const MOMENT = { type: 'string', enum: MOMENTS, description: 'Moment van de dag' };
+
+/** Foto ophalen of uitpakken, verkleinen, bewaren en aan het recept koppelen. De vorige eigen foto wordt opgeruimd. */
+async function setPhoto(id, { foto_url: url, foto_base64: b64, mime_type: mime }) {
+  const hasUrl = url != null && String(url).trim() !== '';
+  const hasB64 = b64 != null && String(b64).trim() !== '';
+  if (!hasUrl && !hasB64) throw fail('Geef een foto_url (https-link naar een afbeelding) of foto_base64.');
+  if (hasUrl && hasB64) throw fail('Geef óf foto_url óf foto_base64, niet allebei.');
+  const { buffer } = hasUrl ? await photos.fetchImage(url) : photos.decodeBase64(b64, mime);
+  const stored = await photos.storeImage(buffer);
+  const previous = repo.setRecipePhoto(id, stored);
+  if (previous === undefined) {
+    photos.removeFiles(stored.image_url, repo.recipePhotoInUse);
+    throw fail(`Recept ${id} bestaat niet.`);
+  }
+  if (previous && previous !== stored.image_url) photos.removeFiles(previous, repo.recipePhotoInUse);
+  return {
+    foto: stored.image_url, foto_klein: stored.image_thumb,
+    breedte: stored.breedte, hoogte: stored.hoogte, kb: Math.round(stored.bytes / 1024),
+    klein: { breedte: stored.klein.breedte, hoogte: stored.klein.hoogte, kb: Math.round(stored.klein.bytes / 1024) },
+    origineel: { formaat: stored.origineel.formaat, breedte: stored.origineel.breedte, hoogte: stored.origineel.hoogte, kb: Math.round(stored.origineel.bytes / 1024) },
+  };
+}
+
+const FOTO_URL = str('Https-link naar een afbeelding (JPEG, PNG of WebP, max. 5 MB), bv. de thumbnail van een YouTube- of Instagram-video. '
+  + 'De server haalt de foto meteen op en bewaart hem zelf, dus een link die later verloopt is geen probleem. Geen link naar een webpagina.');
 
 /** Alle hulpmiddelen: naam → { beschrijving, invoer, uitvoeren(args, ctx), wijzigt }. */
 const TOOLS = {
@@ -205,6 +231,7 @@ const TOOLS = {
         prijs_totaal: euro(r.cost_total_cents), prijs_pp: euro(r.cost_per_serving_cents),
         oordeel: tasteOut(r.taste), sterren: r.rating || null, favoriet: !!r.favorite,
         notities: r.notes || undefined,
+        foto: r.image_url || null,
         dekking: coverageOut(r),
       };
     },
@@ -226,10 +253,11 @@ const TOOLS = {
       voorbereiden_min: int('Voorbereidingstijd in minuten'),
       koken_min: int('Kooktijd in minuten'),
       labels: { type: 'array', items: { type: 'string' }, description: 'Labels, bv. vegetarisch, snel' },
+      foto_url: FOTO_URL,
     },
     required: ['titel', 'ingredienten', 'bereiding'],
     changes: true,
-    run: (a) => {
+    run: async (a) => {
       if (!String(a.titel || '').trim()) throw fail('Geef het recept een titel.');
       if (!Array.isArray(a.ingredienten) || !a.ingredienten.length) throw fail('Een recept heeft ingrediënten nodig.');
       const id = repo.saveRecipe({
@@ -238,12 +266,19 @@ const TOOLS = {
         steps: a.bereiding || [], notes: 'Toegevoegd door Claude',
         ingredients: a.ingredienten.map((i) => ({ name: String(i.naam || ''), quantity: i.hoeveelheid ?? null, unit: i.eenheid || '', note: i.notitie || '' })),
       });
-      return { opgeslagen: true, ...recipeOut(id) };
+      if (a.foto_url == null || String(a.foto_url).trim() === '') return { opgeslagen: true, ...recipeOut(id) };
+      // Het recept is al opgeslagen; lukt de foto niet, dan melden we dat zonder het recept te verliezen
+      try {
+        return { opgeslagen: true, ...recipeOut(id), foto: await setPhoto(id, { foto_url: a.foto_url }) };
+      } catch (err) {
+        if (!err.toolError) console.warn(`MCP recept_opslaan foto: ${err.stack || err.message}`);
+        return { opgeslagen: true, ...recipeOut(id), foto_opgeslagen: false, foto_fout: `${err.message} Het recept is wel opgeslagen; probeer de foto opnieuw met recept_foto_instellen.` };
+      }
     },
   },
   recept_wijzigen: {
     description: 'Wijzig een bestaand recept (id uit recepten_zoeken). Alleen wat je meegeeft verandert; een nieuwe lijst ingrediënten '
-      + 'of stappen vervangt de oude helemaal. Foto, beoordeling (lekker/sterren), notities en koppelingen blijven staan; gebruik recept_beoordelen voor oordeel en notities.',
+      + 'of stappen vervangt de oude helemaal. Foto, beoordeling (lekker/sterren), notities en koppelingen blijven staan; gebruik recept_beoordelen voor oordeel en notities en recept_foto_instellen voor de foto.',
     input: {
       id: int('Id van het recept'),
       titel: str('Nieuwe naam'),
@@ -281,6 +316,39 @@ const TOOLS = {
         steps: a.bereiding ?? r.steps, favorite: a.favoriet ?? r.favorite, ingredients,
       }, r.id);
       return { gewijzigd: true, ...recipeOut(r.id) };
+    },
+  },
+  recept_foto_instellen: {
+    description: 'Zet of vervang de foto van een recept (id uit recepten_zoeken), bv. de thumbnail van de YouTube- of Instagram-video waar het recept vandaan komt. '
+      + 'Geef foto_url (https-link naar de afbeelding zelf) of foto_base64. De foto wordt verkleind tot max. 1200 px breed (plus een kleine versie van 400 px voor lijsten) '
+      + 'en in de app zelf bewaard. YouTube-thumbnail: https://i.ytimg.com/vi/<video-id>/hqdefault.jpg (of maxresdefault.jpg).',
+    input: {
+      id: int('Id van het recept'),
+      foto_url: FOTO_URL,
+      foto_base64: str('De afbeelding zelf als base64, het liefst als data-URL met mime-type: ‘data:image/jpeg;base64,…’ (JPEG, PNG of WebP, max. 5 MB)'),
+      mime_type: { type: 'string', enum: ['image/jpeg', 'image/png', 'image/webp'], description: 'Mime-type bij foto_base64 zonder data-URL' },
+    },
+    required: ['id'],
+    changes: true,
+    run: async (a) => {
+      const id = Number(a.id);
+      const r = Number.isInteger(id) ? repo.getRecipe(id) : null;
+      if (!r) throw fail(`Recept ${a.id} bestaat niet.`);
+      return { gelukt: true, id, titel: r.title, ...(await setPhoto(id, a)) };
+    },
+  },
+  recept_foto_verwijderen: {
+    description: 'Haal de foto van een recept weg (id uit recepten_zoeken).',
+    input: { id: int('Id van het recept') },
+    required: ['id'],
+    changes: true,
+    run: ({ id }) => {
+      const r = repo.getRecipe(Number(id));
+      if (!r) throw fail(`Recept ${id} bestaat niet.`);
+      if (!r.image_url) return { verwijderd: false, id: r.id, titel: r.title, melding: 'Dit recept had geen foto.' };
+      const previous = repo.setRecipePhoto(r.id, {});
+      photos.removeFiles(previous, repo.recipePhotoInUse);
+      return { verwijderd: true, id: r.id, titel: r.title };
     },
   },
   recept_beoordelen: {
@@ -678,7 +746,9 @@ const aliasesOf = (i) => [i.name, ...String(i.aliases || '').split(',')].map((x)
 const INSTRUCTIONS = 'Maaltijden is de maaltijdplanner van het huishouden: weekplanner, receptenboek, boodschappenlijst en een '
   + 'calorieëndagboek met gewicht. Antwoord in het Nederlands. Datums zijn JJJJ-MM-DD; momenten zijn ontbijt, lunch, diner en tussendoor. '
   + 'Zoek eerst een recept met recepten_zoeken voordat je het plant. Recepten hebben een oordeel (lekker/niet lekker) en notities: stel geen ‘niet lekker’-recepten voor zonder dat te zeggen, houd rekening met notities, en leg een oordeel of notitie vast met recept_beoordelen. Het dagboek en gewicht zijn van de persoon van deze koppeling. '
-  + 'Kijk bij recepten naar dekking: ontbreken ingrediënten, zoek ze met ingredient_zoeken en voeg ze toe met ingredient_toevoegen.';
+  + 'Kijk bij recepten naar dekking: ontbreken ingrediënten, zoek ze met ingredient_zoeken en voeg ze toe met ingredient_toevoegen. '
+  + 'Recepten kunnen een foto hebben: komt een recept uit een YouTube- of Instagram-video, zet dan de thumbnail als foto met foto_url bij recept_opslaan '
+  + 'of later met recept_foto_instellen (https-link naar de afbeelding zelf; de app bewaart de foto zelf). Haal een foto weg met recept_foto_verwijderen.';
 
 /** Eén JSON-RPC-bericht afhandelen. Geeft het antwoord, of null voor een melding (notification). */
 export async function handleRpc(msg, ctx) {
