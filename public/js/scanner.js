@@ -19,7 +19,26 @@ function loadZxing() {
  * Open een venster dat de camera gebruikt (of handmatige invoer) en geef de barcode terug.
  * @returns Promise<string|null> null als de gebruiker annuleert
  */
-export function scanBarcode({ title = 'Barcode scannen' } = {}) {
+export async function scanBarcode({ title = 'Barcode scannen' } = {}) {
+  // In de Android-app: de scanner van Google (ML Kit). Die stelt zelf scherp en kiest de goede camera.
+  const native = window.Capacitor?.Plugins?.BarcodeScanner;
+  if (native && window.Capacitor?.isNativePlatform?.()) {
+    try {
+      const { available } = await native.isGoogleBarcodeScannerModuleAvailable().catch(() => ({ available: true }));
+      if (!available) await native.installGoogleBarcodeScannerModule().catch(() => {});
+      const { barcodes } = await native.scan({ formats: ['EAN_13', 'EAN_8', 'UPC_A', 'UPC_E'] });
+      const code = barcodes?.[0]?.rawValue;
+      if (code) { navigator.vibrate?.(80); return code; }
+      return null;
+    } catch (err) {
+      // Zelf geannuleerd: stoppen. Anders (bv. module nog niet gedownload): de scanner in de app gebruiken.
+      if (/cancel/i.test(err?.message || '')) return null;
+    }
+  }
+  return webScan({ title });
+}
+
+function webScan({ title }) {
   return new Promise((resolve) => {
     let done = false;
     let stream = null;
