@@ -3,7 +3,7 @@ import { api, liveSync } from '../api.js';
 import { $, $$, esc, num, todayISO, addDays, mondayOf, modal, toast, savedPerson, rememberPerson } from '../util.js';
 import { buddySvg, setMood, pet } from '../buddy.js';
 import { openLog, editEntry, showReaction, MEALS, forgetBuddy } from '../log.js';
-import { reminderCard, enablePush, enableInApp, appVersion, appError } from '../reminders.js';
+import { enablePush, enableInApp, appVersion, appError } from '../reminders.js';
 
 const MEAL_ICONS = { ontbijt: '🥣', lunch: '🥪', diner: '🍽️', tussendoor: '🍎' };
 const PET_LINES = ['Woef! 🐾', 'Hihi, dat kriebelt!', 'Nog een aai? 💛', 'Jij bent mijn favoriete mens!', 'Kwispel kwispel!'];
@@ -43,7 +43,6 @@ export async function render(root, params) {
     <div class="side">
       <div class="card" data-weight></div>
       <div class="card"><div class="card-head"><h2>Deze week</h2><a class="small" href="#/dagboek?persoon=${person.id}">Dagboek & gewicht ›</a></div><div class="weekbars" data-week></div></div>
-      <div data-reminders></div>
     </div>
   </div>`;
 
@@ -235,7 +234,6 @@ export async function render(root, params) {
   }
 
   const buddy = await load();
-  reminderCard($('[data-reminders]', root), person.id).catch(() => {});
   if (!buddy.onboarded) onboarding(buddy);
   else if (params.log) log({ meal: params.log });
   // Even later nog eens kijken: stemming hangt van het uur af (hongerig, slaperig)
