@@ -1,14 +1,10 @@
 import { api, liveSync } from '../api.js';
-import { $, esc, euro, num, qty, addDays, mondayOf, todayISO, parseISO, fmtDate, weekNumber, toast, confirmDialog, modal } from '../util.js';
+import { $, $$, esc, euro, CAT_EMOJI, rememberedSet, num, qty, addDays, mondayOf, todayISO, parseISO, fmtDate, weekNumber, toast, confirmDialog, modal } from '../util.js';
 import { say } from '../say.js';
 import { chooseReceipt } from '../receipt.js';
 
+const closedCats = rememberedSet('shopClosedCats');
 const COUNT_UNITS = ['stuk', 'teen', 'blik', 'pak', 'zakje', 'bos', 'plak'];
-const CAT_EMOJI = {
-  'Aardappelen, groente & fruit': '🥦', 'Vlees, vis & vega': '🍗', 'Zuivel, eieren & kaas': '🧀', 'Brood, ontbijt & beleg': '🍞',
-  'Pasta, rijst & wereldkeuken': '🍚', 'Conserven, soepen & sauzen': '🥫', 'Kruiden, specerijen & bakken': '🧂', 'Olie, azijn & smaakmakers': '🫒',
-  Diepvries: '🧊', 'Dranken & overig': '🧃', Overig: '🛒',
-};
 
 function amount(item) {
   if (COUNT_UNITS.includes(item.unit) && item.quantity > 0) {
@@ -116,9 +112,12 @@ export async function render(root, params) {
 
       ${!data.items.length && !data.extras.length && !partly ? `<div class="empty"><a class="btn btn-primary" href="#/planner?week=${start}">Naar de planner</a></div>` : ''}
 
-      ${shown.map(([c, list]) => `
-        <section class="shop-group">
-          <div class="sec-k">${CAT_EMOJI[c] || '🛒'} ${esc(c)}</div>
+      ${shown.length > 1 ? `<div class="row end no-print"><button class="btn btn-ghost small" data-toggle-cats>${shown.every(([c]) => !closedCats.has(c)) ? 'Alles inklappen' : 'Alles uitklappen'}</button></div>` : ''}
+      ${shown.map(([c, list]) => {
+        const done = list.filter((i) => i.checked).length;
+        return `
+        <details class="shop-group shop-cat ${done === list.length ? 'all-done' : ''}" data-shop-cat="${esc(c)}" ${closedCats.has(c) ? '' : 'open'}>
+          <summary class="sec-k"><span>${CAT_EMOJI[c] || '🛒'} ${esc(c)}</span><span class="shop-cat-count">${done ? `${done}/` : ''}${list.length}${done === list.length ? ' ✓' : ''}</span></summary>
           <div class="shop-tiles">
             ${list.map((i) => `
               <label class="shop-tile ${i.checked ? 'done' : ''} ${i.pantry ? 'pantry' : ''}">
@@ -133,7 +132,8 @@ export async function render(root, params) {
                 <button type="button" class="mini no-print have-btn" data-have="${esc(i.key)}" title="Heb ik al in huis – niet kopen" aria-label="${esc(i.name)} al in huis">🏠</button>
               </label>`).join('')}
           </div>
-        </section>`).join('')}
+        </details>`;
+      }).join('')}
 
       ${doneCount ? `<div class="done-bar no-print">
         <span>✔ ${doneCount} afgevinkt</span>
@@ -196,6 +196,14 @@ export async function render(root, params) {
     await api.post('/shopping/extras', { week: start, name });
     load();
   });
+  // Afdeling in- of uitgeklapt: onthouden (toggle bubbelt niet, dus luisteren in de capture-fase)
+  view.addEventListener('toggle', (e) => {
+    const d = e.target;
+    if (!d.matches?.('details.shop-cat')) return;
+    closedCats.toggle(d.dataset.shopCat, !d.open);
+    const btn = $('[data-toggle-cats]', view);
+    if (btn) btn.textContent = $$('details.shop-cat', view).every((x) => x.open) ? 'Alles inklappen' : 'Alles uitklappen';
+  }, true);
   view.addEventListener('click', async (e) => {
     const chip = e.target.closest('[data-cat]');
     if (chip) { cat = chip.dataset.cat; return draw(); }
@@ -238,7 +246,19 @@ export async function render(root, params) {
       load();
     }
     if (e.target.closest('[data-receipt]')) return chooseReceipt(load);
-    if (e.target.closest('[data-print]')) window.print();
+    if (e.target.closest('[data-print]')) {
+      // Afdrukken: alle afdelingen tonen, ook de dichtgeklapte
+      const closed = $$('details.shop-cat:not([open])', view);
+      closed.forEach((d) => { d.open = true; });
+      window.print();
+      closed.forEach((d) => { d.open = false; });
+    }
+    if (e.target.closest('[data-toggle-cats]')) {
+      const all = $$('details.shop-cat', view);
+      const openAll = all.some((d) => !d.open);
+      closedCats.replace(openAll ? [] : all.map((d) => d.dataset.shopCat));
+      return draw();
+    }
     if (e.target.closest('[data-copy]')) {
       const chosen = data.days.filter((d) => d.selected);
       const period = chosen.length < 7 ? ` (${chosen.map((d) => parseISO(d.date).toLocaleDateString('nl-NL', { weekday: 'short' })).join(', ')})` : '';

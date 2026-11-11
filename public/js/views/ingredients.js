@@ -2,7 +2,9 @@ import { api, meta } from '../api.js';
 import { scanBarcode } from '../scanner.js';
 import { scanProduct } from '../scan-flow.js';
 import { mediaFields, bindMediaFields, applyShopSource, ingThumb } from '../ingredient-form.js';
-import { $, esc, euro, num, toast, modal, confirmDialog, debounce, NUTRIENT_LABELS } from '../util.js';
+import { $, esc, euro, num, toast, modal, confirmDialog, debounce, NUTRIENT_LABELS, CAT_EMOJI, rememberedSet } from '../util.js';
+
+const openCats = rememberedSet('ingOpenCats');
 
 const SOURCE_LABEL = { 'open prices': '🏷️ Open Prices', jumbo: '📦 eerder opgehaald', handmatig: '✍️ handmatig', schatting: '≈ schatting' };
 
@@ -46,6 +48,7 @@ export async function render(root) {
     <div class="filters">
       <input type="search" class="input grow" placeholder="Zoek ingrediënt…" data-q>
       <select class="input" data-cat><option value="">Alle afdelingen</option>${m.categories.map((c) => `<option>${esc(c)}</option>`).join('')}</select>
+      <button class="btn btn-ghost" data-toggle-cats>Alles uitklappen</button>
     </div>
     <div class="table-wrap"><table class="data-table">
       <thead><tr><th>Ingrediënt</th><th>Afdeling</th><th class="num">kcal</th><th class="num">eiwit</th><th>Voeding</th><th class="num">1 stuk</th><th>Verpakking</th><th class="num">Prijs</th><th class="num">€/kg</th><th>Prijsbron</th><th></th></tr></thead>
@@ -56,7 +59,28 @@ export async function render(root) {
 
   function draw() {
     const list = all.filter((i) => (!cat || i.category === cat) && (!q || `${i.name} ${i.aliases}`.toLowerCase().includes(q)));
-    $('[data-body]', view).innerHTML = list.map((i) => `
+    const groups = new Map();
+    for (const i of list) {
+      const c = i.category || 'Overig';
+      if (!groups.has(c)) groups.set(c, []);
+      groups.get(c).push(i);
+    }
+    const order = [...m.categories, ...Object.keys(CAT_EMOJI)];
+    const rank = (c) => { const n = order.indexOf(c); return n < 0 ? order.length : n; };
+    const sorted = [...groups.entries()].sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b, 'nl'));
+    // Zoeken of een afdeling kiezen: alles wat gevonden is, staat open
+    const isOpen = (c) => Boolean(q || cat) || openCats.has(c);
+    const toggle = $('[data-toggle-cats]', view);
+    toggle.hidden = Boolean(q || cat) || sorted.length < 2;
+    toggle.textContent = sorted.every(([c]) => isOpen(c)) ? 'Alles inklappen' : 'Alles uitklappen';
+    $('[data-body]', view).innerHTML = sorted.map(([c, items]) => `
+      <tr class="cat-row ${isOpen(c) ? 'open' : ''}" data-cat-toggle="${esc(c)}" aria-expanded="${isOpen(c)}">
+        <td colspan="11"><span class="cat-row-name">${CAT_EMOJI[c] || '🛒'} ${esc(c)}</span><span class="cat-row-count">${items.length}</span></td>
+      </tr>${isOpen(c) ? items.map(rowHtml).join('') : ''}`).join('') || '<tr><td colspan="11" class="muted">Geen ingrediënten gevonden.</td></tr>';
+  }
+
+  function rowHtml(i) {
+    return `
       <tr data-id="${i.id}" title="Tik om ${esc(i.name)} aan te passen">
         <td><span class="ing-cell">${ingThumb(i)}<span><strong>${esc(i.name)}</strong>${i.pantry ? ' <span class="badge">voorraad</span>' : ''}
           <small class="ing-sum">${num(i.kcal, 0)} kcal · ${num(i.protein)} g eiwit per 100 g${i.price_cents != null ? ` · ${euro(i.price_cents)}` : ''}</small></span></span></td>
@@ -75,7 +99,7 @@ export async function render(root) {
           <button class="mini" data-prices title="Prijzen uit Open Prices">🏷️</button>
           <button class="mini danger" data-del title="Verwijderen">✕</button>
         </td>
-      </tr>`).join('');
+      </tr>`;
   }
 
   async function reload() {
@@ -378,6 +402,17 @@ export async function render(root) {
     if (e.target.matches('[data-cat]')) { cat = e.target.value; draw(); }
   }, 150));
   view.addEventListener('click', async (e) => {
+    const catRow = e.target.closest('[data-cat-toggle]');
+    if (catRow && !q && !cat) {
+      const c = catRow.dataset.catToggle;
+      openCats.toggle(c, !openCats.has(c));
+      return draw();
+    }
+    if (e.target.closest('[data-toggle-cats]')) {
+      const names = [...new Set(all.map((i) => i.category || 'Overig'))];
+      openCats.replace(names.every((c) => openCats.has(c)) ? [] : names);
+      return draw();
+    }
     const tr = e.target.closest('[data-id]');
     const ing = tr && all.find((i) => i.id === Number(tr.dataset.id));
     try {

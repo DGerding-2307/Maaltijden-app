@@ -296,3 +296,21 @@ export function pendingPlanLink() {
 export function clearPlanLink() {
   try { sessionStorage.removeItem(PLAN_LINK_KEY); } catch { /* geen opslag */ }
 }
+
+/** Emoji per winkelcategorie (boodschappen, voorraad). */
+export const CAT_EMOJI = {
+  'Aardappelen, groente & fruit': '🥦', 'Vlees, vis & vega': '🍗', 'Zuivel, eieren & kaas': '🧀', 'Brood, ontbijt & beleg': '🍞',
+  'Pasta, rijst & wereldkeuken': '🍚', 'Conserven, soepen & sauzen': '🥫', 'Kruiden, specerijen & bakken': '🧂', 'Olie, azijn & smaakmakers': '🫒',
+  Diepvries: '🧊', 'Dranken & overig': '🧃', Overig: '🛒',
+};
+
+/** Onthoudt (per apparaat) een set namen, bv. welke categorieën uitgeklapt staan. */
+export function rememberedSet(key) {
+  const read = () => { try { return new Set(JSON.parse(localStorage.getItem(key) || '[]')); } catch { return new Set(); } };
+  const write = (set) => { try { localStorage.setItem(key, JSON.stringify([...set])); } catch { /* opslag niet beschikbaar */ } };
+  return {
+    has: (name) => read().has(name),
+    toggle(name, on) { const set = read(); if (on) set.add(name); else set.delete(name); write(set); },
+    replace(names) { write(new Set(names)); },
+  };
+}

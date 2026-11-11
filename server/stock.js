@@ -7,10 +7,12 @@ import { knownBarcode } from './scan.js';
 
 /** Gewicht van één stuk als het ingrediënt per stuk gaat (eieren, paprika's...), anders null. Zelfde grens als elders: ≥ 30 g. */
 export const pieceWeight = (ing) => (Number(ing?.unit_weight_g) >= 30 ? Number(ing.unit_weight_g) : null);
-/** Gram omrekenen naar stuks (op 0,1 afgerond) voor ingrediënten die per stuk gaan. */
+/** Gram omrekenen naar hele stuks voor ingrediënten die per stuk gaan; komt het niet op hele stuks uit (300 g kipfilet), dan null. */
 export const toPieces = (grams, ing) => {
   const w = pieceWeight(ing);
-  return w ? Math.round((Number(grams) / w) * 10) / 10 : null;
+  if (!w) return null;
+  const n = Number(grams) / w;
+  return n >= 0.95 && Math.abs(n - Math.round(n)) < 0.05 ? Math.round(n) : null;
 };
 
 const err = (message, status = 400) => Object.assign(new Error(message), { status });
