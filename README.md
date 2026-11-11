@@ -57,6 +57,10 @@ geeft hij een tip, maar boos wordt hij nooit. Geef hem zelf een naam: Bolletje, 
 - **Nederlands.** Nederlandse recepten, Nederlandse supermarktprijzen en voedingswaarden uit NEVO en Open Food Facts.
 - **Voor het hele huishouden.** Samen plannen en boodschappen doen, en ieder een eigen dagboek en maatje.
 
+## Nieuw in versie 4.16.0
+
+- 📖 **Van Vandaag naar het recept.** Tik op het Vandaag-scherm op een gepland of gegeten recept, dan open je meteen dat recept. Wat je gegeten hebt pas je aan met het ✏️-knopje bij de kcal.
+
 ## Nieuw in versie 4.15.0
 
 - ✏️ **Van boodschap naar ingrediënt.** Op elk kaartje in de boodschappenlijst (en bij ‘Al in huis’) staat een ✏️-knopje. Daarmee open je meteen dat ingrediënt om prijs, verpakking, foto of afdeling aan te passen. Na opslaan of sluiten sta je weer op je boodschappenlijst.

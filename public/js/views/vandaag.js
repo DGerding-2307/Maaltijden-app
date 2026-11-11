@@ -125,16 +125,20 @@ export async function render(root, params) {
     for (const m of MEALS) {
       const block = day.meals.find((x) => x.meal === m);
       for (const e of block.entries) {
-        rows.push(`<button type="button" class="meal-row" data-entry="${e.id}">
-          <span class="meal-thumb">${e.photo ? `<img src="${esc(e.photo)}" alt="">` : MEAL_ICONS[m]}</span>
+        const inner = `<span class="meal-thumb">${e.photo ? `<img src="${esc(e.photo)}" alt="">` : MEAL_ICONS[m]}</span>
           <span class="m"><span class="k">${m}${timeOf(e.created_at) ? ` · ${timeOf(e.created_at)}` : ''}</span><span class="n">${esc(e.name)}</span>
-            <span class="score s-${esc(e.level)}">🐾 ${esc(e.label)}</span></span>
-          <span class="kc">${num(e.kcal, 0)}</span></button>`);
+            <span class="score s-${esc(e.level)}">🐾 ${esc(e.label)}</span></span>`;
+        // Een gegeten recept: tik om het recept te openen, ✏️ om de invoer aan te passen
+        rows.push(e.type === 'recipe' && e.recipe_id
+          ? `<div class="meal-row"><a class="meal-go" href="#/recept/${e.recipe_id}" title="Recept ${esc(e.name)} bekijken">${inner}</a>
+            <button type="button" class="kc kc-edit" data-entry="${e.id}" title="Aanpassen" aria-label="${esc(e.name)} aanpassen">${num(e.kcal, 0)} ✏️</button></div>`
+          : `<button type="button" class="meal-row" data-entry="${e.id}">${inner}<span class="kc">${num(e.kcal, 0)}</span></button>`);
       }
       const planned = day.planned.filter((p) => !p.logged && (p.meal === m || (m === 'tussendoor' && !MEALS.includes(p.meal))));
       for (const p of planned) {
-        rows.push(`<div class="meal-row"><span class="meal-thumb">${MEAL_ICONS[m]}</span>
-          <span class="m"><span class="k">${m} · gepland</span><span class="n">${esc(p.title)}</span></span>
+        const inner = `<span class="meal-thumb">${MEAL_ICONS[m]}</span>
+          <span class="m"><span class="k">${m} · gepland</span><span class="n">${esc(p.title)}</span></span>`;
+        rows.push(`<div class="meal-row">${p.recipe_id ? `<a class="meal-go" href="#/recept/${p.recipe_id}" title="Recept ${esc(p.title)} bekijken">${inner}</a>` : inner}
           <button type="button" class="planned-chip" data-eaten="${p.id}">✓ Gegeten · ${num(p.kcal, 0)} kcal</button></div>`);
       }
       if (!block.entries.length && !planned.length && m !== 'tussendoor') {
