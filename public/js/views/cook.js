@@ -1,5 +1,6 @@
 // Kookmodus: grote letters, stap voor stap, scherm blijft aan, timers uit de tekst.
 import { api } from '../api.js';
+import { markCooked } from '../stock-cook.js';
 import { $, esc, toast } from '../util.js';
 import { scaledLine } from './recipe.js';
 
@@ -54,7 +55,7 @@ export async function render(root, params) {
       <div class="cook-timers">${timers.map((t, i) => `<div class="timer ${t.left <= 0 ? 'done' : ''}" data-tidx="${i}">⏲ ${fmt(t.left)} <span class="muted">${esc(t.label)}</span> <button class="mini" data-stop="${i}">✕</button></div>`).join('')}</div>
       <div class="cook-nav">
         <button class="btn big" data-prev ${step < 0 ? 'disabled' : ''}>← Vorige</button>
-        ${step < total - 1 ? '<button class="btn btn-primary big" data-next>Volgende →</button>' : `<a class="btn btn-primary big" href="#/recept/${r.id}">Eet smakelijk! 🎉</a>`}
+        ${step < total - 1 ? '<button class="btn btn-primary big" data-next>Volgende →</button>' : `<button class="btn btn-primary big" data-cooked>✓ Gekookt – van voorraad afhalen</button><a class="btn big" href="#/recept/${r.id}">Eet smakelijk! 🎉</a>`}
       </div>`;
   }
 
@@ -87,6 +88,14 @@ export async function render(root, params) {
   view.addEventListener('click', (e) => {
     if (e.target.closest('[data-next]')) { step = Math.min(r.steps.length - 1, step + 1); draw(); }
     if (e.target.closest('[data-prev]')) { step = Math.max(-1, step - 1); draw(); }
+    const cookedBtn = e.target.closest('[data-cooked]');
+    if (cookedBtn) {
+      cookedBtn.disabled = true;
+      markCooked({ recipe_id: r.id, servings: persons, plan_entry_id: Number(params.plan) || null }).then((res) => {
+        if (res) cookedBtn.textContent = '✓ Afgeboekt';
+        else cookedBtn.disabled = false;
+      });
+    }
     const timer = e.target.closest('[data-timer]');
     if (timer) {
       timers.push({ left: Number(timer.dataset.timer) * 60, label: `stap ${step + 1} · ${timer.dataset.timer} min` });

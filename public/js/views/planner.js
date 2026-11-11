@@ -1,6 +1,7 @@
 import { api, meta, liveSync } from '../api.js';
 import { meatDialog, extrasDialog, meatOptions, defaultPortion } from '../meat.js';
 import { say } from '../say.js';
+import { markCooked, undoCooked } from '../stock-cook.js';
 import {
   $, $$, esc, euro, num, addDays, mondayOf, todayISO, fmtDate, weekNumber, DAY_NAMES, toast, modal, confirmDialog, debounce, minutes, meatOffered, PLAN_LINK_KEY,
   savedPerson, rememberPerson, servingsForMeal,
@@ -87,6 +88,8 @@ export async function render(root, params) {
         ${e.note && !rest ? `<span class="muted small">${esc(e.note)}</span>` : ''}
         ${e.recipe_id && e.date <= todayISO() ? `<button class="eat-toggle ${e.eaten ? 'on' : ''}" data-eat aria-pressed="${!!e.eaten}"
           title="${e.eaten ? `Staat in het dagboek van ${esc(person.name)}` : `Als gegeten in het dagboek van ${esc(person.name)} zetten`}">${e.eaten ? '✓ gegeten' : 'gegeten?'}</button>` : ''}
+        ${e.recipe_id && !e.leftover_of && e.date <= todayISO() ? `<button class="eat-toggle ${e.cooked_id ? 'on' : ''}" data-cook aria-pressed="${!!e.cooked_id}"
+          title="${e.cooked_id ? 'Afgeboekt van de voorraad – klik om ongedaan te maken' : 'Gekookt: ingrediënten van de voorraad afhalen'}">${e.cooked_id ? '✓ gekookt' : '🍳 gekookt?'}</button>` : ''}
       </div>
     </article>`;
   }
@@ -258,6 +261,11 @@ export async function render(root, params) {
       if (e.target.closest('[data-make-recipe]') && entry) { e.preventDefault(); return makeRecipeDialog(entry); }
       if (e.target.closest('[data-meat]') && entry) return meatDialog(entry, load);
       if (e.target.closest('[data-ingredients]') && entry) return extrasDialog(entry, load, { mode: 'all' });
+      if (e.target.closest('[data-cook]') && entry) {
+        if (entry.cooked_id) await undoCooked(entry.cooked_id);
+        else await markCooked({ plan_entry_id: entry.id });
+        return load();
+      }
       if (e.target.closest('[data-eat]') && entry) {
         if (entry.eaten) {
           const day = await api.get(`/diary?persoon=${person.id}&datum=${entry.date}`);

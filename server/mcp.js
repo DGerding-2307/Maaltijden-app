@@ -6,6 +6,7 @@
 import crypto from 'node:crypto';
 import { getSetting, setSetting } from './db.js';
 import * as repo from './repo.js';
+import * as stock from './stock.js';
 import * as tracker from './tracker.js';
 import { mondayOf } from './seed.js';
 import { todayISO } from './homeassistant.js';
@@ -497,6 +498,44 @@ const TOOLS = {
       return { verwijderd: true, ingredient: ing.name, verpakkingen: repo.deletePackage(ing.id, option.key).map(packageOut) };
     },
   },
+  voorraad_bekijken: {
+    description: 'Wat er in huis is (voorraad), per ingrediënt met gram en THT-datums. Ook wat bijna over de datum is.',
+    input: {},
+    run: () => {
+      const s = stock.listStock();
+      return {
+        voorraad: s.ingredients.map((g) => ({ ingredient: g.name, gram: g.grams, pakken: g.items.map((i) => ({ id: i.id, gram: i.grams_left, tht: i.best_before || undefined })) })),
+        bijna_over_datum: s.attention.map((i) => ({ ingredient: i.name, gram: i.grams_left, tht: i.best_before, over_datum: i.expired })),
+      };
+    },
+  },
+  voorraad_toevoegen: {
+    description: 'Zet iets in de voorraad (in huis). Zoek het ingrediënt eerst met ingredient_zoeken.',
+    input: { ingredient: str('Naam van het ingrediënt'), gram: num('Gewicht van één pak in gram'), aantal: int('Aantal pakken (standaard 1)', { minimum: 1, maximum: 50 }), tht: str('THT-datum als JJJJ-MM-DD (optioneel)') },
+    required: ['ingredient', 'gram'],
+    changes: true,
+    run: ({ ingredient, gram, aantal = 1, tht }) => {
+      const ing = repo.matchIngredient(ingredient);
+      if (!ing) throw fail(`Ingrediënt ‘${ingredient}’ niet gevonden.`);
+      const added = stock.addStock({ ingredient_id: ing.id, grams: gram, count: aantal, best_before: tht || null });
+      return { toegevoegd: added.length, ingredient: ing.name, in_huis_gram: stock.stockByIngredient().get(ing.id) || 0 };
+    },
+  },
+  voorraad_afboeken: {
+    description: 'Haal iets uit de voorraad (oudste THT eerst). Zonder gram gaat het hele oudste pak eraf. Of: boek een recept af als gekookt met recept_id.',
+    input: { ingredient: str('Naam van het ingrediënt'), gram: num('Hoeveel gram (leeg = heel pak)'), recept_id: int('Recept dat gekookt is: alle ingrediënten gaan eraf'), personen: num('Aantal personen bij recept_id') },
+    changes: true,
+    run: ({ ingredient, gram, recept_id, personen }) => {
+      if (recept_id) {
+        const res = stock.cookRecipe({ recipe_id: recept_id, servings: personen });
+        return { gekookt: res.title, afgeboekt: res.lines.map((l) => ({ ingredient: l.name, gram: l.used, tekort_gram: l.short || undefined })) };
+      }
+      const ing = ingredient ? repo.matchIngredient(ingredient) : null;
+      if (!ing) throw fail(`Ingrediënt ‘${ingredient || ''}’ niet gevonden.`);
+      const res = stock.consumeIngredient(ing.id, gram);
+      return { ingredient: ing.name, afgeboekt_gram: res.used, nog_in_huis_gram: stock.stockByIngredient().get(ing.id) || 0 };
+    },
+  },
   boodschappenlijst: {
     description: 'De boodschappenlijst van een week (maandag t/m zondag) volgens de planner: wat nog gehaald moet worden, '
       + 'wat al is afgevinkt of in huis is, en eigen artikelen.',
@@ -540,7 +579,10 @@ const TOOLS = {
       const start = weekOf(week);
       const hit = shoppingFind(repo.getShoppingList(start, 7), naam);
       if (!hit) throw fail(`‘${naam}’ staat niet op de boodschappenlijst van deze week.`);
-      if (hit.kind === 'item') repo.setShoppingCheck(start, hit.key, !!afgevinkt);
+      if (hit.kind === 'item') {
+        const res = stock.checkShoppingItem(start, hit.key, !!afgevinkt);
+        if (res.needs_grams) repo.setShoppingCheck(start, hit.key, true);
+      }
       else repo.updateShoppingExtra(hit.id, !!afgevinkt);
       return { naam: hit.name, afgevinkt: !!afgevinkt };
     },

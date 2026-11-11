@@ -16,6 +16,7 @@ const routes = [
   [/^\/recept\/(\d+)\/koken$/, () => import('./views/cook.js')],
   [/^\/recept\/(\d+)$/, () => import('./views/recipe.js')],
   [/^\/importeren$/, () => import('./views/import.js')],
+  [/^\/voorraad$/, () => import('./views/stock.js')],
   [/^\/boodschappen$/, () => import('./views/shopping.js')],
   [/^\/dagboek$/, () => import('./views/diary.js')],
   [/^\/ingredienten$/, () => import('./views/ingredients.js')],

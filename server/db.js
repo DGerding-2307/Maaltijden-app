@@ -101,6 +101,38 @@ CREATE TABLE IF NOT EXISTS ingredient_packages (
   UNIQUE (ingredient_id, grams)
 );
 
+-- Voorraad (v4.12): meerdere barcodes per ingrediënt, pakken in huis met THT, en bewegingen
+CREATE TABLE IF NOT EXISTS ingredient_barcodes (
+  code TEXT PRIMARY KEY,
+  ingredient_id INTEGER NOT NULL REFERENCES ingredients(id) ON DELETE CASCADE,
+  label TEXT,
+  grams REAL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_barcodes_ingredient ON ingredient_barcodes(ingredient_id);
+
+CREATE TABLE IF NOT EXISTS stock_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ingredient_id INTEGER NOT NULL REFERENCES ingredients(id) ON DELETE CASCADE,
+  grams_left REAL NOT NULL,
+  grams_initial REAL NOT NULL,
+  best_before TEXT,
+  source TEXT NOT NULL DEFAULT 'manual',
+  week TEXT,
+  item_key TEXT,
+  added_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_stock_ingredient ON stock_items(ingredient_id);
+
+CREATE TABLE IF NOT EXISTS stock_cooks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  recipe_id INTEGER,
+  plan_entry_id INTEGER,
+  servings REAL,
+  moves TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS shopping_extras (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   week TEXT NOT NULL,
@@ -286,6 +318,8 @@ function migrate(db) {
   // Bestaande databases: Open Food Facts-categorie invullen voor de standaardingrediënten
   const setCat = db.prepare('UPDATE ingredients SET off_category = ? WHERE name = ? AND off_category IS NULL');
   for (const [name, tag] of Object.entries(OFF_CATEGORY_BY_NAME)) setCat.run(tag, name);
+  // v4.12: bestaande Open Food Facts-codes ook als gekoppelde barcode bewaren
+  db.exec("INSERT OR IGNORE INTO ingredient_barcodes (code, ingredient_id) SELECT off_code, id FROM ingredients WHERE off_code IS NOT NULL AND off_code <> ''");
 }
 
 export function getDb() {

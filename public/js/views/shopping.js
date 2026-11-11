@@ -1,5 +1,5 @@
 import { api, liveSync } from '../api.js';
-import { $, esc, euro, num, qty, addDays, mondayOf, todayISO, parseISO, fmtDate, weekNumber, toast, confirmDialog } from '../util.js';
+import { $, esc, euro, num, qty, addDays, mondayOf, todayISO, parseISO, fmtDate, weekNumber, toast, confirmDialog, modal } from '../util.js';
 import { say } from '../say.js';
 import { chooseReceipt } from '../receipt.js';
 
@@ -118,7 +118,7 @@ export async function render(root, params) {
                 ${i.cost_cents != null ? `<span class="pr">${euro(i.cost_cents)}</span>` : ''}
                 <span class="ck" aria-hidden="true">✓</span>
                 <span class="nm">${esc(i.name)}</span>
-                <span class="am">${amount(i)}${i.package_text ? ` · ${esc(i.package_text)}` : ''}${i.leftover_grams > 0 ? ` · ${num(i.leftover_grams, 0)} g over` : ''}</span>
+                <span class="am">${amount(i)}${i.package_text ? ` · ${esc(i.package_text)}` : ''}${i.leftover_grams > 0 ? ` · ${num(i.leftover_grams, 0)} g over` : ''}${i.in_stock_g > 0 ? ` · <span class="in-stock">🥫 ${num(i.in_stock_g, 0)} g in huis</span>` : ''}</span>
                 ${packagePicker(i)}
                 <span class="for" title="${esc(i.recipes.join(', '))}">voor ${esc(i.recipes.slice(0, 2).join(', '))}${i.recipes.length > 2 ? ` +${i.recipes.length - 2}` : ''}</span>
                 <button type="button" class="mini no-print have-btn" data-have="${esc(i.key)}" title="Heb ik al in huis – niet kopen" aria-label="${esc(i.name)} al in huis">🏠</button>
@@ -158,8 +158,15 @@ export async function render(root, params) {
       if (t.matches('[data-key]')) {
         const item = data.items.find((i) => i.key === t.dataset.key);
         item.checked = t.checked;
-        await api.put('/shopping/check', { week: start, key: item.key, checked: t.checked });
-        draw();
+        let res = await api.put('/shopping/check', { week: start, key: item.key, checked: t.checked });
+        // Afvinken = in voorraad: zonder bekend pakgewicht vragen we hoeveel gram het is
+        if (res?.needs_grams) {
+          const grams = await askGrams(item);
+          if (!grams) { item.checked = false; t.checked = false; draw(); return; }
+          res = await api.put('/shopping/check', { week: start, key: item.key, checked: true, grams: grams.grams, best_before: grams.best_before });
+        }
+        if (res?.stock_added?.length) toast(`${item.name} staat in de voorraad`, 'success');
+        await load();
       } else if (t.matches('[data-pack]')) {
         await api.put('/shopping/package', { week: start, key: t.dataset.pack, choice: t.value });
         await load();
@@ -246,4 +253,26 @@ export async function render(root, params) {
 
   await load();
   return liveSync(load);
+}
+
+/** Hoeveel gram heb je gekocht? (voor de voorraad, als het pakgewicht onbekend is) */
+function askGrams(item) {
+  return new Promise((resolve) => {
+    let done = false;
+    const md = modal(`<div class="sheet"><h2>${esc(item.name)} in voorraad</h2>
+      <p class="muted">Hoeveel gram heb je gekocht?</p>
+      <form class="form" data-f>
+        <div class="grid-2">
+          <label>Gewicht (g) <input class="input" type="number" step="any" min="1" inputmode="decimal" name="grams" value="${item.grams > 0 ? Math.round(item.grams) : ''}" required></label>
+          <label>THT (optioneel) <input class="input" type="date" name="best_before"></label>
+        </div>
+        <button class="btn btn-primary cta">In voorraad</button>
+      </form></div>`, { onClose: () => !done && resolve(null) });
+    $('[data-f]', md.el).addEventListener('submit', (e) => {
+      e.preventDefault();
+      done = true;
+      md.close();
+      resolve({ grams: Number(e.target.grams.value), best_before: e.target.best_before.value || null });
+    });
+  });
 }

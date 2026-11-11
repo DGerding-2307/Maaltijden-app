@@ -41,6 +41,7 @@ export async function render(root, params) {
       <div class="card" data-meals style="padding:.4rem 1rem"></div>
     </div>
     <div class="side">
+      <div class="card" data-weight></div>
       <div class="card"><div class="card-head"><h2>Deze week</h2><a class="small" href="#/dagboek?persoon=${person.id}">Dagboek & gewicht ›</a></div><div class="weekbars" data-week></div></div>
       <div data-reminders></div>
     </div>
@@ -62,7 +63,27 @@ export async function render(root, params) {
     drawDay(day);
     drawMeals(day);
     drawWeek(week);
+    drawWeight(day);
     return buddy;
+  }
+
+  // Gewicht van vandaag snel invullen (v4.12: hoort bij Vandaag)
+  function drawWeight(day) {
+    const box = $('[data-weight]', root);
+    const w = day.weight?.weight_kg;
+    box.innerHTML = `<div class="card-head"><h2>Gewicht</h2><a class="small" href="#/dagboek?persoon=${person.id}">Verloop ›</a></div>
+      <form class="row weight-quick" data-weight-form>
+        <label>Vandaag <input class="input narrow" name="w" inputmode="decimal" placeholder="bv. 78,4" value="${w ? String(w).replace('.', ',') : ''}" aria-label="Gewicht in kg"> kg</label>
+        <button class="btn">${w ? 'Bijwerken' : 'Opslaan'}</button>
+      </form>`;
+    $('[data-weight-form]', box).addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        await api.put('/weight', { person_id: person.id, date, weight_kg: e.target.w.value });
+        toast('Gewicht opgeslagen');
+        load();
+      } catch (err) { toast(err.message, 'error'); }
+    });
   }
 
   function drawBuddy(b) {

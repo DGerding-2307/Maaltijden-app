@@ -5,6 +5,7 @@ import { api, meta } from './api.js';
 import { $, esc, num, toast, modal, readImageFile, openExternal } from './util.js';
 import { scanBarcode } from './scanner.js';
 import { buddySvg } from './buddy.js';
+import { linkIngredientDialog } from './link-ingredient.js';
 
 const NUTRIENTS = [
   ['kcal', 'Energie', 'kcal'], ['protein', 'Eiwit', 'g'], ['carbs', 'Koolhydraten', 'g'], ['sugar', 'waarvan suikers', 'g'],
@@ -36,7 +37,17 @@ export function productDialog(code, { purpose = 'list' } = {}) {
     const md = modal(`<div class="sheet"><h2>Product <span class="muted small">${esc(code)}</span></h2><div data-body><p class="muted">Opzoeken in Open Food Facts…</p></div></div>`,
       { onClose: () => !done && resolve(null) });
     const body = $('[data-body]', md.el);
-    const useLabel = purpose === 'log' ? 'Loggen' : purpose === 'recipe' ? 'Gebruiken in recept' : 'Klaar';
+    const useLabel = purpose === 'log' ? 'Loggen' : purpose === 'recipe' ? 'Gebruiken in recept' : purpose === 'stock' ? 'In voorraad zetten' : 'Klaar';
+    // Barcode koppelen aan een ingrediënt dat je zelf kiest (een ingrediënt kan meerdere barcodes hebben)
+    const pickOther = async (name) => {
+      const ing = await linkIngredientDialog(name || '', null);
+      if (!ing) return;
+      try {
+        await api.post(`/ingredients/${ing.id}/barcodes`, { ean: code });
+        toast(`Barcode gekoppeld aan ${ing.name}`, 'success');
+        finish(ing);
+      } catch (err) { toast(err.message, 'error'); }
+    };
 
     async function lookup() {
       body.innerHTML = '<p class="muted">Opzoeken in Open Food Facts…</p>';
@@ -69,7 +80,9 @@ export function productDialog(code, { purpose = 'list' } = {}) {
           ${info.match ? `<label class="check"><input type="checkbox" name="link"> Koppel aan bestaand ingrediënt <strong>${esc(info.match.name)}</strong> (en neem deze voedingswaarden over)</label>` : ''}
           ${p.nutrition?.kcal ? '' : `<p class="muted small">Zonder voedingswaarden kun je het straks aanvullen, of <button type="button" class="link-btn" data-label>📷 laat Claude het etiket lezen</button>.</p>`}
           <button class="btn btn-primary cta">➕ Toevoegen aan mijn ingrediënten</button>
+          <button type="button" class="btn btn-ghost" data-other>🔗 Koppelen aan een ander ingrediënt</button>
         </form>`;
+      $('[data-other]', body).addEventListener('click', () => pickOther(info.suggested_name || p.name));
       $('[data-label]', body)?.addEventListener('click', () => manual({ name: info.suggested_name }, true));
       $('[data-apply]', body).addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -92,6 +105,7 @@ export function productDialog(code, { purpose = 'list' } = {}) {
           ${offline ? '' : '<button class="btn btn-primary" data-off>🌍 Toevoegen aan Open Food Facts</button>'}
           <button class="btn" data-label>📷 Foto van het etiket – Claude vult het in</button>
           <button class="btn" data-manual>✍️ Zelf invoeren</button>
+          <button class="btn" data-other>🔗 Koppelen aan een bestaand ingrediënt</button>
           <button class="btn btn-ghost" data-again>↻ Opnieuw zoeken (na toevoegen aan Open Food Facts)</button>
         </div></div>`;
       $('[data-off]', body)?.addEventListener('click', async () => {
@@ -100,6 +114,7 @@ export function productDialog(code, { purpose = 'list' } = {}) {
       });
       $('[data-label]', body).addEventListener('click', () => manual({}, true));
       $('[data-manual]', body).addEventListener('click', () => manual({}));
+      $('[data-other]', body).addEventListener('click', () => pickOther(''));
       $('[data-again]', body).addEventListener('click', lookup);
     }
 
@@ -152,6 +167,7 @@ export function productDialog(code, { purpose = 'list' } = {}) {
             package_grams: Number(data.package_grams) || null, unit_weight_g: Number(data.unit_weight_g) || null,
             nutrition_source: data.source, price_source: 'schatting',
           });
+          await api.post(`/ingredients/${ing.id}/barcodes`, { ean: code }).catch(() => {});
           toast(`${ing.name} toegevoegd aan je ingrediënten`, 'success');
           finish(ing);
         } catch (err) { toast(err.message, 'error'); }

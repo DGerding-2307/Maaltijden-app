@@ -2,6 +2,7 @@
 import { esc } from '../util.js';
 
 const ITEMS = [
+  ['#/recepten', '📖', 'Recepten', 'je receptenboek'],
   ['#/boodschappen', '🛒', 'Boodschappen', 'je lijst voor deze week'],
   ['#/dagboek', '🔥', 'Dagboek & gewicht', 'eerdere dagen, grafieken en je gewicht'],
   ['#/ingredienten', '🥕', 'Ingrediënten', 'voedingswaarden, prijzen, product scannen'],

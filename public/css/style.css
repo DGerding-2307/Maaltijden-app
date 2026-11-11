@@ -1322,3 +1322,17 @@ html:has(.modal-backdrop) { overflow: hidden; }
 .recipe-links .btn { max-width: 100%; }
 .recipe-links small { opacity: .75; font-weight: 600; margin-left: .25rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .recipe-c-head .lead a { overflow-wrap: anywhere; }
+
+/* Voorraad (v4.12) */
+.stock-list { display: grid; gap: .7rem; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+.stock-group { padding: .8rem 1rem; }
+.stock-group.expiring { border-left: 4px solid #e8a33c; }
+.stock-group.expired { border-left: 4px solid #c0392b; }
+.stock-head { display: flex; justify-content: space-between; gap: .6rem; align-items: flex-start; }
+.stock-total { font-weight: 700; color: var(--primary); }
+.stock-items { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .5rem; }
+.stock-item { display: inline-flex; gap: .4rem; align-items: center; border: 1px solid var(--border); background: var(--surface); border-radius: 999px; padding: .3rem .7rem; font: inherit; font-size: .85rem; cursor: pointer; min-height: 2.25rem; }
+.stock-attention { margin-bottom: .8rem; }
+.stock-attention h2 { margin-top: 0; font-size: 1rem; }
+.stock-hits { display: flex; flex-wrap: wrap; gap: .3rem; }
+.in-stock { color: var(--primary); font-weight: 600; }

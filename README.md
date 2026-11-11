@@ -57,6 +57,14 @@ geeft hij een tip, maar boos wordt hij nooit. Geef hem zelf een naam: Bolletje, 
 - **Nederlands.** Nederlandse recepten, Nederlandse supermarktprijzen en voedingswaarden uit NEVO en Open Food Facts.
 - **Voor het hele huishouden.** Samen plannen en boodschappen doen, en ieder een eigen dagboek en maatje.
 
+## Nieuw in versie 4.12.0
+
+- 🥫 **Voorraad: zie wat je in huis hebt.** Een nieuw tabblad **Voorraad** laat per ingrediënt zien hoeveel je in huis hebt, per pak met een eigen THT-datum. Wat bijna over de datum is, staat bovenaan.
+- 🛒 **Afvinken = in huis.** Vink je een boodschap af, dan gaat die meteen de voorraad in. Weet de app het gewicht niet, dan vraagt hij erom. Op de boodschappenlijst zie je hoeveel je al in huis hebt.
+- 📷 **Scan in en scan uit.** Scan een barcode om iets in te boeken of op te maken (standaard het hele oudste pak, of minder). Een onbekende barcode zoekt de app op in Open Food Facts, en je koppelt hem aan een ingrediënt. Een ingrediënt kan nu meerdere barcodes hebben.
+- 🍳 **Gekookt.** Druk na het koken (in de kookmodus of in de planner) op **Gekookt**: de ingrediënten gaan van de voorraad af, oudste THT eerst. Per ongeluk gedrukt? Nog een keer drukken maakt het ongedaan.
+- 📱 **Nieuwe onderbalk:** Vandaag · Planner · Loggen · Voorraad · Meer. Recepten staat onder Meer. Op Vandaag vul je nu ook je gewicht in.
+
 ## Nieuw in versie 4.11.0
 
 - ▶️ **Naar de video met één knop.** Staat er een link in de beschrijving van een recept (meestal de YouTube-, Instagram- of TikTok-video waar het recept uit komt), dan staat er onder de beschrijving een knop **Bekijk video**. Andere links krijgen een knop **Open link**. In de beschrijving zelf zie je de link als korte, klikbare naam (bijv. youtube.com) in plaats van een lange URL. In de Android-app opent de link in de browser of de app van de video.
