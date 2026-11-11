@@ -499,25 +499,29 @@ const TOOLS = {
     },
   },
   voorraad_bekijken: {
-    description: 'Wat er in huis is (voorraad), per ingrediënt met gram en THT-datums. Ook wat bijna over de datum is.',
+    description: 'Wat er in huis is (voorraad), per ingrediënt met gram (en stuks bij bv. eieren) en THT-datums. Ook wat bijna over de datum is.',
     input: {},
     run: () => {
       const s = stock.listStock();
       return {
-        voorraad: s.ingredients.map((g) => ({ ingredient: g.name, gram: g.grams, pakken: g.items.map((i) => ({ id: i.id, gram: i.grams_left, tht: i.best_before || undefined })) })),
-        bijna_over_datum: s.attention.map((i) => ({ ingredient: i.name, gram: i.grams_left, tht: i.best_before, over_datum: i.expired })),
+        voorraad: s.ingredients.map((g) => ({ ingredient: g.name, gram: g.grams, stuks: stock.toPieces(g.grams, g) ?? undefined,
+          pakken: g.items.map((i) => ({ id: i.id, gram: i.grams_left, stuks: stock.toPieces(i.grams_left, i) ?? undefined, tht: i.best_before || undefined })) })),
+        bijna_over_datum: s.attention.map((i) => ({ ingredient: i.name, gram: i.grams_left, stuks: stock.toPieces(i.grams_left, i) ?? undefined, tht: i.best_before, over_datum: i.expired })),
       };
     },
   },
   voorraad_toevoegen: {
     description: 'Zet iets in de voorraad (in huis). Zoek het ingrediënt eerst met ingredient_zoeken.',
-    input: { ingredient: str('Naam van het ingrediënt'), gram: num('Gewicht van één pak in gram'), aantal: int('Aantal pakken (standaard 1)', { minimum: 1, maximum: 50 }), tht: str('THT-datum als JJJJ-MM-DD (optioneel)') },
-    required: ['ingredient', 'gram'],
+    input: { ingredient: str('Naam van het ingrediënt'), gram: num('Gewicht van één pak in gram'), stuks: num('Of: aantal stuks per pak (bij ingrediënten die per stuk gaan, zoals eieren)'), aantal: int('Aantal pakken (standaard 1)', { minimum: 1, maximum: 50 }), tht: str('THT-datum als JJJJ-MM-DD (optioneel)') },
+    required: ['ingredient'],
     changes: true,
-    run: ({ ingredient, gram, aantal = 1, tht }) => {
+    run: ({ ingredient, gram, stuks, aantal = 1, tht }) => {
       const ing = repo.matchIngredient(ingredient);
       if (!ing) throw fail(`Ingrediënt ‘${ingredient}’ niet gevonden.`);
-      const added = stock.addStock({ ingredient_id: ing.id, grams: gram, count: aantal, best_before: tht || null });
+      const w = Number(ing.unit_weight_g) || null;
+      if (!(Number(gram) > 0) && Number(stuks) > 0 && !w) throw fail(`Van ‘${ing.name}’ is het gewicht per stuk niet bekend; geef het gewicht in gram.`);
+      const grams = Number(gram) > 0 ? Number(gram) : Number(stuks) * w;
+      const added = stock.addStock({ ingredient_id: ing.id, grams, count: aantal, best_before: tht || null });
       return { toegevoegd: added.length, ingredient: ing.name, in_huis_gram: stock.stockByIngredient().get(ing.id) || 0 };
     },
   },

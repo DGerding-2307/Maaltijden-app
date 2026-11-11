@@ -97,3 +97,17 @@ test('een ingrediënt kan meerdere barcodes hebben', () => {
   scan.unlinkBarcode(rijst.id, '8710000000011');
   assert.equal(scan.listBarcodes(rijst.id).length, 1);
 });
+
+test('ingrediënten per stuk (eieren) krijgen hun stuksgewicht mee voor weergave in stuks', () => {
+  const ei = repo.saveIngredient({ name: 'eieren', category: 'Zuivel', kcal: 140, unit_weight_g: 60, package_grams: 600 });
+  stock.addStock({ ingredient_id: ei.id, grams: 600 });
+  const group = stock.listStock().ingredients.find((g) => g.ingredient_id === ei.id);
+  assert.equal(group.unit_weight_g, 60);
+  assert.equal(group.items[0].unit_weight_g, 60);
+  assert.equal(stock.toPieces(group.grams, group), 10);
+  stock.consumeIngredient(ei.id, 2 * 60);
+  assert.equal(stock.toPieces(left(ei.id), ei), 8);
+  // lichte stuksgewichten (bv. een teentje knoflook) blijven in gram
+  assert.equal(stock.pieceWeight({ unit_weight_g: 5 }), null);
+  assert.equal(stock.toPieces(500, rijst), null);
+});

@@ -24,6 +24,15 @@ function amount(item) {
   return `${qty(item.quantity)} ${esc(item.unit)}`;
 }
 
+/** Wat er al in huis is: in stuks als het item per stuk gaat (eieren), anders in gram. */
+function inStock(item) {
+  if (item.unit === 'stuk' && item.quantity > 0 && item.grams > 0) {
+    const n = Math.round((item.in_stock_g / (item.grams / item.quantity)) * 10) / 10;
+    return `${num(n, 1)} ${n === 1 ? 'stuk' : 'stuks'}`;
+  }
+  return `${num(item.in_stock_g, 0)} g`;
+}
+
 /** Knoppen om te kiezen voor welke dagen je boodschappen doet. */
 function dayChips(days) {
   const partly = days.some((d) => !d.selected);
@@ -118,7 +127,7 @@ export async function render(root, params) {
                 ${i.cost_cents != null ? `<span class="pr">${euro(i.cost_cents)}</span>` : ''}
                 <span class="ck" aria-hidden="true">✓</span>
                 <span class="nm">${esc(i.name)}</span>
-                <span class="am">${amount(i)}${i.package_text ? ` · ${esc(i.package_text)}` : ''}${i.leftover_grams > 0 ? ` · ${num(i.leftover_grams, 0)} g over` : ''}${i.in_stock_g > 0 ? ` · <span class="in-stock">🥫 ${num(i.in_stock_g, 0)} g in huis</span>` : ''}</span>
+                <span class="am">${amount(i)}${i.package_text ? ` · ${esc(i.package_text)}` : ''}${i.leftover_grams > 0 ? ` · ${num(i.leftover_grams, 0)} g over` : ''}${i.in_stock_g > 0 ? ` · <span class="in-stock">🥫 ${inStock(i)} in huis</span>` : ''}</span>
                 ${packagePicker(i)}
                 <span class="for" title="${esc(i.recipes.join(', '))}">voor ${esc(i.recipes.slice(0, 2).join(', '))}${i.recipes.length > 2 ? ` +${i.recipes.length - 2}` : ''}</span>
                 <button type="button" class="mini no-print have-btn" data-have="${esc(i.key)}" title="Heb ik al in huis – niet kopen" aria-label="${esc(i.name)} al in huis">🏠</button>
