@@ -99,3 +99,25 @@ test('verkeerde alias weghalen koppelt de receptregel aan het juiste ingrediënt
   assert.ok(!check.checkIngredients().dubbel.some((g) => g.ingredienten.some((i) => i.id === cognac.id)));
   assert.equal(repo.removeIngredientAlias(cognac.id, 'whiskey'), null);
 });
+
+test('noten en zaden: eigen afdeling, en bestaande worden eenmalig verplaatst', async () => {
+  const { CATEGORIES } = await import('../server/seed.js');
+  assert.ok(CATEGORIES.includes('Noten & zaden'));
+  assert.equal(check.guessCategory('walnoten ongebrand'), 'Noten & zaden');
+  assert.equal(check.guessCategory('pompoenpitten'), 'Noten & zaden');
+  assert.equal(check.guessCategory('korianderzaad'), 'Kruiden, specerijen & bakken');
+  assert.equal(check.guessCategory('pindakaas'), 'Brood, ontbijt & beleg');
+  const { categoryFromOff } = await import('../server/openfoodfacts.js');
+  assert.equal(categoryFromOff(['en:plant-based-foods', 'en:nuts', 'en:walnuts']), 'Noten & zaden');
+
+  db.setSetting('category_nuts_v414', '');
+  const noten = repo.saveIngredient({ name: 'hazelnoten', kcal: 650 });
+  db.getDb().prepare("UPDATE ingredients SET category = 'Dranken & overig' WHERE id = ?").run(noten.id);
+  const sesam = repo.saveIngredient({ name: 'sesamzaad', category: 'Kruiden, specerijen & bakken', kcal: 570 });
+  const kaas = repo.saveIngredient({ name: 'pindakaas', category: 'Brood, ontbijt & beleg', kcal: 600 });
+  assert.ok(check.moveNutsToOwnCategory() >= 2);
+  assert.equal(repo.getIngredient(noten.id).category, 'Noten & zaden');
+  assert.equal(repo.getIngredient(sesam.id).category, 'Noten & zaden');
+  assert.equal(repo.getIngredient(kaas.id).category, 'Brood, ontbijt & beleg');
+  assert.equal(check.moveNutsToOwnCategory(), 0, 'maar één keer');
+});

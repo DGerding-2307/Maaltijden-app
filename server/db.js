@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { syncBuiltins, OFF_CATEGORY_BY_NAME } from './seed.js';
 import { fixIngredientLinksV49 } from './repo.js';
+import { moveNutsToOwnCategory } from './ingredient-check.js';
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS ingredients (
@@ -247,6 +248,9 @@ export function openDatabase(file = process.env.DB_FILE || path.resolve('data/ma
   if (appVersion && file !== ':memory:') backupBeforeUpgrade(file, appVersion);
   db.exec(SCHEMA);
   migrate(db);
+  // v4.14: noten, pitten en zaden naar hun eigen afdeling
+  const nuts = moveNutsToOwnCategory();
+  if (nuts) console.log(`${nuts} ingrediënten verplaatst naar Noten & zaden`);
   const count = db.prepare('SELECT COUNT(*) AS c FROM ingredients').get().c;
   // Nieuwe database: alles invullen. Bestaande database: nieuwe standaardrecepten en -ingrediënten toevoegen.
   if (process.env.SKIP_SEED !== '1') {

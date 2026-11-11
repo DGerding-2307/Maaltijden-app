@@ -124,7 +124,8 @@ const CATEGORY_RULES = [
   [/spices|herbs|flours|sugars|salts|baking/, 'Kruiden, specerijen & bakken'],
   [/oils|vinegars/, 'Olie, azijn & smaakmakers'],
   [/fruits|vegetables|potatoes|fresh-herbs/, 'Aardappelen, groente & fruit'],
-  [/beverages|snacks|nuts|sweets|chocolates/, 'Dranken & overig'],
+  [/nuts|peanuts|sunflower-seeds|pumpkin-seeds|chia-seeds|flax-seeds|sesame-seeds|linseeds/, 'Noten & zaden'],
+  [/beverages|snacks|sweets|chocolates/, 'Dranken & overig'],
 ];
 
 // Verzamelcategorieën die niets over de afdeling zeggen (‘en:cereals-and-potatoes’ staat bij pasta, rijst én aardappelen)
