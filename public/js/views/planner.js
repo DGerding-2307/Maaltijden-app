@@ -26,6 +26,18 @@ export async function render(root, params) {
 
   // Een geplande maaltijd met alleen een naam (bv. ‘Lasagne van oma’) kan een recept worden
   const NOT_A_RECIPE = /^(uit eten|restjes|afhaal|bezorg|pizza bestellen)/i;
+  // Welke receptcategorieën passen bij een moment (onbekend moment: alles)
+  const MEAL_CATEGORIES = {
+    ontbijt: ['Ontbijt'],
+    lunch: ['Lunch', 'Soep', 'Salade'],
+    diner: ['Hoofdgerecht', 'Soep', 'Salade'],
+    tussendoor: ['Snack', 'Nagerecht', 'Bakken'],
+  };
+  const fitsMeal = (r, meal) => {
+    const cats = MEAL_CATEGORIES[String(meal).toLowerCase()];
+    return !cats || cats.includes(r.category);
+  };
+
   const canBecomeRecipe = (e) => !e.recipe_id && !e.leftover_of && !e.extras?.length && e.title && !NOT_A_RECIPE.test(e.title.trim());
 
   // Dagboekregels die niet gepland waren, bij het juiste moment in de planner
@@ -439,6 +451,7 @@ export async function render(root, params) {
         <button class="btn" type="button" data-eat-out>🍴 Uit eten</button>
         <button class="btn" type="button" data-loose>🥕 Losse ingrediënten</button>
       </div>
+      ${MEAL_CATEGORIES[String(meal).toLowerCase()] ? `<label class="inline small"><input type="checkbox" data-all-recipes> Ook recepten van andere momenten tonen</label>` : ''}
       ${meatOffered(meal) ? `<label class="meat-pick">🥩 Vlees of vis erbij <span class="muted small">(optioneel)</span>
         <select class="input" data-meat-pick><option value="">– niets extra –</option>
           ${sides.length ? `<optgroup label="Gerechten">${sides.map((x) => `<option value="r${x.id}">${esc(x.title)}</option>`).join('')}</optgroup>` : ''}
@@ -452,7 +465,8 @@ export async function render(root, params) {
       </form>`);
     const drawList = () => {
       const q = $('[data-q]', md.el).value.toLowerCase();
-      const list = recipes.filter((r) => !q || r.title.toLowerCase().includes(q) || r.tags.join(' ').includes(q));
+      const all = $('[data-all-recipes]', md.el)?.checked;
+      const list = recipes.filter((r) => (all || fitsMeal(r, meal)) && (!q || r.title.toLowerCase().includes(q) || r.tags.join(' ').includes(q)));
       $('.pick-list', md.el).innerHTML = list.map((r) => `
         <button class="pick-item" data-pick="${r.id}">
           <span>${r.favorite ? '★ ' : ''}${esc(r.title)}</span>
@@ -469,6 +483,7 @@ export async function render(root, params) {
     };
     drawList();
     $('[data-q]', md.el).addEventListener('input', drawList);
+    $('[data-all-recipes]', md.el)?.addEventListener('change', drawList);
     const servings = () => Number($('[data-servings]', md.el).value) || servingsForMeal(meal, m.default_servings);
     md.el.addEventListener('click', async (e) => {
       if (e.target.closest('[data-eat-out]')) {
