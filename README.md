@@ -57,6 +57,10 @@ geeft hij een tip, maar boos wordt hij nooit. Geef hem zelf een naam: Bolletje, 
 - **Nederlands.** Nederlandse recepten, Nederlandse supermarktprijzen en voedingswaarden uit NEVO en Open Food Facts.
 - **Voor het hele huishouden.** Samen plannen en boodschappen doen, en ieder een eigen dagboek en maatje.
 
+## Nieuw in versie 4.12.3
+
+- 📷 **Scherp scannen in de Android-app.** De app gebruikt nu de barcodescanner van Google (dezelfde als in veel winkel-apps). Die stelt zelf scherp, kiest de goede camera en heeft een eigen zoom en lamp. Hiervoor heb je de **nieuwe APK** nodig (release android-latest). De eerste keer kan Android de scanner nog even downloaden; tot die klaar is werkt de oude scanner.
+
 ## Nieuw in versie 4.12.2
 
 - 🎯 **Scanner: scherpstellen.** Tik op het camerabeeld of op **Scherpstellen** om scherp te stellen. Met de zoomschuif zoom je in; de scanner begint al op ongeveer 2×, zodat je het product wat verder weg kunt houden (veel telefooncamera's kunnen niet heel dichtbij scherpstellen). In het donker zet je de **lamp** aan. De camera draait nu ook in een hogere resolutie, zodat kleine streepjescodes beter lukken.

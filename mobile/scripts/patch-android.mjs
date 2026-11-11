@@ -15,6 +15,11 @@ if (!manifest.includes('android.permission.CAMERA')) {
 for (const perm of ['android.permission.POST_NOTIFICATIONS', 'android.permission.SCHEDULE_EXACT_ALARM', 'android.permission.RECEIVE_BOOT_COMPLETED']) {
   if (!manifest.includes(perm)) manifest = manifest.replace('<application', `<uses-permission android:name="${perm}" />\n    <application`);
 }
+// Barcodescanner van Google (ML Kit): de scanmodule meteen bij installatie laten downloaden
+if (!manifest.includes('com.google.mlkit.vision.DEPENDENCIES')) {
+  manifest = manifest.replace('</application>', `    <meta-data android:name="com.google.mlkit.vision.DEPENDENCIES" android:value="barcode_ui" />
+    </application>`);
+}
 if (!manifest.includes('usesCleartextTraffic')) {
   manifest = manifest.replace('<application', '<application\n        android:usesCleartextTraffic="true"');
 }
