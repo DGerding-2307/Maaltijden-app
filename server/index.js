@@ -326,6 +326,7 @@ export function createApp() {
   api.put('/ingredients/:id/packages/:packageId', wrap((req) => repo.updatePackage(Number(req.params.id), Number(req.params.packageId), req.body || {})));
   api.delete('/ingredients/:id/packages/:key', wrap((req) => repo.deletePackage(Number(req.params.id), req.params.key)));
   api.post('/ingredients/:id/alias', wrap((req) => repo.addIngredientAlias(Number(req.params.id), req.body.name) || Promise.reject(notFound())));
+  api.post('/ingredients/:id/alias/remove', wrap((req) => repo.removeIngredientAlias(Number(req.params.id), req.body?.name) || Promise.reject(notFound())));
   api.post('/ingredients/:id/estimate', wrap(async (req) => {
     const ing = repo.getIngredient(Number(req.params.id));
     if (!ing) throw notFound();

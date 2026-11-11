@@ -212,6 +212,31 @@ export function addIngredientAlias(id, alias) {
   return getIngredient(id);
 }
 
+/**
+ * Een andere naam weghalen (bv. een verkeerde alias zoals ‘whiskey’ bij cognac). Receptregels met precies die naam
+ * die via de alias aan dit ingrediënt hingen, worden opnieuw gekoppeld (bv. aan ‘whiskey’ zelf).
+ * Geeft null als de alias er niet bij stond.
+ */
+export function removeIngredientAlias(id, alias) {
+  const ing = getIngredient(id);
+  const name = normalizeName(alias);
+  if (!ing || !name) return null;
+  const list = String(ing.aliases || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const keep = list.filter((s) => normalizeName(s) !== name);
+  if (keep.length === list.length) return null;
+  const db = getDb();
+  db.prepare('UPDATE ingredients SET aliases = ? WHERE id = ?').run(keep.join(','), id);
+  let relinked = 0;
+  const upd = db.prepare('UPDATE recipe_ingredients SET ingredient_id = ? WHERE id = ?');
+  for (const row of db.prepare('SELECT id, name, unit FROM recipe_ingredients WHERE ingredient_id = ?').all(id)) {
+    if (singular(normalizeName(row.name)) !== singular(name)) continue;
+    const match = matchIngredient(row.name, row.unit);
+    upd.run(match && match.id !== id ? match.id : null, row.id);
+    relinked++;
+  }
+  return { ...getIngredient(id), relinked };
+}
+
 /** Eén ingrediëntregel van een recept (opnieuw) koppelen. */
 export function linkRecipeIngredient(recipeId, rowId, ingredientId) {
   const res = getDb().prepare('UPDATE recipe_ingredients SET ingredient_id = ? WHERE id = ? AND recipe_id = ?')

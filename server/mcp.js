@@ -467,9 +467,24 @@ const TOOLS = {
     description: 'Controleer alle ingrediënten: welke staan (waarschijnlijk) in de verkeerde afdeling, en welke zijn dubbel '
       + '(zelfde naam in enkelvoud/meervoud, of de naam van het ene is een alias van het andere). Geeft per geval een voorstel; '
       + 'het zijn suggesties, dus kijk zelf of ze kloppen. Pas een afdeling aan met ingredient_toevoegen (bijwerken: true, afdeling) '
-      + 'en voeg dubbele samen met ingredienten_samenvoegen.',
+      + 'en voeg dubbele samen met ingredienten_samenvoegen. Zijn het toch verschillende producten door een verkeerde alias '
+      + '(staat in verkeerde_aliassen), haal die alias dan weg met ingredient_alias_verwijderen.',
     input: {},
     run: () => checkIngredients(),
+  },
+  ingredient_alias_verwijderen: {
+    description: 'Haal een verkeerde andere naam (alias) weg bij een ingrediënt, bv. ‘whiskey’ bij cognac. Receptregels met precies '
+      + 'die naam die via de alias aan dit ingrediënt hingen, worden opnieuw gekoppeld (aan het juiste ingrediënt, of losgekoppeld).',
+    input: { ingredient: str('Naam of id van het ingrediënt waar de alias bij staat'), alias: str('De alias die weg moet') },
+    required: ['ingredient', 'alias'],
+    changes: true,
+    run: ({ ingredient, alias }) => {
+      const ing = /^\d+$/.test(String(ingredient)) ? repo.getIngredient(Number(ingredient)) : repo.matchIngredient(ingredient);
+      if (!ing) throw fail(`Ingrediënt ‘${ingredient}’ niet gevonden.`);
+      const out = repo.removeIngredientAlias(ing.id, alias);
+      if (!out) throw fail(`‘${alias}’ staat niet als alias bij ‘${ing.name}’ (aliassen: ${ing.aliases || 'geen'}).`);
+      return { verwijderd: true, ingredient: ingredientOut(out), opnieuw_gekoppelde_receptregels: out.relinked };
+    },
   },
   ingredienten_samenvoegen: {
     description: 'Voeg een dubbel ingrediënt samen met een ander. Receptregels, planning, dagboek, voorraad, verpakkingen en barcodes '
