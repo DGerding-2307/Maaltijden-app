@@ -1,6 +1,6 @@
 // Voorraad (v4.12): wat je in huis hebt, per pak met THT. Inscannen, uitscannen, toevoegen en afboeken.
-import { api } from '../api.js';
-import { $, $$, esc, num, toast, modal, fmtDate, debounce } from '../util.js';
+import { api, meta } from '../api.js';
+import { $, $$, esc, num, toast, modal, fmtDate, debounce, todayISO } from '../util.js';
 import { scanBarcode } from '../scanner.js';
 import { productDialog } from '../scan-flow.js';
 
@@ -147,6 +147,131 @@ function editDialog(item) {
   });
 }
 
+const portions = (n) => `${num(n, 1)} ${Number(n) === 1 ? 'portie' : 'porties'}`;
+const PLACE = { koelkast: '🧊 koelkast', vriezer: '❄️ vriezer' };
+
+/** Een maaltijd of restjes in de voorraad zetten (met of zonder recept). */
+export function addMealDialog() {
+  return new Promise((resolve) => {
+    let done = false;
+    let chosen = null;
+    const md = modal(`<div class="sheet"><h2>🍲 Maaltijd in voorraad</h2>
+      <p class="muted small">Restjes van een maaltijd die je als <b>gekookt</b> afvinkt, komen er vanzelf in. Dit is voor zelf ingevroren porties en wat al in huis is.</p>
+      <form class="form" data-f>
+        <label>Recept of naam <input class="input" name="q" autocomplete="off" placeholder="zoek een recept of typ een naam…" required></label>
+        <div data-hits class="stock-hits"></div>
+        <div class="grid-2">
+          <label>Porties <input class="input" type="number" step="any" min="0.5" inputmode="decimal" name="portions" value="2" required></label>
+          <label>Waar? <select class="input" name="location"><option value="koelkast">🧊 Koelkast</option><option value="vriezer">❄️ Vriezer</option></select></label>
+          <label class="span-2">THT-datum (leeg = koelkast 3 dagen, vriezer 3 maanden) <input class="input" type="date" name="best_before"></label>
+        </div>
+        <button class="btn btn-primary cta">In voorraad</button>
+      </form></div>`, { onClose: () => !done && resolve(null) });
+    const f = $('[data-f]', md.el);
+    const hits = $('[data-hits]', md.el);
+    f.q.addEventListener('input', debounce(async () => {
+      chosen = null;
+      const q = f.q.value.trim();
+      if (q.length < 2) { hits.innerHTML = ''; return; }
+      const list = await api.get(`/recipes?q=${encodeURIComponent(q)}`);
+      const items = (Array.isArray(list) ? list : list.recipes || []).slice(0, 8);
+      hits.innerHTML = items.map((r) => `<button type="button" class="chip-toggle" data-id="${r.id}">${esc(r.title)}</button>`).join('');
+      $$('[data-id]', hits).forEach((b) => b.addEventListener('click', () => {
+        chosen = items.find((r) => r.id === Number(b.dataset.id));
+        f.q.value = chosen.title;
+        hits.innerHTML = '';
+      }));
+    }, 200));
+    f.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const title = f.q.value.trim();
+      try {
+        const meal = await api.post('/stock/meals', {
+          recipe_id: chosen && chosen.title === title ? chosen.id : null, title,
+          portions: Number(f.portions.value), location: f.location.value, best_before: f.best_before.value || null,
+        });
+        done = true;
+        md.close();
+        toast(`${meal.title} in de voorraad gezet (${portions(meal.portions_left)})`, 'success');
+        resolve(meal);
+      } catch (err) { toast(err.message, 'error'); }
+    });
+  });
+}
+
+/** Een maaltijd uit de voorraad: opeten, inplannen of aanpassen. */
+async function mealDialog(meal) {
+  const m = await meta();
+  return new Promise((resolve) => {
+    let done = false;
+    const md = modal(`<div class="sheet"><h2>🍲 ${esc(meal.title)}</h2>
+      <p class="muted">${portions(meal.portions_left)} · ${PLACE[meal.location] || esc(meal.location)}${meal.best_before ? ` · THT ${fmtDate(meal.best_before)}` : ''}</p>
+      <form class="form" data-plan>
+        <h3>📅 Inplannen</h3>
+        <div class="grid-2">
+          <label>Dag <input class="input" type="date" name="date" value="${todayISO()}" required></label>
+          <label>Moment <select class="input" name="meal">${m.meals.map((x) => `<option ${x === 'diner' ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>
+          <label>Porties <input class="input" type="number" min="1" name="servings" value="${Math.max(1, Math.min(2, Math.floor(meal.portions_left)))}"></label>
+        </div>
+        <p class="muted small">Komt niet op de boodschappenlijst. Tik in de planner op <b>opgegeten?</b>, dan gaan de porties van de voorraad af.</p>
+        <button class="btn btn-primary">Inplannen</button>
+      </form>
+      <hr>
+      <form class="form" data-edit>
+        <h3>Aanpassen</h3>
+        <div class="grid-2">
+          <label>Porties over <input class="input" type="number" step="any" min="0" inputmode="decimal" name="portions" value="${meal.portions_left}"></label>
+          <label>Waar? <select class="input" name="location"><option value="koelkast" ${meal.location === 'koelkast' ? 'selected' : ''}>🧊 Koelkast</option><option value="vriezer" ${meal.location === 'vriezer' ? 'selected' : ''}>❄️ Vriezer</option></select></label>
+          <label class="span-2">THT-datum <input class="input" type="date" name="best_before" value="${esc(meal.best_before || '')}"></label>
+        </div>
+        <div class="row wrap"><button class="btn">Opslaan</button><button type="button" class="btn" data-eat>🍽️ 1 portie opgegeten</button><button type="button" class="btn btn-ghost" data-del>🗑️ Weg</button></div>
+      </form></div>`, { onClose: () => !done && resolve(false) });
+    const close = () => { done = true; md.close(); resolve(true); };
+    const fail = (err) => toast(err.message, 'error');
+    $('[data-plan]', md.el).addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const f = e.target;
+      try {
+        await api.post(`/stock/meals/${meal.id}/plan`, { date: f.date.value, meal: f.meal.value, servings: Number(f.servings.value) || 1 });
+        toast(`${meal.title} ingepland op ${fmtDate(f.date.value)}`, 'success');
+        close();
+      } catch (err) { fail(err); }
+    });
+    $('[data-edit]', md.el).addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const f = e.target;
+      try { await api.put(`/stock/meals/${meal.id}`, { portions_left: Number(f.portions.value), location: f.location.value, best_before: f.best_before.value || null }); close(); } catch (err) { fail(err); }
+    });
+    $('[data-eat]', md.el).addEventListener('click', async () => {
+      try { const r = await api.post(`/stock/meals/${meal.id}/eat`, { portions: 1 }); toast(`1 portie ${meal.title} afgeboekt`, 'success'); close(); return r; } catch (err) { fail(err); }
+    });
+    $('[data-del]', md.el).addEventListener('click', async () => {
+      try { await api.del(`/stock/meals/${meal.id}`); close(); } catch (err) { fail(err); }
+    });
+  });
+}
+
+const mealTht = (x) => {
+  if (!x.best_before) return '';
+  if (x.expired) return `<span class="badge warn">over datum (${fmtDate(x.best_before)})</span>`;
+  if (x.expiring) return `<span class="badge warn">THT ${x.days_left === 0 ? 'vandaag' : 'morgen'}</span>`;
+  return `<span class="muted small">THT ${fmtDate(x.best_before)}</span>`;
+};
+
+function mealsHtml(meals) {
+  if (!meals.length) return '';
+  return `<section class="stock-meals"><h2>🍲 Maaltijden &amp; restjes</h2><div class="stock-list">${meals.map((x) => `
+    <div class="card stock-group stock-meal ${x.expired ? 'expired' : x.expiring ? 'expiring' : ''}">
+      <div class="stock-head">
+        <div><strong>${esc(x.title)}</strong> <span class="muted small">${PLACE[x.location] || ''}${x.source === 'restjes' ? ' · restjes' : ''}</span>
+          <div class="stock-total">${portions(x.portions_left)}</div></div>
+        <div class="row"><button class="btn small" data-meal-plan="${x.id}" aria-label="Inplannen" title="Inplannen">📅</button>
+          <button class="btn small" data-meal-eat="${x.id}" aria-label="1 portie opgegeten" title="1 portie opgegeten">−</button></div>
+      </div>
+      <div class="stock-items"><button type="button" class="stock-item" data-meal="${x.id}">${mealTht(x) || '<span class="muted small">geen THT</span>'}</button></div>
+    </div>`).join('')}</div></section>`;
+}
+
 export async function render(root) {
   root.innerHTML = `<div class="view stock">
     <div class="page-head"><h1>Voorraad</h1>
@@ -154,6 +279,7 @@ export async function render(root) {
         <button class="btn btn-primary" data-in>📷 Scan in</button>
         <button class="btn" data-out>📤 Scan uit</button>
         <button class="btn" data-add>＋ Toevoegen</button>
+        <button class="btn" data-add-meal>🍲 Maaltijd</button>
       </div></div>
     <div data-body><p class="muted">Laden…</p></div>
   </div>`;
@@ -162,17 +288,22 @@ export async function render(root) {
   $('[data-in]', root).addEventListener('click', () => scanIn().then(after).catch((e) => toast(e.message, 'error')));
   $('[data-out]', root).addEventListener('click', () => scanOut().then(after).catch((e) => toast(e.message, 'error')));
   $('[data-add]', root).addEventListener('click', () => addDialog().then(after));
+  $('[data-add-meal]', root).addEventListener('click', () => addMealDialog().then(after));
 
   async function load() {
     const data = await api.get('/stock');
-    if (!data.ingredients.length) {
+    const meals = data.meals || [];
+    if (!data.ingredients.length && !meals.length) {
       body.innerHTML = `<div class="card empty"><p><strong>Nog niets in de voorraad.</strong></p>
-        <p class="muted">Vink boodschappen af, scan een barcode of voeg iets toe. Koken haalt het er weer af.</p></div>`;
+        <p class="muted">Vink boodschappen af, scan een barcode of voeg iets toe. Koken haalt het er weer af.
+        Kook je extra voor restjes, dan komen die porties hier vanzelf bij de maaltijden.</p></div>`;
       return;
     }
-    const attention = data.attention.length ? `<div class="card stock-attention"><h2>Bijna over datum</h2>
+    const mealAttention = data.meal_attention || [];
+    const attention = data.attention.length || mealAttention.length ? `<div class="card stock-attention"><h2>Bijna over datum</h2>
+      ${mealAttention.map((x) => `<div>🍲 ${esc(x.title)} · ${portions(x.portions_left)} ${mealTht(x)}</div>`).join('')}
       ${data.attention.map((i) => `<div>${esc(i.name)} · ${amount(i.grams_left, pieceW(i))} ${thtText(i)}</div>`).join('')}</div>` : '';
-    body.innerHTML = `${attention}<div class="stock-list">${data.ingredients.map((g) => `
+    body.innerHTML = `${attention}${mealsHtml(meals)}${data.ingredients.length && meals.length ? '<h2 class="stock-sub">🥫 Ingrediënten</h2>' : ''}<div class="stock-list">${data.ingredients.map((g) => `
       <div class="card stock-group ${g.expired ? 'expired' : g.expiring ? 'expiring' : ''}">
         <div class="stock-head">
           <div><strong>${esc(g.name)}</strong> <span class="muted small">${esc(g.category)}</span><div class="stock-total">${amount(g.grams, pieceW(g))} in huis</div></div>
@@ -195,6 +326,12 @@ export async function render(root) {
       consumeDialog({ id: g.ingredient_id, name: g.name, grams: g.grams, unit_weight_g: g.unit_weight_g }).then(after);
     }));
     $$('[data-item]', body).forEach((b) => b.addEventListener('click', () => editDialog(items.get(Number(b.dataset.item))).then(after)));
+    const mealById = new Map(meals.map((x) => [x.id, x]));
+    $$('[data-meal], [data-meal-plan]', body).forEach((b) => b.addEventListener('click', () => mealDialog(mealById.get(Number(b.dataset.meal || b.dataset.mealPlan))).then(after)));
+    $$('[data-meal-eat]', body).forEach((b) => b.addEventListener('click', async () => {
+      const x = mealById.get(Number(b.dataset.mealEat));
+      try { await api.post(`/stock/meals/${x.id}/eat`, { portions: 1 }); toast(`1 portie ${x.title} afgeboekt`, 'success'); load(); } catch (err) { toast(err.message, 'error'); }
+    }));
   }
   await load();
 }

@@ -124,6 +124,20 @@ CREATE TABLE IF NOT EXISTS stock_items (
 );
 CREATE INDEX IF NOT EXISTS idx_stock_ingredient ON stock_items(ingredient_id);
 
+-- Maaltijden in de voorraad: restjes en zelfgemaakte porties (koelkast of vriezer)
+CREATE TABLE IF NOT EXISTS stock_meals (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  recipe_id INTEGER REFERENCES recipes(id) ON DELETE SET NULL,
+  title TEXT NOT NULL,
+  portions_left REAL NOT NULL,
+  portions_initial REAL NOT NULL,
+  best_before TEXT,
+  location TEXT NOT NULL DEFAULT 'koelkast',
+  source TEXT NOT NULL DEFAULT 'manual',
+  plan_entry_id INTEGER,
+  added_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS stock_cooks (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   recipe_id INTEGER,
@@ -273,6 +287,8 @@ const MIGRATIONS = [
   ['ingredients', 'nutrition_updated_at', 'TEXT'],
   ['meal_plan', 'leftover_of', 'INTEGER'],
   ['meal_plan', 'no_shopping', 'INTEGER NOT NULL DEFAULT 0'],
+  // Ingepland uit de voorraad (maaltijd/restjes): 'opgegeten' haalt de porties eraf
+  ['meal_plan', 'stock_meal_id', 'INTEGER'],
   ['shopping_state', 'have', 'INTEGER NOT NULL DEFAULT 0'],
   ['shopping_state', 'package_choice', 'TEXT'],
   ['ingredients', 'off_category', 'TEXT'],

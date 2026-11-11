@@ -535,6 +535,11 @@ export function createApp() {
   // Afboeken: zonder gram gaat het hele oudste pak eraf (uitscannen)
   api.post('/stock/consume', wrap((req) => stock.consumeIngredient(Number(req.body.ingredient_id), req.body.grams)));
   api.get('/stock/barcode/:ean', wrap((req) => stock.barcodeInfo(req.params.ean) || { known: false }));
+  api.post('/stock/meals', wrap((req) => stock.addMeal(req.body || {})));
+  api.put('/stock/meals/:id', wrap((req) => stock.updateMeal(Number(req.params.id), req.body || {}) || { removed: true }));
+  api.delete('/stock/meals/:id', wrap((req) => ({ removed: stock.removeMeal(Number(req.params.id)) })));
+  api.post('/stock/meals/:id/eat', wrap((req) => stock.eatMeal(Number(req.params.id), req.body?.portions)));
+  api.post('/stock/meals/:id/plan', wrap((req) => stock.planMeal(Number(req.params.id), req.body || {})));
   api.post('/stock/cook', wrap((req) => stock.cookRecipe(req.body || {})));
   api.delete('/stock/cook/:id', wrap((req) => stock.undoCook(Number(req.params.id))));
   api.get('/ingredients/:id/barcodes', wrap((req) => listBarcodes(Number(req.params.id))));

@@ -19,6 +19,9 @@ const today = () => new Date().toISOString().slice(0, 10);
 const daysUntil = (date) => (date ? Math.round((new Date(date) - new Date(today())) / 86400000) : null);
 /** Oudste THT eerst; pakken zonder datum als laatste, daarna op volgorde van inboeken. */
 const FIFO = "ORDER BY best_before IS NULL, best_before, added_at, id";
+const addDaysISO = (date, n) => { const d = new Date(`${date}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+/** Standaard houdbaarheid van een maaltijd/restjes. */
+export const MEAL_DAYS = { koelkast: 3, vriezer: 90 };
 
 function checkDate(d) {
   if (d == null || d === '') return null;
@@ -83,7 +86,8 @@ export function listStock() {
     expired: g.items.some((i) => i.expired),
   }));
   const attention = rows.filter((r) => r.expired || r.expiring);
-  return { ingredients: list, attention, count: rows.length };
+  const meals = listMeals();
+  return { ingredients: list, attention, meals, meal_attention: meals.filter((m) => m.expired || m.expiring), count: rows.length + meals.length };
 }
 
 /** Gram in huis per ingrediënt-id. */
@@ -115,6 +119,13 @@ export function consume(ingredientId, grams, db = getDb()) {
 /** Bewegingen terugdraaien: verwijderde pakken komen terug, aangebroken pakken krijgen hun gewicht terug. */
 function restore(db, moves) {
   for (const m of moves) {
+    if (m.kind === 'meal_added') { db.prepare('DELETE FROM stock_meals WHERE id = ?').run(m.id); continue; }
+    if (m.kind === 'meal') {
+      if (db.prepare('SELECT id FROM stock_meals WHERE id = ?').get(m.id)) db.prepare('UPDATE stock_meals SET portions_left = portions_left + ? WHERE id = ?').run(m.taken, m.id);
+      else db.prepare('INSERT INTO stock_meals (id, recipe_id, title, portions_left, portions_initial, best_before, location, source, plan_entry_id, added_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(m.id, m.recipe_id, m.title, m.taken, m.portions_initial, m.best_before, m.location, m.source, m.plan_entry_id, m.added_at);
+      continue;
+    }
     const exists = db.prepare('SELECT id FROM stock_items WHERE id = ?').get(m.id);
     if (exists) db.prepare('UPDATE stock_items SET grams_left = grams_left + ? WHERE id = ?').run(m.taken, m.id);
     else db.prepare('INSERT INTO stock_items (id, ingredient_id, grams_left, grams_initial, best_before, source, week, item_key, added_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
@@ -138,13 +149,14 @@ export function consumeIngredient(ingredientId, grams = null) {
 }
 
 /** 'Gekookt': de ingrediënten van een recept (voor het aantal personen) afboeken. */
-export function cookRecipe({ recipe_id, servings = null, plan_entry_id = null }) {
+export function cookRecipe({ recipe_id, servings = null, plan_entry_id = null, leftover_portions = null }) {
   let recipeId = Number(recipe_id) || null;
   let persons = Number(servings) || null;
   if (plan_entry_id) {
     const entry = repo.getPlanEntry(Number(plan_entry_id));
     if (!entry) throw err('Maaltijd niet gevonden', 404);
-    if (entry.leftover_of) throw err('Dit is een restje: daarvoor gaat er niets van de voorraad af');
+    // Restjes of een maaltijd uit de voorraad: dan gaan er porties af, geen ingrediënten
+    if (entry.leftover_of || entry.stock_meal_id) return eatPlanned(entry);
     recipeId = recipeId || entry.recipe_id;
     persons = persons || entry.servings;
   }
@@ -159,9 +171,19 @@ export function cookRecipe({ recipe_id, servings = null, plan_entry_id = null })
       moves.push(...res.moves);
       if (res.used || res.short) lines.push({ ingredient_id: row.ingredient_id, name: row.name, used: res.used, short: res.short });
     }
+    // Extra gekookt voor restjes? Die porties gaan automatisch als maaltijd de voorraad in.
+    let leftovers = null;
+    const extra = plan_entry_id
+      ? db.prepare('SELECT COALESCE(SUM(servings), 0) AS s FROM meal_plan WHERE leftover_of = ?').get(Number(plan_entry_id)).s
+      : Number(leftover_portions) || 0;
+    if (extra > 0) {
+      const meal = insertMeal(db, { recipe_id: recipe.id, title: recipe.title, portions: extra, source: 'restjes', plan_entry_id: plan_entry_id ? Number(plan_entry_id) : null });
+      moves.push({ kind: 'meal_added', id: meal.id });
+      leftovers = meal;
+    }
     const { lastInsertRowid } = db.prepare('INSERT INTO stock_cooks (recipe_id, plan_entry_id, servings, moves) VALUES (?, ?, ?, ?)')
       .run(recipe.id, plan_entry_id ? Number(plan_entry_id) : null, recipe.persons, JSON.stringify(moves));
-    return { id: Number(lastInsertRowid), recipe_id: recipe.id, title: recipe.title, servings: recipe.persons, lines };
+    return { id: Number(lastInsertRowid), recipe_id: recipe.id, title: recipe.title, servings: recipe.persons, lines, leftovers };
   });
 }
 
@@ -219,4 +241,118 @@ export function barcodeInfo(ean) {
   if (!known) return null;
   const ing = repo.getIngredient(known.ingredient_id);
   return { ...known, name: ing?.name, unit_weight_g: pieceWeight(ing), grams: known.grams || Number(ing?.package_grams) || null, in_stock: stockByIngredient().get(known.ingredient_id) || 0 };
+}
+
+// ---- Maaltijden in de voorraad (restjes, zelfgemaakte porties) ----
+
+const MEAL_SELECT = `SELECT m.*, r.image_url, r.image_thumb FROM stock_meals m LEFT JOIN recipes r ON r.id = m.recipe_id`;
+
+function decorateMeal(row) {
+  const days = daysUntil(row.best_before);
+  return { ...row, portions_left: round(row.portions_left), days_left: days, expired: days != null && days < 0, expiring: days != null && days >= 0 && days <= 1 };
+}
+
+export function getMeal(id, db = getDb()) {
+  const row = db.prepare(`${MEAL_SELECT} WHERE m.id = ?`).get(Number(id));
+  return row ? decorateMeal(row) : null;
+}
+
+export function listMeals() {
+  return getDb().prepare(`${MEAL_SELECT} ORDER BY m.best_before IS NULL, m.best_before, m.added_at, m.id`).all().map(decorateMeal);
+}
+
+function insertMeal(db, { recipe_id = null, title = null, portions = 1, best_before = null, location = 'koelkast', source = 'manual', plan_entry_id = null }) {
+  let rid = Number(recipe_id) || null;
+  let name = String(title || '').trim();
+  if (rid) {
+    const r = db.prepare('SELECT id, title FROM recipes WHERE id = ?').get(rid);
+    if (!r) throw err('Recept niet gevonden', 404);
+    name = name || r.title;
+  }
+  if (!name) throw err('Welke maaltijd is het?');
+  const p = Number(portions);
+  if (!(p > 0)) throw err('Hoeveel porties?');
+  const loc = location === 'vriezer' ? 'vriezer' : 'koelkast';
+  const date = checkDate(best_before) || addDaysISO(today(), MEAL_DAYS[loc]);
+  const { lastInsertRowid } = db.prepare('INSERT INTO stock_meals (recipe_id, title, portions_left, portions_initial, best_before, location, source, plan_entry_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(rid, name.slice(0, 120), p, p, date, loc, source, plan_entry_id);
+  return getMeal(Number(lastInsertRowid), db);
+}
+
+/** Een maaltijd (of restjes) in de voorraad zetten. Zonder THT: koelkast 3 dagen, vriezer 3 maanden. */
+export function addMeal(data) {
+  return insertMeal(getDb(), data || {});
+}
+
+export function updateMeal(id, { portions_left, best_before, location }) {
+  const m = getMeal(id);
+  if (!m) throw err('Maaltijd niet gevonden in de voorraad', 404);
+  const p = portions_left === undefined ? m.portions_left : Number(portions_left);
+  if (!(p >= 0)) throw err('Ongeldig aantal porties');
+  if (p === 0) return removeMeal(id) && null;
+  const loc = location === undefined ? m.location : location === 'vriezer' ? 'vriezer' : 'koelkast';
+  const date = best_before === undefined ? m.best_before : checkDate(best_before);
+  getDb().prepare('UPDATE stock_meals SET portions_left = ?, portions_initial = MAX(portions_initial, ?), best_before = ?, location = ? WHERE id = ?').run(p, p, date, loc, m.id);
+  return getMeal(id);
+}
+
+export function removeMeal(id) {
+  return getDb().prepare('DELETE FROM stock_meals WHERE id = ?').run(Number(id)).changes > 0;
+}
+
+/** Porties van maaltijden afhalen (in de gegeven volgorde). */
+function takePortions(db, meals, portions) {
+  let need = Number(portions);
+  const moves = [];
+  for (const m of meals) {
+    if (need <= 0.0001) break;
+    const take = Math.min(m.portions_left, need);
+    need -= take;
+    moves.push({ kind: 'meal', ...m, taken: take });
+    if (m.portions_left - take <= 0.0001) db.prepare('DELETE FROM stock_meals WHERE id = ?').run(m.id);
+    else db.prepare('UPDATE stock_meals SET portions_left = ? WHERE id = ?').run(m.portions_left - take, m.id);
+  }
+  return { moves, used: round(Number(portions) - Math.max(0, need)), short: round(Math.max(0, need)) };
+}
+
+/** Zelf porties van een maaltijd afboeken (standaard 1). */
+export function eatMeal(id, portions = 1) {
+  return tx((db) => {
+    const m = db.prepare('SELECT * FROM stock_meals WHERE id = ?').get(Number(id));
+    if (!m) throw err('Maaltijd niet gevonden in de voorraad', 404);
+    const res = takePortions(db, [m], Number(portions) > 0 ? Number(portions) : 1);
+    return { used: res.used, title: m.title, portions_left: round(Math.max(0, m.portions_left - res.used)) };
+  });
+}
+
+/**
+ * Restjes of een maaltijd uit de voorraad als 'opgegeten' afboeken: eerst de gekoppelde maaltijd,
+ * dan de restjes van de oorspronkelijke maaltijd, dan andere porties van hetzelfde recept (oudste eerst).
+ */
+function eatPlanned(entry) {
+  return tx((db) => {
+    const seen = new Set();
+    const meals = [];
+    const push = (rows) => { for (const r of rows) if (!seen.has(r.id)) { seen.add(r.id); meals.push(r); } };
+    const ORDER = 'ORDER BY best_before IS NULL, best_before, added_at, id';
+    if (entry.stock_meal_id) push(db.prepare('SELECT * FROM stock_meals WHERE id = ?').all(entry.stock_meal_id));
+    if (entry.leftover_of) push(db.prepare(`SELECT * FROM stock_meals WHERE plan_entry_id = ? ${ORDER}`).all(entry.leftover_of));
+    if (entry.recipe_id) push(db.prepare(`SELECT * FROM stock_meals WHERE recipe_id = ? ${ORDER}`).all(entry.recipe_id));
+    if (!meals.length) throw err('Deze maaltijd staat niet (meer) in de voorraad', 404);
+    const res = takePortions(db, meals, entry.servings || 1);
+    const { lastInsertRowid } = db.prepare('INSERT INTO stock_cooks (recipe_id, plan_entry_id, servings, moves) VALUES (?, ?, ?, ?)')
+      .run(entry.recipe_id || null, entry.id, entry.servings, JSON.stringify(res.moves));
+    return { id: Number(lastInsertRowid), recipe_id: entry.recipe_id || null, title: meals[0].title, servings: entry.servings, lines: [], meal_used: res.used, meal_short: res.short };
+  });
+}
+
+/** Een maaltijd uit de voorraad inplannen: geen boodschappen, 'opgegeten' haalt de porties eraf. */
+export function planMeal(id, { date, meal = 'diner', servings = 1 }) {
+  const m = getMeal(id);
+  if (!m) throw err('Maaltijd niet gevonden in de voorraad', 404);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || ''))) throw err('Kies een dag');
+  const n = Math.max(1, Math.round(Number(servings) || 1));
+  const planId = repo.addPlanEntry({ date, meal, recipe_id: m.recipe_id, title: m.recipe_id ? null : m.title, servings: n, note: m.location === 'vriezer' ? 'uit de vriezer' : 'uit de voorraad' });
+  getDb().prepare('UPDATE meal_plan SET no_shopping = 1, stock_meal_id = ? WHERE id = ?').run(m.id, planId);
+  return { id: planId };
 }

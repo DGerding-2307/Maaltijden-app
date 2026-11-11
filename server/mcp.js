@@ -499,14 +499,18 @@ const TOOLS = {
     },
   },
   voorraad_bekijken: {
-    description: 'Wat er in huis is (voorraad), per ingrediënt met gram (en stuks bij bv. eieren) en THT-datums. Ook wat bijna over de datum is.',
+    description: 'Wat er in huis is (voorraad), per ingrediënt met gram (en stuks bij bv. eieren) en THT-datums, plus maaltijden/restjes in koelkast of vriezer (in porties). Ook wat bijna over de datum is.',
     input: {},
     run: () => {
       const s = stock.listStock();
       return {
         voorraad: s.ingredients.map((g) => ({ ingredient: g.name, gram: g.grams, stuks: stock.toPieces(g.grams, g) ?? undefined,
           pakken: g.items.map((i) => ({ id: i.id, gram: i.grams_left, stuks: stock.toPieces(i.grams_left, i) ?? undefined, tht: i.best_before || undefined })) })),
-        bijna_over_datum: s.attention.map((i) => ({ ingredient: i.name, gram: i.grams_left, stuks: stock.toPieces(i.grams_left, i) ?? undefined, tht: i.best_before, over_datum: i.expired })),
+        maaltijden: s.meals.map((m) => ({ id: m.id, maaltijd: m.title, recept_id: m.recipe_id || undefined, porties: m.portions_left, plek: m.location, restjes: m.source === 'restjes' || undefined, tht: m.best_before || undefined })),
+        bijna_over_datum: [
+          ...s.attention.map((i) => ({ ingredient: i.name, gram: i.grams_left, stuks: stock.toPieces(i.grams_left, i) ?? undefined, tht: i.best_before, over_datum: i.expired })),
+          ...s.meal_attention.map((m) => ({ maaltijd: m.title, maaltijd_id: m.id, porties: m.portions_left, tht: m.best_before, over_datum: m.expired })),
+        ],
       };
     },
   },
@@ -523,6 +527,35 @@ const TOOLS = {
       const grams = Number(gram) > 0 ? Number(gram) : Number(stuks) * w;
       const added = stock.addStock({ ingredient_id: ing.id, grams, count: aantal, best_before: tht || null });
       return { toegevoegd: added.length, ingredient: ing.name, in_huis_gram: stock.stockByIngredient().get(ing.id) || 0 };
+    },
+  },
+  maaltijd_in_voorraad: {
+    description: 'Zet een maaltijd of restjes in de voorraad (koelkast of vriezer), in porties. Met recept_id koppel je het aan een recept. '
+      + 'Restjes van een als gekookt afgeboekte maaltijd komen er automatisch in; dit is voor zelf invriezen of iets wat al in huis is.',
+    input: {
+      recept_id: int('Recept (optioneel)'), maaltijd: str('Naam, als er geen recept is (bv. ‘zelfgemaakte soep’)'),
+      porties: num('Aantal porties (standaard 1)'), plek: { type: 'string', enum: ['koelkast', 'vriezer'], description: 'Standaard koelkast' },
+      tht: str('THT-datum als JJJJ-MM-DD (optioneel; standaard koelkast 3 dagen, vriezer 3 maanden)'),
+    },
+    changes: true,
+    run: ({ recept_id, maaltijd, porties = 1, plek = 'koelkast', tht }) => {
+      const m = stock.addMeal({ recipe_id: recept_id || null, title: maaltijd || null, portions: porties, location: plek, best_before: tht || null });
+      return { id: m.id, maaltijd: m.title, porties: m.portions_left, plek: m.location, tht: m.best_before };
+    },
+  },
+  maaltijd_uit_voorraad: {
+    description: 'Een maaltijd uit de voorraad opeten (porties eraf) of inplannen in de weekplanner (zonder boodschappen; als ‘opgegeten’ gaan de porties eraf). '
+      + 'Zoek het id met voorraad_bekijken.',
+    input: { id: int('Id van de maaltijd in de voorraad'), porties: num('Aantal porties (standaard 1)'), datum: str('Inplannen op deze dag (JJJJ-MM-DD); leeg = nu opgegeten'), moment: MOMENT },
+    required: ['id'],
+    changes: true,
+    run: ({ id, porties = 1, datum, moment = 'diner' }) => {
+      if (datum) {
+        const res = stock.planMeal(id, { date: datum, meal: moment, servings: porties });
+        return { ingepland: true, plan_id: res.id, datum, moment };
+      }
+      const res = stock.eatMeal(id, porties);
+      return { maaltijd: res.title, afgeboekt_porties: res.used, nog_over: res.portions_left };
     },
   },
   voorraad_afboeken: {
