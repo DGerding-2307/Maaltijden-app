@@ -20,22 +20,127 @@ function loadZxing() {
  * @returns Promise<string|null> null als de gebruiker annuleert
  */
 export async function scanBarcode({ title = 'Barcode scannen' } = {}) {
-  // In de Android-app: de scanner van Google (ML Kit). Die stelt zelf scherp en kiest de goede camera.
   const native = window.Capacitor?.Plugins?.BarcodeScanner;
-  if (native && window.Capacitor?.isNativePlatform?.()) {
-    try {
-      const { available } = await native.isGoogleBarcodeScannerModuleAvailable().catch(() => ({ available: true }));
-      if (!available) await native.installGoogleBarcodeScannerModule().catch(() => {});
-      const { barcodes } = await native.scan({ formats: ['EAN_13', 'EAN_8', 'UPC_A', 'UPC_E'] });
-      const code = barcodes?.[0]?.rawValue;
-      if (code) { navigator.vibrate?.(80); return code; }
-      return null;
-    } catch (err) {
-      // Zelf geannuleerd: stoppen. Anders (bv. module nog niet gedownload): de scanner in de app gebruiken.
-      if (/cancel/i.test(err?.message || '')) return null;
-    }
-  }
+  if (native && window.Capacitor?.isNativePlatform?.()) return appScan({ title, native });
   return webScan({ title });
+}
+
+/** Live scannen met de scanner van Google (ML Kit). Geeft de code, null (geannuleerd) of undefined (lukt niet). */
+async function googleScan(native) {
+  try {
+    const { available } = await native.isGoogleBarcodeScannerModuleAvailable().catch(() => ({ available: true }));
+    if (!available) await native.installGoogleBarcodeScannerModule().catch(() => {});
+    const { barcodes } = await native.scan({ formats: ['EAN_13', 'EAN_8', 'UPC_A', 'UPC_E'] });
+    return barcodes?.[0]?.rawValue || null;
+  } catch (err) {
+    return /cancel/i.test(err?.message || '') ? null : undefined;
+  }
+}
+
+/**
+ * Een barcode lezen uit een foto. De camera-app van de telefoon stelt zelf goed scherp en maakt een
+ * scherpe foto op volle resolutie; daar halen we de streepjescode uit.
+ */
+export async function decodeImageFile(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    if ('BarcodeDetector' in window) {
+      try {
+        const det = new window.BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e'] });
+        const found = await det.detect(img);
+        if (found[0]?.rawValue) return found[0].rawValue;
+      } catch { /* niet ondersteund: ZXing proberen */ }
+    }
+    const ZXing = await loadZxing();
+    const hints = new Map([
+      [ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8, ZXing.BarcodeFormat.UPC_A, ZXing.BarcodeFormat.UPC_E]],
+      [ZXing.DecodeHintType.TRY_HARDER, true],
+    ]);
+    const reader = new ZXing.BrowserMultiFormatReader(hints);
+    // Grote foto's eerst verkleinen (sneller) – en als dat niets oplevert de volle grootte proberen
+    // Ook een kwartslag gedraaid proberen (telefoon rechtop, streepjescode liggend)
+    for (const max of [1600, 2400, Infinity]) for (const turn of [false, true]) {
+      const scale = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const w = Math.round(img.naturalWidth * scale);
+      const h = Math.round(img.naturalHeight * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = turn ? h : w;
+      canvas.height = turn ? w : h;
+      const g = canvas.getContext('2d');
+      if (turn) { g.translate(h, 0); g.rotate(Math.PI / 2); }
+      g.drawImage(img, 0, 0, w, h);
+      try {
+        const bitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(new ZXing.HTMLCanvasElementLuminanceSource(canvas)));
+        const res = reader.decodeBitmap(bitmap);
+        if (res) return res.getText();
+      } catch { /* niet gevonden op deze grootte */ }
+      if (scale === 1 && turn) break;
+    }
+    return null;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/** Knop die de camera-app opent; na de foto wordt de code eruit gehaald. */
+function photoButton(root, { status, onCode, primary = false }) {
+  const wrap = document.createElement('div');
+  wrap.innerHTML = `<input type="file" accept="image/*" capture="environment" hidden data-photo-input>
+    <button type="button" class="btn ${primary ? 'btn-primary' : ''} scan-photo-btn" data-photo>📸 Foto maken met de camera</button>`;
+  root.append(wrap);
+  const input = wrap.querySelector('[data-photo-input]');
+  wrap.querySelector('[data-photo]').addEventListener('click', () => input.click());
+  input.addEventListener('change', async () => {
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    status.textContent = 'Streepjescode zoeken in de foto…';
+    try {
+      const code = await decodeImageFile(file);
+      if (code) onCode(code);
+      else status.textContent = 'Geen streepjescode gevonden. Maak de foto wat dichterbij, recht van voren en zonder schittering, of typ de cijfers.';
+    } catch (err) {
+      status.textContent = `Foto lezen lukte niet (${err.message}). Typ de cijfers hieronder.`;
+    }
+  });
+}
+
+/** In de Android-app: kiezen tussen een foto met de camera-app (scherpst) en live scannen. */
+function appScan({ title, native }) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (code) => {
+      if (done) return;
+      done = true;
+      navigator.vibrate?.(80);
+      md.close();
+      resolve(code);
+    };
+    const md = modal(`
+      <h2>📷 ${esc(title)}</h2>
+      <div class="scan-choice" data-choice></div>
+      <button type="button" class="btn scan-photo-btn" data-live>⚡ Live scannen</button>
+      <p class="muted small" data-scan-status>Met een foto stelt je camera zelf scherp. Zorg dat de hele streepjescode in beeld is.</p>
+      <form class="row" data-manual>
+        <input class="input grow" name="code" inputmode="numeric" pattern="[0-9 ]{8,14}" placeholder="Of typ de cijfers onder de streepjescode" aria-label="Barcode">
+        <button class="btn btn-primary">OK</button>
+      </form>`, { onClose: () => { if (!done) { done = true; resolve(null); } } });
+    const status = md.el.querySelector('[data-scan-status]');
+    photoButton(md.el.querySelector('[data-choice]'), { status, onCode: finish, primary: true });
+    md.el.querySelector('[data-live]').addEventListener('click', async () => {
+      const code = await googleScan(native);
+      if (code) finish(code);
+      else if (code === undefined) status.textContent = 'Live scannen lukt nu niet. Maak een foto of typ de cijfers.';
+    });
+    md.el.querySelector('[data-manual]').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const code = e.target.code.value.replace(/\D/g, '');
+      if (code.length >= 8) finish(code);
+    });
+  });
 }
 
 function webScan({ title }) {
@@ -72,6 +177,9 @@ function webScan({ title }) {
       </form>`, { onClose: () => { stop(); if (!done) { done = true; resolve(null); } } });
     const video = md.el.querySelector('video');
     const status = md.el.querySelector('[data-scan-status]');
+    const photoBox = document.createElement('div');
+    md.el.querySelector('[data-controls]').before(photoBox);
+    photoButton(photoBox, { status, onCode: finish });
     md.el.querySelector('[data-manual]').addEventListener('submit', (e) => {
       e.preventDefault();
       const code = e.target.code.value.replace(/\D/g, '');
