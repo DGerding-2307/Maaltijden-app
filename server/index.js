@@ -9,7 +9,8 @@ import { searchOff, productByBarcode, ingredientNutritionFields } from './openfo
 import { enqueue, queueStatus, clearQueue } from './offqueue.js';
 import { priceForIngredient, ingredientPriceFields } from './openprices.js';
 import { enqueuePrices, priceQueueStatus, clearPriceQueue } from './pricequeue.js';
-import { lookupBarcode, applyBarcode } from './scan.js';
+import { lookupBarcode, applyBarcode, linkBarcode, listBarcodes, unlinkBarcode } from './scan.js';
+import * as stock from './stock.js';
 import * as tracker from './tracker.js';
 import { buildIcs, calendarToken } from './calendar.js';
 import { haToken, todayOverview, haSensorsJson, haConfig, haLink, connectHomeAssistant, disconnectHomeAssistant, pushStates, schedulePush, lastPushError } from './homeassistant.js';
@@ -522,9 +523,33 @@ export function createApp() {
     return ing;
   }));
 
+  // ---- Voorraad (v4.12) ----
+  api.get('/stock', wrap(() => stock.listStock()));
+  api.post('/stock', wrap((req) => {
+    const b = req.body || {};
+    if (b.ean) linkBarcode(b.ingredient_id, b.ean, { grams: b.grams });
+    return stock.addStock({ ...b, source: b.source || (b.ean ? 'scan' : 'manual') });
+  }));
+  api.put('/stock/:id', wrap((req) => stock.updateItem(Number(req.params.id), req.body || {}) || { removed: true }));
+  api.delete('/stock/:id', wrap((req) => ({ removed: stock.removeItem(Number(req.params.id)) })));
+  // Afboeken: zonder gram gaat het hele oudste pak eraf (uitscannen)
+  api.post('/stock/consume', wrap((req) => stock.consumeIngredient(Number(req.body.ingredient_id), req.body.grams)));
+  api.get('/stock/barcode/:ean', wrap((req) => stock.barcodeInfo(req.params.ean) || { known: false }));
+  api.post('/stock/cook', wrap((req) => stock.cookRecipe(req.body || {})));
+  api.delete('/stock/cook/:id', wrap((req) => stock.undoCook(Number(req.params.id))));
+  api.get('/ingredients/:id/barcodes', wrap((req) => listBarcodes(Number(req.params.id))));
+  api.post('/ingredients/:id/barcodes', wrap((req) => linkBarcode(Number(req.params.id), req.body.ean, req.body)));
+  api.delete('/ingredients/:id/barcodes/:ean', wrap((req) => unlinkBarcode(Number(req.params.id), req.params.ean)));
+
   // ---- Planning ----
   // Met ?persoon: gegeten-markering, dagtotaal en ongeplande dagboekregels van die persoon
-  api.get('/plan', wrap((req) => tracker.addDiaryToPlan(repo.getPlan(week(req.query.week), 7), Number(req.query.persoon))));
+  api.get('/plan', wrap((req) => {
+    const plan = tracker.addDiaryToPlan(repo.getPlan(week(req.query.week), 7), Number(req.query.persoon));
+    const entries = plan.entries || (plan.days || []).flatMap((d) => d.entries || []);
+    const cooked = stock.cookedPlanEntries(entries.map((e) => e.id));
+    for (const e of entries) e.cooked_id = cooked.get(e.id) || null;
+    return plan;
+  }));
   api.post('/plan', wrap((req) => ({ id: repo.addPlanEntry(req.body) })));
   api.put('/plan/:id', wrap((req) => (repo.updatePlanEntry(Number(req.params.id), req.body) ? { ok: true } : Promise.reject(notFound()))));
   api.delete('/plan/:id', wrap((req) => repo.deletePlanEntry(Number(req.params.id))));
@@ -542,8 +567,14 @@ export function createApp() {
   api.post('/plan/clear-week', wrap((req) => repo.clearWeek(week(req.body.week))));
 
   // ---- Boodschappen ----
-  api.get('/shopping', wrap((req) => repo.getShoppingList(week(req.query.week), 7)));
-  api.put('/shopping/check', wrap((req) => repo.setShoppingCheck(week(req.body.week), req.body.key, req.body.checked)));
+  api.get('/shopping', wrap((req) => {
+    const list = repo.getShoppingList(week(req.query.week), 7);
+    const inStock = stock.stockByIngredient();
+    for (const item of list.items) item.in_stock_g = item.ingredient_id ? inStock.get(item.ingredient_id) || 0 : 0;
+    return list;
+  }));
+  // Afvinken = in voorraad (v4.12). Zonder pakgewicht komt { needs_grams } terug en vraagt de app om het gewicht.
+  api.put('/shopping/check', wrap((req) => stock.checkShoppingItem(week(req.body.week), req.body.key, req.body.checked, { grams: req.body.grams, best_before: req.body.best_before })));
   api.put('/shopping/have', wrap((req) => repo.setShoppingHave(week(req.body.week), req.body.key, req.body.have)));
   api.put('/shopping/days', wrap((req) => ({ dates: repo.setShoppingDays(week(req.body.week), req.body.dates ?? null) })));
   api.put('/shopping/package', wrap((req) => repo.setShoppingPackage(week(req.body.week), req.body.key, req.body.choice)));

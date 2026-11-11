@@ -121,12 +121,13 @@ export async function render(root) {
             </select>
             <span class="muted small">Per recept kun je dit nog aanpassen in de recepteditor (⚖️).</span></label>
         </div>
-        ${ing.id ? '<section data-packages></section>' : ''}
+        ${ing.id ? '<section data-packages></section><section data-barcodes></section>' : ''}
         <div class="row end"><button class="btn btn-primary">Opslaan</button></div>
       </form>`, { wide: true });
     const form = $('[data-form]', md.el);
     bindMediaFields(form);
     if (ing.id) packagesEditor($('[data-packages]', md.el), ing);
+    if (ing.id) barcodesEditor($('[data-barcodes]', md.el), ing);
     $('[data-off-dialog]', md.el)?.addEventListener('click', () => { md.close(); offDialog(ing); });
     $('[data-price-dialog]', md.el)?.addEventListener('click', () => { md.close(); priceDialog(ing); });
     $('[data-estimate]', md.el)?.addEventListener('click', async (e) => {
@@ -167,6 +168,36 @@ export async function render(root) {
   }
 
   /** Extra verpakkingen: wordt meteen opgeslagen, los van het formulier eromheen. */
+  // Barcodes (v4.12): een ingrediënt kan meerdere barcodes hebben (merken, groottes)
+  async function barcodesEditor(box, ing) {
+    const draw = (codes) => {
+      box.innerHTML = `
+        <h3>Barcodes</h3>
+        <p class="muted small">Scan je een van deze codes, dan weet de app dat het ${esc(ing.name)} is (voor de voorraad).</p>
+        <ul class="pack-list">${codes.map((c) => `<li><span class="grow"><code>${esc(c.code)}</code>${c.label ? ` <span class="muted small">${esc(c.label)}</span>` : ''}${c.grams ? ` <span class="muted small">(${num(c.grams, 0)} g)</span>` : ''}</span>
+          <button type="button" class="mini danger" data-del-code="${esc(c.code)}" aria-label="Barcode ${esc(c.code)} verwijderen">✕</button></li>`).join('') || '<li class="muted small">Nog geen barcodes</li>'}</ul>
+        <div class="pack-add">
+          <label>Barcode <input class="input" inputmode="numeric" data-code-input placeholder="bv. 8710400000000"></label>
+          <button type="button" class="btn" data-scan-code>📷 Scannen</button>
+          <button type="button" class="btn" data-add-code>Toevoegen</button>
+        </div>`;
+    };
+    const add = async (code) => draw(await api.post(`/ingredients/${ing.id}/barcodes`, { ean: code }));
+    box.addEventListener('click', async (e) => {
+      try {
+        const del = e.target.closest('[data-del-code]');
+        if (del) return draw(await api.del(`/ingredients/${ing.id}/barcodes/${del.dataset.delCode}`));
+        if (e.target.closest('[data-scan-code]')) {
+          const code = await scanBarcode({ title: `Barcode voor ${ing.name}` });
+          if (code) await add(code);
+        }
+        if (e.target.closest('[data-add-code]')) await add($('[data-code-input]', box).value);
+      } catch (err) { toast(err.message, 'error'); }
+      return undefined;
+    });
+    try { draw(await api.get(`/ingredients/${ing.id}/barcodes`)); } catch (err) { toast(err.message, 'error'); }
+  }
+
   async function packagesEditor(box, ing) {
     const draw = (options) => {
       const extras = options.filter((o) => o.key !== 'main');
