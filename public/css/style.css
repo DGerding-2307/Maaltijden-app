@@ -1336,8 +1336,18 @@ html:has(.modal-backdrop) { overflow: hidden; }
 .stock-attention h2 { margin-top: 0; font-size: 1rem; }
 .stock-hits { display: flex; flex-wrap: wrap; gap: .3rem; }
 .in-stock { color: var(--primary); font-weight: 600; }
-.stock-meals { margin-bottom: 1rem; }
-.stock-meals h2, .stock-sub { font-size: 1.05rem; margin: .4rem 0 .6rem; }
+.stock-cats { display: grid; gap: .6rem; }
+.stock-cat { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; }
+.stock-cat.expiring { border-left: 4px solid #e8a33c; }
+.stock-cat.expired { border-left: 4px solid #c0392b; }
+.stock-cat > summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: .6rem; padding: .8rem 1rem; font-weight: 700; min-height: 3rem; }
+.stock-cat > summary::-webkit-details-marker { display: none; }
+.stock-cat > summary::after { content: '›'; font-size: 1.3rem; line-height: 1; color: var(--muted); transition: transform .15s; }
+.stock-cat[open] > summary::after { transform: rotate(90deg); }
+.stock-cat-name { flex: 1; min-width: 0; }
+.stock-cat-meta { display: inline-flex; gap: .4rem; align-items: center; }
+.stock-cat-count { background: var(--primary); color: #fff; border-radius: 999px; padding: .05rem .55rem; font-size: .8rem; }
+.stock-cat > .stock-list { padding: 0 .7rem .8rem; }
 
 /* Scanner: scherpstellen, zoom en lamp (v4.12.2) */
 .scanner { cursor: crosshair; touch-action: manipulation; }
@@ -1355,3 +1365,23 @@ html:has(.modal-backdrop) { overflow: hidden; }
 @media (max-width: 760px) {
   .mainnav [data-nav="boodschappen"] span:last-child { font-size: .6rem; letter-spacing: -.02em; }
 }
+
+/* Uitklapbare afdelingen: boodschappen en ingrediënten */
+.shop-cat > summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: .6rem; min-height: 2.6rem; padding: .3rem .2rem; margin: .4rem 0; border-bottom: 1px solid var(--border); }
+.shop-cat > summary::-webkit-details-marker { display: none; }
+.shop-cat > summary::after { content: '›'; font-size: 1.2rem; line-height: 1; transition: transform .15s; }
+.shop-cat[open] > summary::after { transform: rotate(90deg); }
+.shop-cat > summary > span:first-child { flex: 1; }
+.shop-cat-count { background: var(--primary); color: #fff; border-radius: 999px; padding: .05rem .55rem; font-size: .75rem; letter-spacing: 0; }
+.shop-cat.all-done .shop-cat-count { background: #2e9d5b; }
+.shop-cat > .shop-tiles { margin-bottom: .6rem; }
+.ingredients .data-table tr.cat-row td { background: var(--surface-2); font-weight: 800; cursor: pointer; padding: .7rem; }
+.cat-row td { position: relative; }
+.cat-row-name::after { content: ' ›'; display: inline-block; margin-left: .3rem; color: var(--muted); transition: transform .15s; }
+.cat-row.open .cat-row-name::after { transform: rotate(90deg); }
+.cat-row-count { float: right; background: var(--primary); color: #fff; border-radius: 999px; padding: .05rem .55rem; font-size: .75rem; }
+@media (max-width: 720px) {
+  .ingredients .data-table tr.cat-row { background: var(--surface-2); box-shadow: none; padding: 0; margin: .7rem 0 .5rem; }
+  .ingredients .data-table tr.cat-row td { display: block; flex: 1; border-radius: 14px; }
+}
+@media print { .shop-cat > summary::after, .shop-cat-count { display: none; } }

@@ -1,12 +1,19 @@
 // Voorraad (v4.12): wat je in huis hebt, per pak met THT. Inscannen, uitscannen, toevoegen en afboeken.
 import { api, meta } from '../api.js';
-import { $, $$, esc, num, toast, modal, fmtDate, debounce, todayISO } from '../util.js';
+import { $, $$, esc, num, toast, modal, fmtDate, debounce, todayISO, CAT_EMOJI } from '../util.js';
 import { scanBarcode } from '../scanner.js';
 import { productDialog } from '../scan-flow.js';
 
 /** Gewicht van 1 stuk als het ingrediënt per stuk gaat (eieren, paprika's...), anders null. */
 const pieceW = (x) => (Number(x?.unit_weight_g) >= 30 ? Number(x.unit_weight_g) : null);
 const pieces = (grams, w) => Math.round((Number(grams) / w) * 10) / 10;
+/** Stuks alleen als een pak uit hele stuks bestaat (10 eieren = 600 g); 300 g kipfilet blijft gram. */
+const wFor = (x, packGrams) => {
+  const w = pieceW(x);
+  if (!w || !(Number(packGrams) > 0)) return w;
+  const n = Number(packGrams) / w;
+  return n >= 0.95 && Math.abs(n - Math.round(n)) < 0.05 ? w : null;
+};
 /** '6 stuks' bij ingrediënten per stuk, anders '300 g'. */
 const amount = (grams, w) => {
   if (!w) return `${num(grams, 0)} g`;
@@ -25,7 +32,7 @@ const thtText = (i) => {
 export function addDialog({ ingredient = null, grams = null, ean = null, title = 'In voorraad zetten' } = {}) {
   return new Promise((resolve) => {
     let done = false;
-    let w = pieceW(ingredient);
+    let w = wFor(ingredient, grams);
     const startVal = grams && w ? pieces(grams, w) : grams;
     const md = modal(`<div class="sheet"><h2>${esc(title)}</h2>
       <form class="form" data-f>
@@ -40,7 +47,7 @@ export function addDialog({ ingredient = null, grams = null, ean = null, title =
     const f = $('[data-f]', md.el);
     let chosen = ingredient;
     const setUnit = (ing) => {
-      w = pieceW(ing);
+      w = wFor(ing, ing.package_grams);
       $('[data-amount-label]', md.el).textContent = w ? 'Stuks per pak' : 'Gewicht per pak (g)';
       f.grams.min = w ? '0.1' : '1';
     };
@@ -96,13 +103,13 @@ export async function scanOut() {
   const info = await api.get(`/stock/barcode/${ean}`);
   if (!info.ingredient_id) { toast('Deze barcode is nog niet gekoppeld; er staat niets van in de voorraad', 'error'); return null; }
   if (!info.in_stock) { toast(`Er staat geen ${info.name} in de voorraad`, 'error'); return null; }
-  return consumeDialog({ id: info.ingredient_id, name: info.name, grams: info.in_stock, unit_weight_g: info.unit_weight_g });
+  return consumeDialog({ id: info.ingredient_id, name: info.name, grams: info.in_stock, unit_weight_g: info.unit_weight_g, pack_grams: info.grams });
 }
 
 function consumeDialog(group) {
   return new Promise((resolve) => {
     let done = false;
-    const w = pieceW(group);
+    const w = wFor(group, group.pack_grams ?? group.grams);
     const md = modal(`<div class="sheet"><h2>${esc(group.name)} afboeken</h2>
       <p class="muted">${amount(group.grams, w)} in huis. Leeg = het hele (oudste) pak.</p>
       <form class="form" data-f>
@@ -126,7 +133,7 @@ function consumeDialog(group) {
 function editDialog(item) {
   return new Promise((resolve) => {
     let done = false;
-    const w = pieceW(item);
+    const w = wFor(item, item.grams_initial);
     const md = modal(`<div class="sheet"><h2>${esc(item.name)}</h2>
       <form class="form" data-f>
         <div class="grid-2">
@@ -258,9 +265,26 @@ const mealTht = (x) => {
   return `<span class="muted small">THT ${fmtDate(x.best_before)}</span>`;
 };
 
-function mealsHtml(meals) {
+// Uitklapbare categorieën; welke open staan, onthoudt de app per apparaat
+const OPEN_KEY = 'stockOpenCats';
+const openCats = () => { try { return new Set(JSON.parse(localStorage.getItem(OPEN_KEY) || '[]')); } catch { return new Set(); } };
+const saveOpen = (set) => { try { localStorage.setItem(OPEN_KEY, JSON.stringify([...set])); } catch { /* opslag niet beschikbaar */ } };
+const MEALS_CAT = 'Maaltijden & restjes';
+const CAT_ORDER = Object.keys(CAT_EMOJI);
+const catRank = (c) => { const i = CAT_ORDER.indexOf(c); return i < 0 ? CAT_ORDER.length - 1 : i; };
+const warnOf = (list) => (list.some((x) => x.expired) ? 'expired' : list.some((x) => x.expiring) ? 'expiring' : '');
+
+function catHtml(name, emoji, count, warn, inner, open) {
+  return `<details class="stock-cat ${warn}" data-cat="${esc(name)}" ${open ? 'open' : ''}>
+    <summary><span class="stock-cat-name">${emoji} ${esc(name)}</span>
+      <span class="stock-cat-meta">${warn === 'expired' ? '<span class="badge warn">over datum</span>' : warn === 'expiring' ? '<span class="badge warn">bijna THT</span>' : ''}<span class="stock-cat-count">${count}</span></span></summary>
+    <div class="stock-list">${inner}</div>
+  </details>`;
+}
+
+function mealsHtml(meals, open) {
   if (!meals.length) return '';
-  return `<section class="stock-meals"><h2>🍲 Maaltijden &amp; restjes</h2><div class="stock-list">${meals.map((x) => `
+  return catHtml(MEALS_CAT, '🍲', meals.length, warnOf(meals), meals.map((x) => `
     <div class="card stock-group stock-meal ${x.expired ? 'expired' : x.expiring ? 'expiring' : ''}">
       <div class="stock-head">
         <div><strong>${esc(x.title)}</strong> <span class="muted small">${PLACE[x.location] || ''}${x.source === 'restjes' ? ' · restjes' : ''}</span>
@@ -269,7 +293,7 @@ function mealsHtml(meals) {
           <button class="btn small" data-meal-eat="${x.id}" aria-label="1 portie opgegeten" title="1 portie opgegeten">−</button></div>
       </div>
       <div class="stock-items"><button type="button" class="stock-item" data-meal="${x.id}">${mealTht(x) || '<span class="muted small">geen THT</span>'}</button></div>
-    </div>`).join('')}</div></section>`;
+    </div>`).join(''), open.has(MEALS_CAT));
 }
 
 export async function render(root) {
@@ -280,6 +304,7 @@ export async function render(root) {
         <button class="btn" data-out>📤 Scan uit</button>
         <button class="btn" data-add>＋ Toevoegen</button>
         <button class="btn" data-add-meal>🍲 Maaltijd</button>
+        <button class="btn btn-ghost" data-toggle-all hidden>Alles uitklappen</button>
       </div></div>
     <div data-body><p class="muted">Laden…</p></div>
   </div>`;
@@ -302,19 +327,47 @@ export async function render(root) {
     const mealAttention = data.meal_attention || [];
     const attention = data.attention.length || mealAttention.length ? `<div class="card stock-attention"><h2>Bijna over datum</h2>
       ${mealAttention.map((x) => `<div>🍲 ${esc(x.title)} · ${portions(x.portions_left)} ${mealTht(x)}</div>`).join('')}
-      ${data.attention.map((i) => `<div>${esc(i.name)} · ${amount(i.grams_left, pieceW(i))} ${thtText(i)}</div>`).join('')}</div>` : '';
-    body.innerHTML = `${attention}${mealsHtml(meals)}${data.ingredients.length && meals.length ? '<h2 class="stock-sub">🥫 Ingrediënten</h2>' : ''}<div class="stock-list">${data.ingredients.map((g) => `
+      ${data.attention.map((i) => `<div>${esc(i.name)} · ${amount(i.grams_left, wFor(i, i.grams_initial))} ${thtText(i)}</div>`).join('')}</div>` : '';
+    const open = openCats();
+    const cats = new Map();
+    for (const g of data.ingredients) {
+      const c = g.category || 'Overig';
+      if (!cats.has(c)) cats.set(c, []);
+      cats.get(c).push(g);
+    }
+    const ingCats = [...cats.entries()].sort(([a], [b]) => catRank(a) - catRank(b) || a.localeCompare(b, 'nl'));
+    const groupHtml = (g) => `
       <div class="card stock-group ${g.expired ? 'expired' : g.expiring ? 'expiring' : ''}">
         <div class="stock-head">
-          <div><strong>${esc(g.name)}</strong> <span class="muted small">${esc(g.category)}</span><div class="stock-total">${amount(g.grams, pieceW(g))} in huis</div></div>
+          <div><strong>${esc(g.name)}</strong><div class="stock-total">${amount(g.grams, wFor(g, g.items[0]?.grams_initial))} in huis</div></div>
           <div class="row"><button class="btn small" data-plus="${g.ingredient_id}" aria-label="Pak toevoegen">＋</button>
             <button class="btn small" data-minus="${g.ingredient_id}" aria-label="Afboeken">−</button></div>
         </div>
         <div class="stock-items">${g.items.map((i) => `<button type="button" class="stock-item" data-item="${i.id}">
-          <span>${pieceW(i)
-    ? `${num(pieces(i.grams_left, pieceW(i)), 1)}${i.grams_left < i.grams_initial ? ` / ${num(pieces(i.grams_initial, pieceW(i)), 1)}` : ''} ${pieces(i.grams_initial, pieceW(i)) === 1 ? 'stuk' : 'stuks'}`
+          <span>${wFor(i, i.grams_initial)
+    ? `${num(pieces(i.grams_left, i.unit_weight_g), 1)}${i.grams_left < i.grams_initial ? ` / ${num(pieces(i.grams_initial, i.unit_weight_g), 1)}` : ''} ${pieces(i.grams_initial, i.unit_weight_g) === 1 ? 'stuk' : 'stuks'}`
     : `${num(i.grams_left, 0)}${i.grams_left < i.grams_initial ? ` / ${num(i.grams_initial, 0)}` : ''} g`}</span>${thtText(i) || '<span class="muted small">geen THT</span>'}</button>`).join('')}</div>
-      </div>`).join('')}</div>`;
+      </div>`;
+    body.innerHTML = `${attention}<div class="stock-cats">${mealsHtml(meals, open)}${ingCats.map(([c, list]) => catHtml(c, CAT_EMOJI[c] || '🛒', list.length, warnOf(list), list.map(groupHtml).join(''), open.has(c))).join('')}</div>`;
+    const toggleAll = $('[data-toggle-all]', root);
+    const allDetails = () => $$('details.stock-cat', body);
+    const syncToggle = () => {
+      toggleAll.hidden = allDetails().length < 2;
+      toggleAll.textContent = allDetails().every((d) => d.open) ? 'Alles inklappen' : 'Alles uitklappen';
+    };
+    allDetails().forEach((d) => d.addEventListener('toggle', () => {
+      const set = openCats();
+      if (d.open) set.add(d.dataset.cat); else set.delete(d.dataset.cat);
+      saveOpen(set);
+      syncToggle();
+    }));
+    toggleAll.onclick = () => {
+      const openAll = !allDetails().every((d) => d.open);
+      saveOpen(new Set(openAll ? allDetails().map((d) => d.dataset.cat) : []));
+      allDetails().forEach((d) => { d.open = openAll; });
+      syncToggle();
+    };
+    syncToggle();
     const byId = new Map(data.ingredients.map((g) => [g.ingredient_id, g]));
     const items = new Map(data.ingredients.flatMap((g) => g.items).map((i) => [i.id, i]));
     $$('[data-plus]', body).forEach((b) => b.addEventListener('click', () => {
@@ -323,7 +376,7 @@ export async function render(root) {
     }));
     $$('[data-minus]', body).forEach((b) => b.addEventListener('click', () => {
       const g = byId.get(Number(b.dataset.minus));
-      consumeDialog({ id: g.ingredient_id, name: g.name, grams: g.grams, unit_weight_g: g.unit_weight_g }).then(after);
+      consumeDialog({ id: g.ingredient_id, name: g.name, grams: g.grams, unit_weight_g: g.unit_weight_g, pack_grams: g.items[0]?.grams_initial }).then(after);
     }));
     $$('[data-item]', body).forEach((b) => b.addEventListener('click', () => editDialog(items.get(Number(b.dataset.item))).then(after)));
     const mealById = new Map(meals.map((x) => [x.id, x]));
