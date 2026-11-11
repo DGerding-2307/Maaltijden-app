@@ -3,7 +3,7 @@ import { esc } from '../util.js';
 
 const ITEMS = [
   ['#/recepten', '📖', 'Recepten', 'je receptenboek'],
-  ['#/boodschappen', '🛒', 'Boodschappen', 'je lijst voor deze week'],
+  ['#/planner', '📅', 'Planner', 'je weekmenu plannen'],
   ['#/dagboek', '🔥', 'Dagboek & gewicht', 'eerdere dagen, grafieken en je gewicht'],
   ['#/ingredienten', '🥕', 'Ingrediënten', 'voedingswaarden, prijzen, product scannen'],
   ['#/importeren', '✨', 'Recept toevoegen', 'van een website, foto of met Claude'],

@@ -1348,3 +1348,8 @@ html:has(.modal-backdrop) { overflow: hidden; }
 
 /* Scanner: foto met de camera-app (v4.12.4) */
 .scan-photo-btn { width: 100%; min-height: 3rem; margin: .3rem 0; }
+
+/* Onderbalk: 'Boodschappen' is het langste woord, iets kleiner zodat het past (v4.12.5) */
+@media (max-width: 760px) {
+  .mainnav [data-nav="boodschappen"] span:last-child { font-size: .6rem; letter-spacing: -.02em; }
+}
