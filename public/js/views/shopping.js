@@ -29,6 +29,9 @@ function inStock(item) {
   return `${num(item.in_stock_g, 0)} g`;
 }
 
+/** Naar het ingrediënt, en na opslaan of sluiten terug naar deze boodschappenlijst. */
+const ingLink = (id, week) => `#/ingredienten?id=${id}&terug=${encodeURIComponent(`/boodschappen?week=${week}`)}`;
+
 /** Knoppen om te kiezen voor welke dagen je boodschappen doet. */
 function dayChips(days) {
   const partly = days.some((d) => !d.selected);
@@ -129,6 +132,7 @@ export async function render(root, params) {
                 <span class="am">${amount(i)}${i.package_text ? ` · ${esc(i.package_text)}` : ''}${i.leftover_grams > 0 ? ` · ${num(i.leftover_grams, 0)} g over` : ''}${i.in_stock_g > 0 ? ` · <span class="in-stock">🥫 ${inStock(i)} in huis</span>` : ''}</span>
                 ${packagePicker(i)}
                 <span class="for" title="${esc(i.recipes.join(', '))}">voor ${esc(i.recipes.slice(0, 2).join(', '))}${i.recipes.length > 2 ? ` +${i.recipes.length - 2}` : ''}</span>
+                ${i.ingredient_id ? `<a class="mini no-print ing-btn" href="${ingLink(i.ingredient_id, start)}" title="Ingrediënt aanpassen" aria-label="${esc(i.name)}: ingrediënt aanpassen">✏️</a>` : ''}
                 <button type="button" class="mini no-print have-btn" data-have="${esc(i.key)}" title="Heb ik al in huis – niet kopen" aria-label="${esc(i.name)} al in huis">🏠</button>
               </label>`).join('')}
           </div>
@@ -144,6 +148,7 @@ export async function render(root, params) {
         <summary><h2>🏠 Al in huis (${inHouse.length})</h2></summary>
         <ul class="shop-list">${inHouse.map((i) => `<li>
           <span class="shop-name"><strong>${esc(i.name)}</strong> <span class="muted">${amount(i)}</span></span>
+          ${i.ingredient_id ? `<a class="mini" href="${ingLink(i.ingredient_id, start)}" aria-label="${esc(i.name)}: ingrediënt aanpassen">✏️</a>` : ''}
           ${i.ingredient_id ? `<button class="mini" data-always="${i.ingredient_id}" title="Nooit meer op de lijst zetten (voorraadkast)">altijd in huis</button>` : ''}
           <button class="mini" data-unhave="${esc(i.key)}">toch kopen</button></li>`).join('')}</ul>
       </details>` : ''}

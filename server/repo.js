@@ -179,6 +179,8 @@ export function saveIngredient(data, id = null) {
   }
   const values = ING_FIELDS.map((f) => {
     const v = data[f];
+    // ‘Andere namen’ leeg laten mag: dat is een lege tekst, geen ontbrekende waarde (kolom is NOT NULL)
+    if (f === 'aliases' && v !== undefined) return String(v ?? '').trim();
     if (v === undefined || v === '') return null;
     if (f === 'pantry') return v ? 1 : 0;
     return v;
@@ -186,7 +188,8 @@ export function saveIngredient(data, id = null) {
   if (id) {
     const existing = getIngredient(id);
     if (!existing) return null;
-    const merged = ING_FIELDS.map((f, i) => (data[f] === undefined ? existing[f] : values[i]));
+    // Een leeg verplicht veld (afdeling) houdt de oude waarde
+    const merged = ING_FIELDS.map((f, i) => (data[f] === undefined || (values[i] == null && f === 'category') ? existing[f] : values[i]));
     // Bronvermelding van een standaardfoto vervalt als de foto wordt vervangen
     const urlIdx = ING_FIELDS.indexOf('image_url');
     if (merged[urlIdx] !== existing.image_url && data.image_credit === undefined) merged[ING_FIELDS.indexOf('image_credit')] = null;
