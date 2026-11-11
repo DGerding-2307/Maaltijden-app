@@ -413,7 +413,9 @@ export async function render(root) {
           <div class="check-list">${r.dubbel.map((g, gi) => `<div class="check-item" data-group="${gi}">
             <div>${g.ingredienten.map((i) => `<label class="check-choice"><input type="radio" name="keep-${gi}" value="${i.id}"${i.id === g.bewaren ? ' checked' : ''}>
               <strong>${esc(i.naam)}</strong> <span class="muted small">${esc(i.afdeling)} · ${i.gebruikt}× gebruikt</span></label>`).join('')}
-              <small class="muted">${g.redenen.map(esc).join(' · ')}</small></div>
+              <small class="muted">${g.redenen.map(esc).join(' · ')}</small>
+              ${(g.verkeerde_aliassen || []).length ? `<small class="muted">Verschillende producten? Haal dan de verkeerde andere naam weg:</small>
+                <div class="row">${g.verkeerde_aliassen.map((a, ai) => `<button class="mini" data-unalias="${gi}-${ai}">‘${esc(a.alias)}’ weg bij ${esc(a.ingredient)}</button>`).join(' ')}</div>` : ''}</div>
             <button class="btn btn-primary" data-merge="${gi}">Samenvoegen</button>
           </div>`).join('')}</div>` : '<p class="muted">Geen dubbele ingrediënten gevonden. 👍</p>'}
         <h3>Afdeling controleren (${r.categorie.length})</h3>
@@ -432,6 +434,16 @@ export async function render(root) {
         try {
           for (const d of drop) await api.post(`/ingredients/${keep}/merge`, { from: d.id });
           toast(`Samengevoegd in ${keepName}`, 'success');
+          await reload();
+          show();
+        } catch (err) { toast(err.message, 'error'); }
+      }));
+      body.querySelectorAll('[data-unalias]').forEach((b) => b.addEventListener('click', async () => {
+        const [gi, ai] = b.dataset.unalias.split('-').map(Number);
+        const a = r.dubbel[gi].verkeerde_aliassen[ai];
+        try {
+          const out = await api.post(`/ingredients/${a.ingredient_id}/alias/remove`, { name: a.alias });
+          toast(`‘${a.alias}’ weggehaald bij ${a.ingredient}${out.relinked ? ` · ${out.relinked} receptregel(s) opnieuw gekoppeld` : ''}`, 'success');
           await reload();
           show();
         } catch (err) { toast(err.message, 'error'); }

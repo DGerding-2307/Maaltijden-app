@@ -76,3 +76,26 @@ test('samenvoegen verplaatst recepten, voorraad en verpakkingen en maakt een ali
   assert.equal(repo.matchIngredient('sjalotje').id, keep.id);
   assert.throws(() => check.mergeIngredients(keep.id, keep.id));
 });
+
+test('gemalen en poeder horen bij de kruiden', () => {
+  assert.equal(check.guessCategory('gember gemalen'), 'Kruiden, specerijen & bakken');
+  assert.equal(check.guessCategory('paprika poeder mild'), 'Kruiden, specerijen & bakken');
+  assert.equal(check.guessCategory('verse gember'), 'Aardappelen, groente & fruit');
+  assert.equal(check.guessCategory('gemalen koffie'), 'Dranken & overig');
+});
+
+test('verkeerde alias weghalen koppelt de receptregel aan het juiste ingrediënt', () => {
+  const cognac = repo.saveIngredient({ name: 'cognac', kcal: 230, aliases: 'brandy,whiskey' });
+  const whiskey = repo.saveIngredient({ name: 'whiskey', kcal: 250 });
+  const recipeId = repo.saveRecipe({ title: 'Saus met whiskey', servings: 2, ingredients: [{ name: 'whiskey', ingredient_id: cognac.id, quantity: 2, unit: 'el' }] });
+
+  const group = check.checkIngredients().dubbel.find((g) => g.ingredienten.some((i) => i.id === cognac.id));
+  assert.deepEqual(group.verkeerde_aliassen, [{ ingredient_id: cognac.id, ingredient: 'cognac', alias: 'whiskey' }]);
+
+  const out = repo.removeIngredientAlias(cognac.id, 'Whiskey');
+  assert.equal(out.aliases, 'brandy');
+  assert.equal(out.relinked, 1);
+  assert.equal(repo.getRecipe(recipeId).ingredients[0].ingredient_id, whiskey.id);
+  assert.ok(!check.checkIngredients().dubbel.some((g) => g.ingredienten.some((i) => i.id === cognac.id)));
+  assert.equal(repo.removeIngredientAlias(cognac.id, 'whiskey'), null);
+});

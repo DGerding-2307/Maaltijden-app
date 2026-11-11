@@ -20,6 +20,8 @@ const RULES = [
   // Bake-off en gebak (‘kaneelbroodje’, ‘appelflap’, ‘pizzabroodje’) en verse groentemixen eerst
   [BR, /broodje|flap$|beignet|ovaaltje|croqui|b(o|ö)rek|kaneelknoop|focaccia|croissant|krentenbol/],
   [AGF, /soepgroente|roerbakgroente|wokgroente|groentemix|stamppotgroente/],
+  // Gemalen en poeder is altijd het kruidenschap (‘gember gemalen’, ‘paprika poeder mild’), behalve koffie
+  [KR, /^(?!.*koffie).*(\bgemalen\b|\bpoeder\b|poeder$)/],
   // Verse pepers en verse kruiden vóór de gedroogde kruiden
   [AGF, /verse? (kruiden|basilicum|peterselie|koriander|munt|dille|bieslook|rozemarijn|tijm|salie|gember|kurkuma|chilipeper|peper)|\brode pepers?\b|\bgroene pepers?\b|chilipeper|jalapeno|\bpaprika'?s?\b/],
   [DV, /\b(diepvries|bevroren)|diepvries|roomijs|\bijsjes?\b|frites|\bfriet\b|patat|kroketten?\b|bitterballen|loempia|pizza/],
@@ -31,7 +33,7 @@ const RULES = [
   [ZU, /\bmelk\b|melk$|karnemelk|yoghurt|kwark|skyr|\bvla\b|\bkaas\b|kaas$|geitenkaas|roomkaas|mozzarella|parmezaan|parmigiano|pecorino|feta|halloumi|ricotta|mascarpone|burrata|cheddar|gouda|brie|camembert|\broom\b|slagroom|kookroom|zure room|creme fraiche|crème fraîche|\bboter\b|roomboter|margarine|halvarine|\beieren\b|\bei\b|eidooier|eiwit\b|zuivel/],
   [VV, /\bkip\b|^kip|kippen|kalkoen|\beend\b|eendenborst|rund|runder|biefstuk|ossenhaas|entrecote|rosbief|varken|gehakt|hamburger|\bham\b|hamlappen|spek|ontbijtspek|bacon|pancetta|chorizo|salami|worst|rookworst|braadworst|shoarma|gyros|schnitzel|\bsaté\b|speklap|karbonade|riblap|sukade|stoofvlees|\blam\b|lamsvlees|lamsrack|\bvlees\b|vlees$|\bvis\b|zalm|tonijn|kabeljauw|koolvis|pangasius|tilapia|makreel|haring|forel|garnalen|scampi|mosselen|inktvis|kibbeling|lekkerbek|tofu|tempeh|seitan|vegetarisch|\bvega\b|vegan|falafel|filet\b|filet$|drumstick|vleugel/],
   [WK, /pasta|spaghetti|macaroni|penne|fusilli|farfalle|rigatoni|tagliatelle|linguine|lasagne|orzo|gnocchi|ravioli|tortellini|\brijst\b|rijst$|basmati|jasmijnrijst|risotto|noedels|\bmie\b|mienestjes|udon|ramen|\bbami\b|\bnasi\b|couscous|bulgur|quinoa|tortilla|\bwraps?\b|taco|nachos|tortillachips|pitabroodje|naanbrood|\bnaan\b/],
-  [DR, /(?<!citroen|limoen)sap\b|frisdrank|\bcola\b|limonade|siroop|\bwater\b|spa\b|\bbier\b|\bwijn\b|\bkoffie\b|\bthee\b|noten|notenmix|cashew|walnoot|walnoten|amandelen|hazelnoten|pinda's|pindas|\bpinda\b|pistache|chips|zoutjes|snoep|koekjes?\b|\bkoek\b|drop\b|energiedrank|smoothie/],
+  [DR, /(?<!citroen|limoen)sap\b|cognac|brandy|whiske?y|wodka|vodka|\brum\b|\bgin\b|likeur|\bsake\b|\bport\b|sherry|\bmartini\b|cider\b|cider$|prosecco|champagne|frisdrank|\bcola\b|limonade|siroop|\bwater\b|spa\b|\bbier\b|\bwijn\b|\bkoffie\b|\bthee\b|noten|notenmix|cashew|walnoot|walnoten|amandelen|hazelnoten|pinda's|pindas|\bpinda\b|pistache|chips|zoutjes|snoep|koekjes?\b|\bkoek\b|drop\b|energiedrank|smoothie/],
   [AGF, /aardappel|krieltjes|zoete aardappel|groente|\bfruit\b|appel|\bpeer\b|peren|banaan|bananen|citroen|limoen|sinaasappel|mandarijn|grapefruit|aardbei|framboos|frambozen|blauwe bes|bessen|\bdruif|druiven|kiwi|mango|ananas|meloen|watermeloen|perzik|nectarine|pruim|kers|\bvijg|granaatappel|avocado|tomaat|tomaten|cherrytomaat|komkommer|paprika|courgette|aubergine|pompoen|broccoli|bloemkool|\bkool\b|spitskool|witte kool|rode kool|savooiekool|boerenkool|zuurkool|spruit|andijvie|\bsla\b|ijsbergsla|rucola|veldsla|spinazie|snijbiet|wortel|\bpeen\b|winterpeen|pastinaak|knolselderij|selderij|bleekselderij|venkel|\bui\b|uien|sjalot|lente-?ui|bosui|knoflook|\bprei\b|champignon|paddenstoel|kastanjechampignon|shiitake|oesterzwam|sperziebonen|snijbonen|tuinbonen|doperwten|peultjes|sugarsnaps|\bmais\b|maiskolf|radijs|biet|bietjes|asperge|artisjok|gember|taugé|tauge|paksoi|chinese kool|rabarber/],
 ];
 
@@ -111,10 +113,15 @@ export function checkIngredients() {
     if (byKey.has(k)) union(byKey.get(k).id, ing.id, `‘${byKey.get(k).name}’ en ‘${ing.name}’ zijn dezelfde naam`);
     else byKey.set(k, ing);
   }
+  // Een alias die de naam van een ánder ingrediënt is: samenvoegen, of (bij verschillende producten) de alias weghalen
+  const aliasConflicts = [];
   for (const ing of all) {
     for (const alias of names(ing).slice(1)) {
       const other = byKey.get(key(alias));
-      if (other && other.id !== ing.id) union(other.id, ing.id, `‘${other.name}’ staat als alias bij ‘${ing.name}’`);
+      if (other && other.id !== ing.id) {
+        union(other.id, ing.id, `‘${other.name}’ staat als alias bij ‘${ing.name}’`);
+        aliasConflicts.push({ ingredient_id: ing.id, ingredient: ing.name, alias, ander_id: other.id });
+      }
     }
   }
   const groups = new Map();
@@ -132,6 +139,9 @@ export function checkIngredients() {
       ingredienten: g.map((i) => ({ id: i.id, naam: i.name, afdeling: i.category, gebruikt: usage.get(i.id) || 0 })),
       bewaren: sorted[0].id,
       redenen,
+      // Zijn het toch verschillende producten? Haal dan deze aliassen weg in plaats van samen te voegen
+      verkeerde_aliassen: aliasConflicts.filter((c) => ids.includes(c.ingredient_id) && ids.includes(c.ander_id))
+        .map(({ ingredient_id, ingredient, alias }) => ({ ingredient_id, ingredient, alias })),
     };
   });
 
