@@ -502,6 +502,12 @@ body.cooking main { padding-top: calc(.9rem + var(--sat)); }
 .off-product img { width: 48px; height: 48px; object-fit: contain; background: #fff; border-radius: 8px; }
 .off-product .thumb-emoji { font-size: 1.8rem; }
 .off-median { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .7rem .9rem; border-radius: 10px; background: var(--primary-soft); flex-wrap: wrap; }
+/* Ingrediënten controleren */
+.check-list { display: grid; gap: .5rem; margin-bottom: 1rem; }
+.check-item { display: flex; gap: .6rem; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: .6rem .8rem; border: 1px solid var(--border, #eee); border-radius: 10px; }
+.check-item > div { flex: 1 1 220px; display: grid; gap: .2rem; }
+.check-item select { max-width: 100%; }
+.check-choice { display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; }
 [data-video] { width: 100%; max-height: 260px; border-radius: 10px; background: #000; margin-top: .5rem; }
 .off-status details { margin-top: .4rem; }
 .off-status ul { margin: .3rem 0; padding-left: 1.2rem; font-size: .88rem; }

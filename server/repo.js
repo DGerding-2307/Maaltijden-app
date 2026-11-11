@@ -1,7 +1,8 @@
 // Data-toegang: recepten, ingrediënten, planning en boodschappen.
 import { getDb, tx, getSetting, setSetting } from './db.js';
 import { computeRecipe, buildShoppingList, NUTRIENTS, effectiveAmount, gramsFor, pricePerGram, packageOptions, plannedPortion } from './calc.js';
-import { addDays } from './seed.js';
+import { addDays, CATEGORIES } from './seed.js';
+import { guessCategory, canonicalCategory } from './ingredient-check.js';
 
 const ING_FIELDS = [
   'name', 'aliases', 'category', ...NUTRIENTS, 'unit_weight_g', 'density', 'pantry',
@@ -167,6 +168,14 @@ export function saveIngredient(data, id = null) {
   // Productfoto (bv. uit Open Food Facts) alleen gebruiken als het ingrediënt nog geen foto heeft
   if (data.fallback_image_url && data.image_url === undefined && !(id && getIngredient(id)?.image_url)) {
     data = { ...data, image_url: data.fallback_image_url };
+  }
+  // Afdeling: alleen de vaste afdelingen; een nieuw ingrediënt zonder afdeling krijgt er één op basis van de naam
+  if (data.category !== undefined && data.category !== '' && !CATEGORIES.includes(data.category)) {
+    data = { ...data, category: canonicalCategory(data.category) || guessCategory(data.name) || 'Overig' };
+  }
+  if (!id && (!data.category || data.category === 'Overig')) {
+    const guess = guessCategory(data.name);
+    if (guess) data = { ...data, category: guess };
   }
   const values = ING_FIELDS.map((f) => {
     const v = data[f];

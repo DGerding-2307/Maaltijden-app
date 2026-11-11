@@ -294,6 +294,9 @@ for (const [name, jumboName, art, kcal, protein, carbs, sugar, fat, satFat, fibe
   I.push([name, BR, kcal, protein, carbs, sugar, fat, satFat, fiber, salt, weight, weight, price, 0, aliases, 1, '1 stuk']);
 }
 
+// Standaardafdeling per standaardingrediënt (om afwijkingen te kunnen zien)
+export const BUILTIN_INGREDIENT_CATEGORY = new Map(I.map((r) => [r[0].toLowerCase(), r[1]]));
+
 // Recepten: [naam ingrediënt (of alias), hoeveelheid, eenheid, notitie, optioneel]
 const RECIPES = [
   {

@@ -127,9 +127,19 @@ const CATEGORY_RULES = [
   [/beverages|snacks|nuts|sweets|chocolates/, 'Dranken & overig'],
 ];
 
+// Verzamelcategorieën die niets over de afdeling zeggen (‘en:cereals-and-potatoes’ staat bij pasta, rijst én aardappelen)
+const GENERIC_TAG = /plant-based|cereals-and-potatoes|cereals-and-their-products|fruits-and-vegetables-based|groceries|^en:foods?$|^en:dried-products/;
+
+/**
+ * OFF zet de categorieën van algemeen naar specifiek. Kijk daarom eerst naar de specifiekste categorie:
+ * zo wordt pasta (‘…, en:cereals-and-potatoes, en:pastas’) geen ‘Brood, ontbijt & beleg’.
+ */
 export function categoryFromOff(tags = []) {
-  const joined = (tags || []).join(' ');
-  for (const [re, cat] of CATEGORY_RULES) if (re.test(joined)) return cat;
+  const list = (tags || []).filter((t) => !GENERIC_TAG.test(t));
+  if (list.some((t) => /frozen/.test(t))) return 'Diepvries';
+  for (let i = list.length - 1; i >= 0; i--) {
+    for (const [re, cat] of CATEGORY_RULES) if (re.test(list[i])) return cat;
+  }
   return null;
 }
 
