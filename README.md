@@ -57,6 +57,11 @@ geeft hij een tip, maar boos wordt hij nooit. Geef hem zelf een naam: Bolletje, 
 - **Nederlands.** Nederlandse recepten, Nederlandse supermarktprijzen en voedingswaarden uit NEVO en Open Food Facts.
 - **Voor het hele huishouden.** Samen plannen en boodschappen doen, en ieder een eigen dagboek en maatje.
 
+## Nieuw in versie 4.12.4
+
+- 📸 **Scannen met een foto.** Je kunt een barcode nu ook scannen door een foto te maken met de gewone camera van je telefoon. Die stelt zelf scherp en is meestal veel scherper dan live scannen. De app haalt de barcode uit de foto, ook als die scheef of rechtop gemaakt is. In de Android-app is dit de eerste keuze; live scannen kan nog steeds.
+- 🔢 **Android-app met hetzelfde versienummer** als de app op de server (bijvoorbeeld 4.12.4-app9), zodat je ziet welke versie je hebt.
+
 ## Nieuw in versie 4.12.3
 
 - 📷 **Scherp scannen in de Android-app.** De app gebruikt nu de barcodescanner van Google (dezelfde als in veel winkel-apps). Die stelt zelf scherp, kiest de goede camera en heeft een eigen zoom en lamp. Hiervoor heb je de **nieuwe APK** nodig (release android-latest). De eerste keer kan Android de scanner nog even downloaden; tot die klaar is werkt de oude scanner.

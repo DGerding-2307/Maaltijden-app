@@ -1345,3 +1345,6 @@ html:has(.modal-backdrop) { overflow: hidden; }
 .scan-controls { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin-bottom: .4rem; }
 .scan-zoom { display: inline-flex; align-items: center; gap: .3rem; flex: 1 1 140px; }
 .scan-zoom input { flex: 1; min-width: 0; }
+
+/* Scanner: foto met de camera-app (v4.12.4) */
+.scan-photo-btn { width: 100%; min-height: 3rem; margin: .3rem 0; }
