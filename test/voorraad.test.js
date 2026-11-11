@@ -111,3 +111,53 @@ test('ingrediënten per stuk (eieren) krijgen hun stuksgewicht mee voor weergave
   assert.equal(stock.pieceWeight({ unit_weight_g: 5 }), null);
   assert.equal(stock.toPieces(500, rijst), null);
 });
+
+test('extra gekookt voor restjes: bij gekookt gaan de restjes automatisch de voorraad in', () => {
+  const day = monday;
+  const dinner = repo.addPlanEntry({ date: day, meal: 'diner', recipe_id: recipeId, servings: 4 });
+  const rest = repo.addPlanEntry({ date: day, meal: 'lunch', recipe_id: recipeId, servings: 2, leftover_of: dinner, note: 'restjes' });
+  const cooked = stock.cookRecipe({ plan_entry_id: dinner });
+  assert.equal(cooked.leftovers.portions_left, 2);
+  assert.equal(cooked.leftovers.source, 'restjes');
+  assert.equal(cooked.leftovers.location, 'koelkast');
+  assert.ok(cooked.leftovers.best_before > day.slice(0, 4));
+  assert.equal(stock.listMeals().length, 1);
+
+  // De restjes opeten haalt de porties eraf (en kan ongedaan worden gemaakt)
+  const eaten = stock.cookRecipe({ plan_entry_id: rest });
+  assert.equal(eaten.meal_used, 2);
+  assert.equal(stock.listMeals().length, 0);
+  stock.undoCook(eaten.id);
+  assert.equal(stock.listMeals()[0].portions_left, 2);
+  stock.cookRecipe({ plan_entry_id: rest });
+
+  // 'Gekookt' ongedaan maken haalt de restjes ook weer weg
+  stock.undoCook(cooked.id);
+  assert.equal(stock.listMeals().length, 0);
+  for (const id of [rest, dinner]) repo.deletePlanEntry(id);
+});
+
+test('maaltijd zelf in de voorraad (vriezer), inplannen en opeten', () => {
+  const meal = stock.addMeal({ title: 'zelfgemaakte soep', portions: 3, location: 'vriezer' });
+  assert.equal(meal.recipe_id, null);
+  assert.equal(meal.location, 'vriezer');
+  assert.ok(meal.days_left >= 80);
+  assert.equal(stock.eatMeal(meal.id, 1).portions_left, 2);
+
+  const { id } = stock.planMeal(meal.id, { date: monday, meal: 'diner', servings: 2 });
+  const entry = repo.getPlanEntry(id);
+  assert.equal(entry.no_shopping, 1);
+  assert.equal(entry.stock_meal_id, meal.id);
+  assert.equal(entry.title, 'zelfgemaakte soep');
+  // geplande maaltijd uit de voorraad komt niet op de boodschappenlijst
+  assert.ok(!repo.getShoppingList(monday).items.some((i) => /soep/.test(i.name)));
+  const res = stock.cookRecipe({ plan_entry_id: id });
+  assert.equal(res.meal_used, 2);
+  assert.equal(stock.getMeal(meal.id), null);
+  repo.deletePlanEntry(id);
+
+  assert.throws(() => stock.addMeal({ portions: 2 }), /Welke maaltijd/);
+  const r = stock.addMeal({ recipe_id: recipeId, portions: 1, best_before: '2030-01-01' });
+  assert.equal(r.title, 'Rijst met ui');
+  assert.equal(stock.updateMeal(r.id, { portions_left: 0 }), null);
+});

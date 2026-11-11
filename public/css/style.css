@@ -1336,6 +1336,8 @@ html:has(.modal-backdrop) { overflow: hidden; }
 .stock-attention h2 { margin-top: 0; font-size: 1rem; }
 .stock-hits { display: flex; flex-wrap: wrap; gap: .3rem; }
 .in-stock { color: var(--primary); font-weight: 600; }
+.stock-meals { margin-bottom: 1rem; }
+.stock-meals h2, .stock-sub { font-size: 1.05rem; margin: .4rem 0 .6rem; }
 
 /* Scanner: scherpstellen, zoom en lamp (v4.12.2) */
 .scanner { cursor: crosshair; touch-action: manipulation; }

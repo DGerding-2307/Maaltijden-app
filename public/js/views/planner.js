@@ -100,8 +100,10 @@ export async function render(root, params) {
         ${e.note && !rest ? `<span class="muted small">${esc(e.note)}</span>` : ''}
         ${e.recipe_id && e.date <= todayISO() ? `<button class="eat-toggle ${e.eaten ? 'on' : ''}" data-eat aria-pressed="${!!e.eaten}"
           title="${e.eaten ? `Staat in het dagboek van ${esc(person.name)}` : `Als gegeten in het dagboek van ${esc(person.name)} zetten`}">${e.eaten ? '✓ gegeten' : 'gegeten?'}</button>` : ''}
-        ${e.recipe_id && !e.leftover_of && e.date <= todayISO() ? `<button class="eat-toggle ${e.cooked_id ? 'on' : ''}" data-cook aria-pressed="${!!e.cooked_id}"
-          title="${e.cooked_id ? 'Afgeboekt van de voorraad – klik om ongedaan te maken' : 'Gekookt: ingrediënten van de voorraad afhalen'}">${e.cooked_id ? '✓ gekookt' : '🍳 gekookt?'}</button>` : ''}
+        ${e.recipe_id && !e.leftover_of && !e.stock_meal_id && e.date <= todayISO() ? `<button class="eat-toggle ${e.cooked_id ? 'on' : ''}" data-cook aria-pressed="${!!e.cooked_id}"
+          title="${e.cooked_id ? 'Afgeboekt van de voorraad – klik om ongedaan te maken' : 'Gekookt: ingrediënten van de voorraad afhalen (en restjes erin zetten)'}">${e.cooked_id ? '✓ gekookt' : '🍳 gekookt?'}</button>` : ''}
+        ${(e.leftover_of || e.stock_meal_id) && e.date <= todayISO() ? `<button class="eat-toggle ${e.cooked_id ? 'on' : ''}" data-cook aria-pressed="${!!e.cooked_id}"
+          title="${e.cooked_id ? 'Porties van de voorraad afgehaald – klik om ongedaan te maken' : 'Opgegeten: porties van de voorraad afhalen'}">${e.cooked_id ? '✓ uit voorraad' : '🥡 opgegeten?'}</button>` : ''}
       </div>
     </article>`;
   }
@@ -346,7 +348,7 @@ export async function render(root, params) {
       ${entry.recipe_id && !entry.leftover_of ? `<hr>
       <form class="form" data-leftovers>
         <h3>♻️ Restjes inplannen</h3>
-        <p class="muted small">Kook je meer dan je opeet? Plan de restjes in: ze tellen mee voor de voedingswaarden, maar niet voor de boodschappen.</p>
+        <p class="muted small">Kook je meer dan je opeet? Plan de restjes in: ze tellen mee voor de voedingswaarden, maar niet voor de boodschappen. Vink je de maaltijd af als <b>gekookt</b>, dan gaan de restjes vanzelf de voorraad in.</p>
         <div class="grid-2">
           <label>Dag <input type="date" class="input" name="date" value="${nextDay}"></label>
           <label>Moment <select class="input" name="meal">${meals.map((x) => `<option ${x === 'lunch' ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>
