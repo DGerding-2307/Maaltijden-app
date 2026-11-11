@@ -57,6 +57,10 @@ geeft hij een tip, maar boos wordt hij nooit. Geef hem zelf een naam: Bolletje, 
 - **Nederlands.** Nederlandse recepten, Nederlandse supermarktprijzen en voedingswaarden uit NEVO en Open Food Facts.
 - **Voor het hele huishouden.** Samen plannen en boodschappen doen, en ieder een eigen dagboek en maatje.
 
+## Nieuw in versie 4.14.0
+
+- 🥜 **Nieuwe afdeling: Noten & zaden.** Noten, pinda's, pitten en zaden (walnoten, cashewnoten, pompoenpitten, sesamzaad, chiazaad …) hebben nu hun eigen afdeling in ingrediënten, boodschappen en voorraad. Wat al in de app stond, wordt bij de update één keer automatisch verplaatst. Pindakaas, pindasaus en specerijzaden zoals korianderzaad blijven waar ze stonden.
+
 ## Nieuw in versie 4.13.1
 
 - 🏷️ **Verkeerde andere naam weghalen.** Soms staat bij een ingrediënt een andere naam (alias) die eigenlijk een ánder product is, zoals ‘whiskey’ bij cognac. In **Ingrediënten → Controleren** haal je die met één knop weg; receptregels met die naam worden dan aan het juiste ingrediënt gekoppeld. Claude kan dit ook via de koppeling (`ingredient_alias_verwijderen`).

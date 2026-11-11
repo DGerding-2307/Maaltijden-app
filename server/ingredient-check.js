@@ -1,6 +1,6 @@
 // Ingrediënten controleren: staat elk ingrediënt in de goede afdeling, en zijn er dubbele?
 // De afdeling wordt geraden uit de (Nederlandse) naam. Het blijft een suggestie: je past hem zelf aan.
-import { getDb } from './db.js';
+import { getDb, getSetting, setSetting } from './db.js';
 import { CATEGORIES, BUILTIN_INGREDIENT_CATEGORY } from './seed.js';
 
 const AGF = 'Aardappelen, groente & fruit';
@@ -12,6 +12,7 @@ const CO = 'Conserven, soepen & sauzen';
 const KR = 'Kruiden, specerijen & bakken';
 const OL = 'Olie, azijn & smaakmakers';
 const DV = 'Diepvries';
+const NZ = 'Noten & zaden';
 const DR = 'Dranken & overig';
 
 // Eerste treffer wint, dus specifiek vóór algemeen (‘kipkruiden’ is kruiden, ‘pindakaas’ is beleg, ‘olijfolie’ is olie).
@@ -25,7 +26,7 @@ const RULES = [
   // Verse pepers en verse kruiden vóór de gedroogde kruiden
   [AGF, /verse? (kruiden|basilicum|peterselie|koriander|munt|dille|bieslook|rozemarijn|tijm|salie|gember|kurkuma|chilipeper|peper)|\brode pepers?\b|\bgroene pepers?\b|chilipeper|jalapeno|\bpaprika'?s?\b/],
   [DV, /\b(diepvries|bevroren)|diepvries|roomijs|\bijsjes?\b|frites|\bfriet\b|patat|kroketten?\b|bitterballen|loempia|pizza/],
-  [KR, /kruiden|kruidenmix|seasoning|specerij|poeder|gedroogde? (oregano|tijm|basilicum|peterselie|rozemarijn|dille|bieslook|munt|koriander|salie|majoraan|chilipeper)|\bpeper\b|zwarte peper|witte peper|peperkorrels|\bzout\b|zeezout|kaneel|nootmuskaat|komijn|kurkuma|kerrie|cayenne|chilivlokken|pepervlokken|laurier|kruidnagel|paprikapoeder|oregano|\btijm\b|rozemarijn gedroogd|\bsuiker\b|suiker$|basterdsuiker|kristalsuiker|poedersuiker|rietsuiker|\bbloem\b|tarwebloem|\bmeel\b|volkorenmeel|maizena|maïzena|zetmeel|bakpoeder|baksoda|\bgist\b|vanille|paneermeel|garam masala|ras el hanout|za'atar|sumak|korianderzaad|venkelzaad|mosterdzaad|sesamzaad|cacao|gelatine|amandelmeel|kokosrasp/],
+  [KR, /kruiden|kruidenmix|seasoning|specerij|poeder|gedroogde? (oregano|tijm|basilicum|peterselie|rozemarijn|dille|bieslook|munt|koriander|salie|majoraan|chilipeper)|\bpeper\b|zwarte peper|witte peper|peperkorrels|\bzout\b|zeezout|kaneel|nootmuskaat|komijn|kurkuma|kerrie|cayenne|chilivlokken|pepervlokken|laurier|kruidnagel|paprikapoeder|oregano|\btijm\b|rozemarijn gedroogd|\bsuiker\b|suiker$|basterdsuiker|kristalsuiker|poedersuiker|rietsuiker|\bbloem\b|tarwebloem|\bmeel\b|volkorenmeel|maizena|maïzena|zetmeel|bakpoeder|baksoda|\bgist\b|vanille|paneermeel|garam masala|ras el hanout|za'atar|sumak|korianderzaad|venkelzaad|mosterdzaad|komijnzaad|karwijzaad|anijszaad|cacao|gelatine|amandelmeel|kokosrasp/],
   [WK, /sojasaus|ketjap|kokosmelk|kokosroom|sambal|currypasta|gochujang|miso|vissaus|oestersaus|hoisin|sriracha|teriyaki|sweet chili|tahin|kroepoek|rijstvel|nori|wasabi/],
   [OL, /\bolie\b|olijfolie|zonnebloemolie|sesamolie|arachideolie|kokosolie|frituurolie|bakolie|azijn|balsamico|worcester|\bliquid smoke\b/],
   [CO, /saus\b|sausen?\b|ketchup|mayonaise|\bmayo\b|mosterd|pesto|tomatenpuree|passata|gepelde tomaten|tomatenblokjes|gezeefde tomaten|tomatenfrito|bouillon|\bfond\b|soep|\bin blik\b|uit blik|kikkererwten|linzen|kidneybonen|bruine bonen|witte bonen|zwarte bonen|borlottibonen|appelmoes|augurk|olijven|kappertjes|piccalilly|chutney|\bjus\b|zilveruitjes|tonijn in|ansjovis|mais in|maiskorrels|knakworst/],
@@ -33,7 +34,9 @@ const RULES = [
   [ZU, /\bmelk\b|melk$|karnemelk|yoghurt|kwark|skyr|\bvla\b|\bkaas\b|kaas$|geitenkaas|roomkaas|mozzarella|parmezaan|parmigiano|pecorino|feta|halloumi|ricotta|mascarpone|burrata|cheddar|gouda|brie|camembert|\broom\b|slagroom|kookroom|zure room|creme fraiche|crème fraîche|\bboter\b|roomboter|margarine|halvarine|\beieren\b|\bei\b|eidooier|eiwit\b|zuivel/],
   [VV, /\bkip\b|^kip|kippen|kalkoen|\beend\b|eendenborst|rund|runder|biefstuk|ossenhaas|entrecote|rosbief|varken|gehakt|hamburger|\bham\b|hamlappen|spek|ontbijtspek|bacon|pancetta|chorizo|salami|worst|rookworst|braadworst|shoarma|gyros|schnitzel|\bsaté\b|speklap|karbonade|riblap|sukade|stoofvlees|\blam\b|lamsvlees|lamsrack|\bvlees\b|vlees$|\bvis\b|zalm|tonijn|kabeljauw|koolvis|pangasius|tilapia|makreel|haring|forel|garnalen|scampi|mosselen|inktvis|kibbeling|lekkerbek|tofu|tempeh|seitan|vegetarisch|\bvega\b|vegan|falafel|filet\b|filet$|drumstick|vleugel/],
   [WK, /pasta|spaghetti|macaroni|penne|fusilli|farfalle|rigatoni|tagliatelle|linguine|lasagne|orzo|gnocchi|ravioli|tortellini|\brijst\b|rijst$|basmati|jasmijnrijst|risotto|noedels|\bmie\b|mienestjes|udon|ramen|\bbami\b|\bnasi\b|couscous|bulgur|quinoa|tortilla|\bwraps?\b|taco|nachos|tortillachips|pitabroodje|naanbrood|\bnaan\b/],
-  [DR, /(?<!citroen|limoen)sap\b|cognac|brandy|whiske?y|wodka|vodka|\brum\b|\bgin\b|likeur|\bsake\b|\bport\b|sherry|\bmartini\b|cider\b|cider$|prosecco|champagne|frisdrank|\bcola\b|limonade|siroop|\bwater\b|spa\b|\bbier\b|\bwijn\b|\bkoffie\b|\bthee\b|noten|notenmix|cashew|walnoot|walnoten|amandelen|hazelnoten|pinda's|pindas|\bpinda\b|pistache|chips|zoutjes|snoep|koekjes?\b|\bkoek\b|drop\b|energiedrank|smoothie/],
+  // Noten, pinda's, pitten en zaden (specerijzaden zoals korianderzaad staan hierboven bij de kruiden)
+  [NZ, /noten\b|noten$|\bnoot\b|walnoot|hazelnoot|paranoot|pecannoot|cashew|amandelen|\bamandel\b|pinda'?s?\b|pindas\b|pecan|pistache|macadamia|kemiri|pijnboompitten|pompoenpitten|zonnebloempitten|\bpitten\b|chiazaad|lijnzaad|sesamzaad|hennepzaad|maanzaad|\bzaden\b|zadenmix|studentenhaver/],
+  [DR, /(?<!citroen|limoen)sap\b|cognac|brandy|whiske?y|wodka|vodka|\brum\b|\bgin\b|likeur|\bsake\b|\bport\b|sherry|\bmartini\b|cider\b|cider$|prosecco|champagne|frisdrank|\bcola\b|limonade|siroop|\bwater\b|spa\b|\bbier\b|\bwijn\b|\bkoffie\b|\bthee\b|chips|zoutjes|snoep|koekjes?\b|\bkoek\b|drop\b|energiedrank|smoothie/],
   [AGF, /aardappel|krieltjes|zoete aardappel|groente|\bfruit\b|appel|\bpeer\b|peren|banaan|bananen|citroen|limoen|sinaasappel|mandarijn|grapefruit|aardbei|framboos|frambozen|blauwe bes|bessen|\bdruif|druiven|kiwi|mango|ananas|meloen|watermeloen|perzik|nectarine|pruim|kers|\bvijg|granaatappel|avocado|tomaat|tomaten|cherrytomaat|komkommer|paprika|courgette|aubergine|pompoen|broccoli|bloemkool|\bkool\b|spitskool|witte kool|rode kool|savooiekool|boerenkool|zuurkool|spruit|andijvie|\bsla\b|ijsbergsla|rucola|veldsla|spinazie|snijbiet|wortel|\bpeen\b|winterpeen|pastinaak|knolselderij|selderij|bleekselderij|venkel|\bui\b|uien|sjalot|lente-?ui|bosui|knoflook|\bprei\b|champignon|paddenstoel|kastanjechampignon|shiitake|oesterzwam|sperziebonen|snijbonen|tuinbonen|doperwten|peultjes|sugarsnaps|\bmais\b|maiskolf|radijs|biet|bietjes|asperge|artisjok|gember|taugé|tauge|paksoi|chinese kool|rabarber/],
 ];
 
@@ -206,4 +209,22 @@ export function mergeIngredients(keepId, dropId) {
     throw err;
   }
   return db.prepare('SELECT * FROM ingredients WHERE id = ?').get(keepId);
+}
+
+/**
+ * v4.14: nieuwe afdeling ‘Noten & zaden’. Eenmalig de bestaande noten, pitten en zaden daarheen verplaatsen
+ * (alleen uit Dranken & overig, Kruiden, specerijen & bakken en Overig; pindakaas en pindasaus blijven waar ze staan).
+ */
+export function moveNutsToOwnCategory() {
+  if (getSetting('category_nuts_v414')) return 0;
+  const db = getDb();
+  const upd = db.prepare('UPDATE ingredients SET category = ? WHERE id = ?');
+  let moved = 0;
+  for (const ing of db.prepare('SELECT id, name, category FROM ingredients').all()) {
+    if (![DR, KR, 'Overig'].includes(ing.category) || guessCategory(ing.name) !== NZ) continue;
+    upd.run(NZ, ing.id);
+    moved++;
+  }
+  setSetting('category_nuts_v414', '1');
+  return moved;
 }

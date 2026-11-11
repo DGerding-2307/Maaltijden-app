@@ -301,7 +301,7 @@ export function clearPlanLink() {
 export const CAT_EMOJI = {
   'Aardappelen, groente & fruit': '🥦', 'Vlees, vis & vega': '🍗', 'Zuivel, eieren & kaas': '🧀', 'Brood, ontbijt & beleg': '🍞',
   'Pasta, rijst & wereldkeuken': '🍚', 'Conserven, soepen & sauzen': '🥫', 'Kruiden, specerijen & bakken': '🧂', 'Olie, azijn & smaakmakers': '🫒',
-  Diepvries: '🧊', 'Dranken & overig': '🧃', Overig: '🛒',
+  Diepvries: '🧊', 'Noten & zaden': '🥜', 'Dranken & overig': '🧃', Overig: '🛒',
 };
 
 /** Onthoudt (per apparaat) een set namen, bv. welke categorieën uitgeklapt staan. */

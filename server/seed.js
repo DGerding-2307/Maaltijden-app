@@ -14,9 +14,10 @@ const CO = 'Conserven, soepen & sauzen';
 const KR = 'Kruiden, specerijen & bakken';
 const OL = 'Olie, azijn & smaakmakers';
 const DV = 'Diepvries';
+const NZ = 'Noten & zaden';
 const DR = 'Dranken & overig';
 
-export const CATEGORIES = [AGF, VV, ZU, BR, WK, CO, KR, OL, DV, DR, 'Overig'];
+export const CATEGORIES = [AGF, VV, ZU, BR, WK, CO, KR, OL, DV, NZ, DR, 'Overig'];
 
 // Open Food Facts-categorieën (officiële taxonomie) per ingrediënt, voor prijzen uit Open Prices.
 // Meerdere categorieën: van specifiek naar algemeen.
@@ -238,8 +239,8 @@ const I = [
   ['doperwten', DV, 70, 5.5, 9, 4, 0.5, 0.1, 5, 0, null, 450, 149, 0, 'erwtjes,diepvries doperwten', 1, '450 g'],
   ['friet', DV, 150, 2.6, 23, 0.5, 5, 0.6, 2.5, 0.1, null, 1000, 249, 0, 'patat,frites,ovenfriet', 1, '1 kg'],
 
-  ['cashewnoten', DR, 600, 18, 26, 6, 48, 9, 3.3, 0, null, 200, 299, 0, 'cashews', 1, '200 g'],
-  ['pinda\'s', DR, 600, 25, 12, 4, 49, 7, 8, 0, null, 300, 199, 0, 'pinda,ongezouten pinda\'s', 1, '300 g'],
+  ['cashewnoten', NZ, 600, 18, 26, 6, 48, 9, 3.3, 0, null, 200, 299, 0, 'cashews', 1, '200 g'],
+  ['pinda\'s', NZ, 600, 25, 12, 4, 49, 7, 8, 0, null, 300, 199, 0, 'pinda,ongezouten pinda\'s', 1, '300 g'],
 
   // v2.4: extra ingrediënten voor de uitgebreide receptenset
   ["patak's butter chicken saus", CO, 120, 1.4, 9, 7, 8.5, 3.5, 1.2, 1.0, 450, 450, 329, 0, "butter chicken saus,patak's,patak's butter chicken,butter chicken pot", 1, '450 g'],
