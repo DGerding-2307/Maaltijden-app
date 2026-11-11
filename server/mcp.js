@@ -8,7 +8,8 @@ import { getSetting, setSetting } from './db.js';
 import * as repo from './repo.js';
 import * as stock from './stock.js';
 import * as tracker from './tracker.js';
-import { mondayOf } from './seed.js';
+import { mondayOf, CATEGORIES } from './seed.js';
+import { checkIngredients, mergeIngredients } from './ingredient-check.js';
 import { todayISO } from './homeassistant.js';
 import * as photos from './recipe-photos.js';
 
@@ -431,7 +432,7 @@ const TOOLS = {
       gram_per_el: num('Gewicht van 1 eetlepel in gram (water ≈ 15)'),
       gram_per_tl: num('Gewicht van 1 theelepel in gram (water ≈ 5); alleen nodig zonder gram_per_el'),
       aliassen: { type: 'array', items: { type: 'string' }, description: 'Andere namen, bv. [‘sjalotten’, ‘sjalotje’]' },
-      afdeling: str('Afdeling in de winkel, bv. ‘Vlees, vis & vega’ of ‘Kruiden, specerijen & bakken’'),
+      afdeling: { type: 'string', enum: CATEGORIES, description: 'Afdeling in de winkel. Leeg laten bij een nieuw ingrediënt: dan raadt de app hem uit de naam' },
       voorraadkast: { type: 'boolean', description: 'Staat meestal in huis (zout, olie, kruiden): niet standaard op de boodschappenlijst' },
       bijwerken: { type: 'boolean', description: 'Een bestaand ingrediënt met deze naam of alias bijwerken in plaats van een fout geven' },
     },
@@ -460,6 +461,28 @@ const TOOLS = {
       for (const alias of a.aliassen || []) ing = repo.addIngredientAlias(ing.id, alias);
       const linked = repo.relinkUnlinked();
       return { [exact ? 'bijgewerkt' : 'toegevoegd']: true, ingredient: ingredientOut(ing), nieuw_gekoppelde_receptregels: linked };
+    },
+  },
+  ingredienten_controleren: {
+    description: 'Controleer alle ingrediënten: welke staan (waarschijnlijk) in de verkeerde afdeling, en welke zijn dubbel '
+      + '(zelfde naam in enkelvoud/meervoud, of de naam van het ene is een alias van het andere). Geeft per geval een voorstel; '
+      + 'het zijn suggesties, dus kijk zelf of ze kloppen. Pas een afdeling aan met ingredient_toevoegen (bijwerken: true, afdeling) '
+      + 'en voeg dubbele samen met ingredienten_samenvoegen.',
+    input: {},
+    run: () => checkIngredients(),
+  },
+  ingredienten_samenvoegen: {
+    description: 'Voeg een dubbel ingrediënt samen met een ander. Receptregels, planning, dagboek, voorraad, verpakkingen en barcodes '
+      + 'gaan naar het ingrediënt dat je bewaart; de naam en aliassen van het weggehaalde ingrediënt worden aliassen. '
+      + 'Het weggehaalde ingrediënt wordt verwijderd. Kan niet ongedaan worden gemaakt.',
+    input: { bewaren_id: int('Id van het ingrediënt dat blijft'), weghalen_id: int('Id van het dubbele ingrediënt dat erin opgaat') },
+    required: ['bewaren_id', 'weghalen_id'],
+    changes: true,
+    run: ({ bewaren_id: keep, weghalen_id: drop }) => {
+      const dropped = repo.getIngredient(Number(drop));
+      let ing;
+      try { ing = mergeIngredients(keep, drop); } catch (err) { throw fail(err.message); }
+      return { samengevoegd: true, weggehaald: dropped?.name, ingredient: ingredientOut(ing) };
     },
   },
   verpakkingen_bekijken: {

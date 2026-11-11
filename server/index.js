@@ -11,6 +11,7 @@ import { priceForIngredient, ingredientPriceFields } from './openprices.js';
 import { enqueuePrices, priceQueueStatus, clearPriceQueue } from './pricequeue.js';
 import { lookupBarcode, applyBarcode, linkBarcode, listBarcodes, unlinkBarcode } from './scan.js';
 import * as stock from './stock.js';
+import { checkIngredients, mergeIngredients } from './ingredient-check.js';
 import * as tracker from './tracker.js';
 import { buildIcs, calendarToken } from './calendar.js';
 import { haToken, todayOverview, haSensorsJson, haConfig, haLink, connectHomeAssistant, disconnectHomeAssistant, pushStates, schedulePush, lastPushError } from './homeassistant.js';
@@ -317,6 +318,9 @@ export function createApp() {
   }));
   api.put('/ingredients/:id', wrap((req) => repo.saveIngredient(req.body, Number(req.params.id)) || Promise.reject(notFound())));
   api.delete('/ingredients/:id', wrap((req) => repo.deleteIngredient(Number(req.params.id))));
+  // Controle: afdelingen die niet kloppen en dubbele ingrediënten; samenvoegen van twee ingrediënten
+  api.get('/ingredients-check', wrap(() => checkIngredients()));
+  api.post('/ingredients/:id/merge', wrap((req) => mergeIngredients(Number(req.params.id), Number(req.body?.from))));
   api.get('/ingredients/:id/packages', wrap((req) => repo.getPackages(Number(req.params.id)) || Promise.reject(notFound())));
   api.post('/ingredients/:id/packages', wrap((req) => repo.savePackage(Number(req.params.id), req.body || {})));
   api.put('/ingredients/:id/packages/:packageId', wrap((req) => repo.updatePackage(Number(req.params.id), Number(req.params.packageId), req.body || {})));

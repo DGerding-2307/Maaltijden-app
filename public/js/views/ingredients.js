@@ -34,6 +34,7 @@ export async function render(root) {
       <div class="actions">
         <button class="btn btn-primary" data-scan-new>📷 Product scannen</button>
         <button class="btn" data-new>+ Nieuw ingrediënt</button>
+        <button class="btn" data-check title="Zoek ingrediënten in de verkeerde afdeling en dubbele ingrediënten">🔍 Controleren</button>
         <button class="btn" data-off-all title="Vul voedingswaarden aan met Open Food Facts (op de achtergrond)">🥫 Voedingswaarden via Open Food Facts</button>
         <button class="btn" data-prices-all title="Haal Nederlandse winkelprijzen op uit Open Prices (op de achtergrond); handmatige prijzen blijven staan">🏷️ Prijzen via Open Prices</button>
       </div>
@@ -397,6 +398,57 @@ export async function render(root) {
     });
   }
 
+  // Controle: afdelingen die niet lijken te kloppen en dubbele ingrediënten
+  async function checkDialog() {
+    const md = modal(`<h2>🔍 Ingrediënten controleren</h2><div data-body><p class="muted">Bezig met controleren…</p></div>`, { wide: true });
+    const body = $('[data-body]', md.el);
+    const catOptions = (sel) => m.categories.map((c) => `<option${c === sel ? ' selected' : ''}>${esc(c)}</option>`).join('');
+    async function show() {
+      let r;
+      try { r = await api.get('/ingredients-check'); } catch (err) { body.innerHTML = `<p class="error">${esc(err.message)}</p>`; return; }
+      body.innerHTML = `
+        <h3>Dubbele ingrediënten (${r.dubbel.length})</h3>
+        ${r.dubbel.length ? `<p class="muted small">Bij samenvoegen gaan recepten, planning, dagboek, voorraad, verpakkingen en barcodes naar het ingrediënt dat je bewaart.
+          De andere naam wordt een alias. Dit kan niet ongedaan worden gemaakt.</p>
+          <div class="check-list">${r.dubbel.map((g, gi) => `<div class="check-item" data-group="${gi}">
+            <div>${g.ingredienten.map((i) => `<label class="check-choice"><input type="radio" name="keep-${gi}" value="${i.id}"${i.id === g.bewaren ? ' checked' : ''}>
+              <strong>${esc(i.naam)}</strong> <span class="muted small">${esc(i.afdeling)} · ${i.gebruikt}× gebruikt</span></label>`).join('')}
+              <small class="muted">${g.redenen.map(esc).join(' · ')}</small></div>
+            <button class="btn btn-primary" data-merge="${gi}">Samenvoegen</button>
+          </div>`).join('')}</div>` : '<p class="muted">Geen dubbele ingrediënten gevonden. 👍</p>'}
+        <h3>Afdeling controleren (${r.categorie.length})</h3>
+        ${r.categorie.length ? `<p class="muted small">De afdeling wordt geraden uit de naam; kijk zelf of het voorstel klopt.</p>
+          <div class="check-list">${r.categorie.map((c) => `<div class="check-item" data-cat-id="${c.id}">
+            <div><strong>${esc(c.naam)}</strong> <span class="muted small">nu: ${esc(c.afdeling)} · ${esc(c.reden)}</span></div>
+            <select class="input" data-cat-sel>${catOptions(c.voorstel || c.afdeling)}</select>
+            <button class="btn" data-cat-save>Opslaan</button>
+          </div>`).join('')}</div>` : '<p class="muted">Alle afdelingen lijken te kloppen. 👍</p>'}`;
+      body.querySelectorAll('[data-merge]').forEach((b) => b.addEventListener('click', async () => {
+        const g = r.dubbel[Number(b.dataset.merge)];
+        const keep = Number(body.querySelector(`input[name="keep-${b.dataset.merge}"]:checked`).value);
+        const drop = g.ingredienten.filter((i) => i.id !== keep);
+        const keepName = g.ingredienten.find((i) => i.id === keep).naam;
+        if (!(await confirmDialog(`${drop.map((i) => `“${i.naam}”`).join(' en ')} samenvoegen in “${keepName}”?`, 'Samenvoegen'))) return;
+        try {
+          for (const d of drop) await api.post(`/ingredients/${keep}/merge`, { from: d.id });
+          toast(`Samengevoegd in ${keepName}`, 'success');
+          await reload();
+          show();
+        } catch (err) { toast(err.message, 'error'); }
+      }));
+      body.querySelectorAll('[data-cat-save]').forEach((b) => b.addEventListener('click', async () => {
+        const row = b.closest('[data-cat-id]');
+        try {
+          await api.put(`/ingredients/${row.dataset.catId}`, { category: $('[data-cat-sel]', row).value });
+          row.remove();
+          reload();
+        } catch (err) { toast(err.message, 'error'); }
+      }));
+    }
+    show();
+    return md;
+  }
+
   view.addEventListener('input', debounce((e) => {
     if (e.target.matches('[data-q]')) { q = e.target.value.toLowerCase(); draw(); }
     if (e.target.matches('[data-cat]')) { cat = e.target.value; draw(); }
@@ -417,6 +469,7 @@ export async function render(root) {
     const ing = tr && all.find((i) => i.id === Number(tr.dataset.id));
     try {
       if (e.target.closest('[data-new]')) return editDialog();
+      if (e.target.closest('[data-check]')) return checkDialog();
       if (e.target.closest('[data-scan-new]')) {
         return scanProduct({ purpose: 'list' }).then(async (ing) => {
           if (!ing) return;

@@ -57,6 +57,11 @@ geeft hij een tip, maar boos wordt hij nooit. Geef hem zelf een naam: Bolletje, 
 - **Nederlands.** Nederlandse recepten, Nederlandse supermarktprijzen en voedingswaarden uit NEVO en Open Food Facts.
 - **Voor het hele huishouden.** Samen plannen en boodschappen doen, en ieder een eigen dagboek en maatje.
 
+## Nieuw in versie 4.13.0
+
+- 🔍 **Ingrediënten controleren.** Onder **Ingrediënten → Controleren** zie je welke ingrediënten waarschijnlijk in de verkeerde afdeling staan (met een voorstel) en welke dubbel zijn, zoals ‘courgette’ en ‘courgettes’. Dubbele ingrediënten voeg je met één knop samen: recepten, planning, dagboek, voorraad, verpakkingen en barcodes gaan mee, en de andere naam wordt een alias. Claude kan dit ook via de koppeling (`ingredienten_controleren` en `ingredienten_samenvoegen`).
+- 🗂️ **Betere afdelingen.** Een nieuw ingrediënt zonder afdeling krijgt er automatisch één op basis van de naam, in plaats van ‘Overig’. Producten uit Open Food Facts kwamen soms in de verkeerde afdeling (pasta, rijst en aardappelen bij ‘Brood, ontbijt & beleg’); dat is opgelost. Een losse afdeling zoals ‘groente’ wordt de vaste afdeling ‘Aardappelen, groente & fruit’.
+
 ## Nieuw in versie 4.12.5
 
 - 🛒 **Boodschappen in de onderbalk.** De onderbalk op je telefoon is nu: Vandaag · Boodschappen · Loggen · Voorraad · Meer. De Planner vind je onder **Meer**.
