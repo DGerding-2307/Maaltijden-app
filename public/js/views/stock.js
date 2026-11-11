@@ -4,6 +4,16 @@ import { $, $$, esc, num, toast, modal, fmtDate, debounce } from '../util.js';
 import { scanBarcode } from '../scanner.js';
 import { productDialog } from '../scan-flow.js';
 
+/** Gewicht van 1 stuk als het ingrediënt per stuk gaat (eieren, paprika's...), anders null. */
+const pieceW = (x) => (Number(x?.unit_weight_g) >= 30 ? Number(x.unit_weight_g) : null);
+const pieces = (grams, w) => Math.round((Number(grams) / w) * 10) / 10;
+/** '6 stuks' bij ingrediënten per stuk, anders '300 g'. */
+const amount = (grams, w) => {
+  if (!w) return `${num(grams, 0)} g`;
+  const n = pieces(grams, w);
+  return `${num(n, 1)} ${n === 1 ? 'stuk' : 'stuks'}`;
+};
+
 const thtText = (i) => {
   if (!i.best_before) return '';
   if (i.expired) return `<span class="badge warn">over datum (${fmtDate(i.best_before)})</span>`;
@@ -15,11 +25,13 @@ const thtText = (i) => {
 export function addDialog({ ingredient = null, grams = null, ean = null, title = 'In voorraad zetten' } = {}) {
   return new Promise((resolve) => {
     let done = false;
+    let w = pieceW(ingredient);
+    const startVal = grams && w ? pieces(grams, w) : grams;
     const md = modal(`<div class="sheet"><h2>${esc(title)}</h2>
       <form class="form" data-f>
         ${ingredient ? `<p><strong>${esc(ingredient.name)}</strong></p>` : `<label>Ingrediënt <input class="input" name="q" autocomplete="off" placeholder="zoek…" required></label><div data-hits class="stock-hits"></div>`}
         <div class="grid-2">
-          <label>Gewicht per pak (g) <input class="input" type="number" step="any" min="1" inputmode="decimal" name="grams" value="${grams || ''}" required></label>
+          <label><span data-amount-label>${w ? 'Stuks per pak' : 'Gewicht per pak (g)'}</span> <input class="input" type="number" step="any" min="${w ? '0.1' : '1'}" inputmode="decimal" name="grams" value="${startVal || ''}" required></label>
           <label>Aantal <input class="input" type="number" min="1" max="50" name="count" value="1"></label>
           <label class="span-2">THT-datum (optioneel) <input class="input" type="date" name="best_before"></label>
         </div>
@@ -27,6 +39,11 @@ export function addDialog({ ingredient = null, grams = null, ean = null, title =
       </form></div>`, { onClose: () => !done && resolve(null) });
     const f = $('[data-f]', md.el);
     let chosen = ingredient;
+    const setUnit = (ing) => {
+      w = pieceW(ing);
+      $('[data-amount-label]', md.el).textContent = w ? 'Stuks per pak' : 'Gewicht per pak (g)';
+      f.grams.min = w ? '0.1' : '1';
+    };
     if (!ingredient) {
       const hits = $('[data-hits]', md.el);
       f.q.addEventListener('input', debounce(async () => {
@@ -35,12 +52,14 @@ export function addDialog({ ingredient = null, grams = null, ean = null, title =
         if (!q) { hits.innerHTML = ''; return; }
         const list = await api.get(`/ingredients?q=${encodeURIComponent(q)}`);
         const items = (Array.isArray(list) ? list : list.ingredients || []).slice(0, 8);
-        hits.innerHTML = items.map((i) => `<button type="button" class="chip-toggle" data-id="${i.id}" data-g="${i.package_grams || ''}">${esc(i.name)}</button>`).join('') || '<p class="muted small">Niets gevonden</p>';
+        hits.innerHTML = items.map((i) => `<button type="button" class="chip-toggle" data-id="${i.id}">${esc(i.name)}</button>`).join('') || '<p class="muted small">Niets gevonden</p>';
         $$('[data-id]', hits).forEach((b) => b.addEventListener('click', () => {
           chosen = items.find((i) => i.id === Number(b.dataset.id));
           f.q.value = chosen.name;
           hits.innerHTML = '';
-          if (!f.grams.value && b.dataset.g) f.grams.value = b.dataset.g;
+          setUnit(chosen);
+          const pack = Number(chosen.package_grams) || null;
+          if (pack) f.grams.value = w ? pieces(pack, w) : pack;
         }));
       }));
     }
@@ -48,7 +67,8 @@ export function addDialog({ ingredient = null, grams = null, ean = null, title =
       e.preventDefault();
       if (!chosen) { toast('Kies een ingrediënt uit de lijst', 'error'); return; }
       try {
-        const added = await api.post('/stock', { ingredient_id: chosen.id, grams: f.grams.value, count: f.count.value, best_before: f.best_before.value || null, ean });
+        const v = Number(f.grams.value);
+        const added = await api.post('/stock', { ingredient_id: chosen.id, grams: w ? Math.round(v * w * 10) / 10 : v, count: f.count.value, best_before: f.best_before.value || null, ean });
         done = true;
         md.close();
         toast(`${chosen.name} in voorraad gezet`, 'success');
@@ -63,7 +83,7 @@ export async function scanIn() {
   const ean = await scanBarcode({ title: 'Scan in (in huis)' });
   if (!ean) return null;
   const info = await api.get(`/stock/barcode/${ean}`);
-  if (info.ingredient_id) return addDialog({ ingredient: { id: info.ingredient_id, name: info.name }, grams: info.grams, ean });
+  if (info.ingredient_id) return addDialog({ ingredient: { id: info.ingredient_id, name: info.name, unit_weight_g: info.unit_weight_g }, grams: info.grams, ean });
   const ing = await productDialog(ean, { purpose: 'stock' });
   if (!ing) return null;
   return addDialog({ ingredient: ing, grams: ing.package_grams, ean });
@@ -76,25 +96,27 @@ export async function scanOut() {
   const info = await api.get(`/stock/barcode/${ean}`);
   if (!info.ingredient_id) { toast('Deze barcode is nog niet gekoppeld; er staat niets van in de voorraad', 'error'); return null; }
   if (!info.in_stock) { toast(`Er staat geen ${info.name} in de voorraad`, 'error'); return null; }
-  return consumeDialog({ id: info.ingredient_id, name: info.name, grams: info.in_stock });
+  return consumeDialog({ id: info.ingredient_id, name: info.name, grams: info.in_stock, unit_weight_g: info.unit_weight_g });
 }
 
 function consumeDialog(group) {
   return new Promise((resolve) => {
     let done = false;
+    const w = pieceW(group);
     const md = modal(`<div class="sheet"><h2>${esc(group.name)} afboeken</h2>
-      <p class="muted">${num(group.grams, 0)} g in huis. Leeg = het hele (oudste) pak.</p>
+      <p class="muted">${amount(group.grams, w)} in huis. Leeg = het hele (oudste) pak.</p>
       <form class="form" data-f>
-        <label>Hoeveel gram gebruikt? <input class="input" type="number" step="any" min="1" inputmode="decimal" name="grams" placeholder="heel pak"></label>
+        <label>${w ? 'Hoeveel stuks gebruikt?' : 'Hoeveel gram gebruikt?'} <input class="input" type="number" step="any" min="${w ? '0.1' : '1'}" inputmode="decimal" name="grams" placeholder="heel pak"></label>
         <button class="btn btn-primary cta">Afboeken</button>
       </form></div>`, { onClose: () => !done && resolve(null) });
     $('[data-f]', md.el).addEventListener('submit', async (e) => {
       e.preventDefault();
       try {
-        const res = await api.post('/stock/consume', { ingredient_id: group.id, grams: e.target.grams.value || null });
+        const v = Number(e.target.grams.value) || null;
+        const res = await api.post('/stock/consume', { ingredient_id: group.id, grams: v && w ? v * w : v });
         done = true;
         md.close();
-        toast(`${num(res.used, 0)} g ${group.name} afgeboekt`, 'success');
+        toast(`${amount(res.used, w)} ${group.name} afgeboekt`, 'success');
         resolve(res);
       } catch (err) { toast(err.message, 'error'); }
     });
@@ -104,10 +126,11 @@ function consumeDialog(group) {
 function editDialog(item) {
   return new Promise((resolve) => {
     let done = false;
+    const w = pieceW(item);
     const md = modal(`<div class="sheet"><h2>${esc(item.name)}</h2>
       <form class="form" data-f>
         <div class="grid-2">
-          <label>Nog over (g) <input class="input" type="number" step="any" min="0" inputmode="decimal" name="grams" value="${item.grams_left}"></label>
+          <label>${w ? 'Nog over (stuks)' : 'Nog over (g)'} <input class="input" type="number" step="any" min="0" inputmode="decimal" name="grams" value="${w ? pieces(item.grams_left, w) : item.grams_left}"></label>
           <label>THT-datum <input class="input" type="date" name="best_before" value="${esc(item.best_before || '')}"></label>
         </div>
         <div class="row"><button class="btn btn-primary">Opslaan</button><button type="button" class="btn btn-ghost" data-del>🗑️ Weg</button></div>
@@ -115,7 +138,8 @@ function editDialog(item) {
     const close = () => { done = true; md.close(); resolve(true); };
     $('[data-f]', md.el).addEventListener('submit', async (e) => {
       e.preventDefault();
-      try { await api.put(`/stock/${item.id}`, { grams_left: e.target.grams.value, best_before: e.target.best_before.value || null }); close(); } catch (err) { toast(err.message, 'error'); }
+      const v = e.target.grams.value === '' ? undefined : Number(e.target.grams.value);
+      try { await api.put(`/stock/${item.id}`, { grams_left: v != null && w ? Math.round(v * w * 10) / 10 : v, best_before: e.target.best_before.value || null }); close(); } catch (err) { toast(err.message, 'error'); }
     });
     $('[data-del]', md.el).addEventListener('click', async () => {
       try { await api.del(`/stock/${item.id}`); close(); } catch (err) { toast(err.message, 'error'); }
@@ -147,26 +171,28 @@ export async function render(root) {
       return;
     }
     const attention = data.attention.length ? `<div class="card stock-attention"><h2>Bijna over datum</h2>
-      ${data.attention.map((i) => `<div>${esc(i.name)} · ${num(i.grams_left, 0)} g ${thtText(i)}</div>`).join('')}</div>` : '';
+      ${data.attention.map((i) => `<div>${esc(i.name)} · ${amount(i.grams_left, pieceW(i))} ${thtText(i)}</div>`).join('')}</div>` : '';
     body.innerHTML = `${attention}<div class="stock-list">${data.ingredients.map((g) => `
       <div class="card stock-group ${g.expired ? 'expired' : g.expiring ? 'expiring' : ''}">
         <div class="stock-head">
-          <div><strong>${esc(g.name)}</strong> <span class="muted small">${esc(g.category)}</span><div class="stock-total">${num(g.grams, 0)} g in huis</div></div>
+          <div><strong>${esc(g.name)}</strong> <span class="muted small">${esc(g.category)}</span><div class="stock-total">${amount(g.grams, pieceW(g))} in huis</div></div>
           <div class="row"><button class="btn small" data-plus="${g.ingredient_id}" aria-label="Pak toevoegen">＋</button>
             <button class="btn small" data-minus="${g.ingredient_id}" aria-label="Afboeken">−</button></div>
         </div>
         <div class="stock-items">${g.items.map((i) => `<button type="button" class="stock-item" data-item="${i.id}">
-          <span>${num(i.grams_left, 0)}${i.grams_left < i.grams_initial ? ` / ${num(i.grams_initial, 0)}` : ''} g</span>${thtText(i) || '<span class="muted small">geen THT</span>'}</button>`).join('')}</div>
+          <span>${pieceW(i)
+    ? `${num(pieces(i.grams_left, pieceW(i)), 1)}${i.grams_left < i.grams_initial ? ` / ${num(pieces(i.grams_initial, pieceW(i)), 1)}` : ''} ${pieces(i.grams_initial, pieceW(i)) === 1 ? 'stuk' : 'stuks'}`
+    : `${num(i.grams_left, 0)}${i.grams_left < i.grams_initial ? ` / ${num(i.grams_initial, 0)}` : ''} g`}</span>${thtText(i) || '<span class="muted small">geen THT</span>'}</button>`).join('')}</div>
       </div>`).join('')}</div>`;
     const byId = new Map(data.ingredients.map((g) => [g.ingredient_id, g]));
     const items = new Map(data.ingredients.flatMap((g) => g.items).map((i) => [i.id, i]));
     $$('[data-plus]', body).forEach((b) => b.addEventListener('click', () => {
       const g = byId.get(Number(b.dataset.plus));
-      addDialog({ ingredient: { id: g.ingredient_id, name: g.name }, grams: g.items[0]?.grams_initial }).then(after);
+      addDialog({ ingredient: { id: g.ingredient_id, name: g.name, unit_weight_g: g.unit_weight_g }, grams: g.items[0]?.grams_initial }).then(after);
     }));
     $$('[data-minus]', body).forEach((b) => b.addEventListener('click', () => {
       const g = byId.get(Number(b.dataset.minus));
-      consumeDialog({ id: g.ingredient_id, name: g.name, grams: g.grams }).then(after);
+      consumeDialog({ id: g.ingredient_id, name: g.name, grams: g.grams, unit_weight_g: g.unit_weight_g }).then(after);
     }));
     $$('[data-item]', body).forEach((b) => b.addEventListener('click', () => editDialog(items.get(Number(b.dataset.item))).then(after)));
   }

@@ -5,6 +5,14 @@ import { getDb, tx } from './db.js';
 import * as repo from './repo.js';
 import { knownBarcode } from './scan.js';
 
+/** Gewicht van één stuk als het ingrediënt per stuk gaat (eieren, paprika's...), anders null. Zelfde grens als elders: ≥ 30 g. */
+export const pieceWeight = (ing) => (Number(ing?.unit_weight_g) >= 30 ? Number(ing.unit_weight_g) : null);
+/** Gram omrekenen naar stuks (op 0,1 afgerond) voor ingrediënten die per stuk gaan. */
+export const toPieces = (grams, ing) => {
+  const w = pieceWeight(ing);
+  return w ? Math.round((Number(grams) / w) * 10) / 10 : null;
+};
+
 const err = (message, status = 400) => Object.assign(new Error(message), { status });
 const round = (n) => Math.round(Number(n) * 10) / 10;
 const today = () => new Date().toISOString().slice(0, 10);
@@ -33,13 +41,13 @@ export function addStock({ ingredient_id, grams, best_before = null, count = 1, 
 }
 
 export function getItem(id) {
-  const row = getDb().prepare(`SELECT s.*, i.name, i.category, i.image_url FROM stock_items s JOIN ingredients i ON i.id = s.ingredient_id WHERE s.id = ?`).get(Number(id));
+  const row = getDb().prepare(`SELECT s.*, i.name, i.category, i.image_url, i.unit_weight_g FROM stock_items s JOIN ingredients i ON i.id = s.ingredient_id WHERE s.id = ?`).get(Number(id));
   return row ? decorate(row) : null;
 }
 
 function decorate(row) {
   const days = daysUntil(row.best_before);
-  return { ...row, grams_left: round(row.grams_left), days_left: days, expired: days != null && days < 0, expiring: days != null && days >= 0 && days <= 3 };
+  return { ...row, grams_left: round(row.grams_left), unit_weight_g: pieceWeight(row), days_left: days, expired: days != null && days < 0, expiring: days != null && days >= 0 && days <= 3 };
 }
 
 export function updateItem(id, { grams_left, best_before }) {
@@ -59,11 +67,11 @@ export function removeItem(id) {
 
 /** Overzicht per ingrediënt, met de pakken (oudste THT eerst). */
 export function listStock() {
-  const rows = getDb().prepare(`SELECT s.*, i.name, i.category, i.image_url FROM stock_items s JOIN ingredients i ON i.id = s.ingredient_id
+  const rows = getDb().prepare(`SELECT s.*, i.name, i.category, i.image_url, i.unit_weight_g FROM stock_items s JOIN ingredients i ON i.id = s.ingredient_id
     ORDER BY i.name COLLATE NOCASE, s.best_before IS NULL, s.best_before, s.added_at, s.id`).all().map(decorate);
   const groups = new Map();
   for (const r of rows) {
-    if (!groups.has(r.ingredient_id)) groups.set(r.ingredient_id, { ingredient_id: r.ingredient_id, name: r.name, category: r.category, image_url: r.image_url, grams: 0, items: [] });
+    if (!groups.has(r.ingredient_id)) groups.set(r.ingredient_id, { ingredient_id: r.ingredient_id, name: r.name, category: r.category, image_url: r.image_url, unit_weight_g: r.unit_weight_g, grams: 0, items: [] });
     const g = groups.get(r.ingredient_id);
     g.grams = round(g.grams + r.grams_left);
     g.items.push(r);
@@ -210,5 +218,5 @@ export function barcodeInfo(ean) {
   const known = knownBarcode(ean);
   if (!known) return null;
   const ing = repo.getIngredient(known.ingredient_id);
-  return { ...known, name: ing?.name, grams: known.grams || Number(ing?.package_grams) || null, in_stock: stockByIngredient().get(known.ingredient_id) || 0 };
+  return { ...known, name: ing?.name, unit_weight_g: pieceWeight(ing), grams: known.grams || Number(ing?.package_grams) || null, in_stock: stockByIngredient().get(known.ingredient_id) || 0 };
 }
