@@ -57,6 +57,10 @@ geeft hij een tip, maar boos wordt hij nooit. Geef hem zelf een naam: Bolletje, 
 - **Nederlands.** Nederlandse recepten, Nederlandse supermarktprijzen en voedingswaarden uit NEVO en Open Food Facts.
 - **Voor het hele huishouden.** Samen plannen en boodschappen doen, en ieder een eigen dagboek en maatje.
 
+## Nieuw in versie 4.12.5
+
+- 🛒 **Boodschappen in de onderbalk.** De onderbalk op je telefoon is nu: Vandaag · Boodschappen · Loggen · Voorraad · Meer. De Planner vind je onder **Meer**.
+
 ## Nieuw in versie 4.12.4
 
 - 📸 **Scannen met een foto.** Je kunt een barcode nu ook scannen door een foto te maken met de gewone camera van je telefoon. Die stelt zelf scherp en is meestal veel scherper dan live scannen. De app haalt de barcode uit de foto, ook als die scheef of rechtop gemaakt is. In de Android-app is dit de eerste keuze; live scannen kan nog steeds.
