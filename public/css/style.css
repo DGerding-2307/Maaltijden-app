@@ -1269,6 +1269,9 @@ body.auth-only main { padding-bottom: 1.25rem; }
 .shop-tile.done .nm { text-decoration: line-through; }
 .shop-tile.done .ck, .shop-tile input:checked ~ .ck { background: var(--good); border-color: var(--good); }
 .shop-tile .have-btn { position: absolute; right: .55rem; bottom: .45rem; min-width: 0; min-height: 0; width: 2.2rem; height: 2.2rem; padding: 0; }
+.shop-tile .ing-btn { position: absolute; right: 2.95rem; bottom: .45rem; width: 2.2rem; height: 2.2rem; padding: 0; display: grid; place-items: center; text-decoration: none; font-size: .95rem; }
+.shop-tile .ing-btn ~ .have-btn { right: .55rem; }
+.shop-tile:has(.ing-btn) .for { padding-right: 4.8rem; }
 .shop-tile input:focus-visible ~ .ph { outline: 3px solid var(--primary); }
 .shop-c .done-bar { background: var(--text); color: var(--bg); border: 0; border-radius: 999px; }
 .shop-c .done-bar .btn-primary { box-shadow: none; }

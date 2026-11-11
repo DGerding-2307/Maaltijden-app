@@ -22,7 +22,7 @@ export function nutriscore(grade) {
   return grade ? `<span class="nutriscore ns-${esc(grade)}" title="Nutri-Score ${esc(grade.toUpperCase())}">${esc(grade.toUpperCase())}</span>` : '';
 }
 
-export async function render(root) {
+export async function render(root, params = {}) {
   const m = await meta();
   let all = await api.get('/ingredients');
   let q = '';
@@ -108,7 +108,7 @@ export async function render(root) {
     draw();
   }
 
-  function editDialog(ing = {}) {
+  function editDialog(ing = {}, { onClose } = {}) {
     const fields = Object.entries(NUTRIENT_LABELS).map(([k, [label, unit]]) => `
       <label>${esc(label.trim())} (${unit}) <input class="input" type="number" step="any" min="0" name="${k}" value="${ing[k] ?? ''}"></label>`).join('');
     const md = modal(`
@@ -148,7 +148,7 @@ export async function render(root) {
         </div>
         ${ing.id ? '<section data-packages></section><section data-barcodes></section>' : ''}
         <div class="row end"><button class="btn btn-primary">Opslaan</button></div>
-      </form>`, { wide: true });
+      </form>`, { wide: true, onClose });
     const form = $('[data-form]', md.el);
     bindMediaFields(form);
     if (ing.id) packagesEditor($('[data-packages]', md.el), ing);
@@ -160,9 +160,9 @@ export async function render(root) {
       e.target.textContent = 'Claude schat…';
       try {
         const updated = await api.post(`/ingredients/${ing.id}/estimate`);
-        md.close();
         await reload();
-        editDialog(updated);
+        editDialog(updated, { onClose });
+        md.close();
         toast('Voedingswaarden geschat door Claude', 'success');
       } catch (err) { toast(err.message, 'error'); e.target.disabled = false; }
     });
@@ -519,5 +519,18 @@ export async function render(root) {
 
   draw();
   showQueue();
+  // Vanaf de boodschappenlijst (✏️ op een kaartje): meteen dat ingrediënt openen, daarna terug naar de lijst
+  const fromLink = all.find((i) => i.id === Number(params.id));
+  if (fromLink) {
+    q = fromLink.name.toLowerCase();
+    $('[data-q]', view).value = fromLink.name;
+    draw();
+    const back = params.terug?.startsWith('/') ? params.terug : null;
+    // Pas terug als er geen ander venster (Open Food Facts, prijzen) voor in de plaats komt
+    const goBack = () => setTimeout(() => {
+      if (!document.querySelector('.modal-backdrop') && location.hash.startsWith('#/ingredienten')) location.hash = `#${back}`;
+    }, 0);
+    editDialog(fromLink, { onClose: back ? goBack : undefined });
+  }
   return () => clearTimeout(pollTimer);
 }

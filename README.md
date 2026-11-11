@@ -57,6 +57,11 @@ geeft hij een tip, maar boos wordt hij nooit. Geef hem zelf een naam: Bolletje, 
 - **Nederlands.** Nederlandse recepten, Nederlandse supermarktprijzen en voedingswaarden uit NEVO en Open Food Facts.
 - **Voor het hele huishouden.** Samen plannen en boodschappen doen, en ieder een eigen dagboek en maatje.
 
+## Nieuw in versie 4.15.0
+
+- ✏️ **Van boodschap naar ingrediënt.** Op elk kaartje in de boodschappenlijst (en bij ‘Al in huis’) staat een ✏️-knopje. Daarmee open je meteen dat ingrediënt om prijs, verpakking, foto of afdeling aan te passen. Na opslaan of sluiten sta je weer op je boodschappenlijst.
+- 🐛 **Opslaan met lege ‘andere namen’.** Een ingrediënt opslaan waarbij het veld ‘Andere namen’ leeg was, gaf de fout ‘NOT NULL constraint failed: ingredients.aliases’. Dat is opgelost.
+
 ## Nieuw in versie 4.14.0
 
 - 🥜 **Nieuwe afdeling: Noten & zaden.** Noten, pinda's, pitten en zaden (walnoten, cashewnoten, pompoenpitten, sesamzaad, chiazaad …) hebben nu hun eigen afdeling in ingrediënten, boodschappen en voorraad. Wat al in de app stond, wordt bij de update één keer automatisch verplaatst. Pindakaas, pindasaus en specerijzaden zoals korianderzaad blijven waar ze stonden.
