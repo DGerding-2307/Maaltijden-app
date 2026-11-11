@@ -57,6 +57,10 @@ geeft hij een tip, maar boos wordt hij nooit. Geef hem zelf een naam: Bolletje, 
 - **Nederlands.** Nederlandse recepten, Nederlandse supermarktprijzen en voedingswaarden uit NEVO en Open Food Facts.
 - **Voor het hele huishouden.** Samen plannen en boodschappen doen, en ieder een eigen dagboek en maatje.
 
+## Nieuw in versie 4.12.1
+
+- 🔕 **Vandaag is rustiger.** De kaart met herinneringen staat niet meer op Vandaag. Herinneringen aan- of uitzetten doe je bij **Meer → Account & herinneringen**.
+
 ## Nieuw in versie 4.12.0
 
 - 🥫 **Voorraad: zie wat je in huis hebt.** Een nieuw tabblad **Voorraad** laat per ingrediënt zien hoeveel je in huis hebt, per pak met een eigen THT-datum. Wat bijna over de datum is, staat bovenaan.
