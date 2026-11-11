@@ -1336,3 +1336,12 @@ html:has(.modal-backdrop) { overflow: hidden; }
 .stock-attention h2 { margin-top: 0; font-size: 1rem; }
 .stock-hits { display: flex; flex-wrap: wrap; gap: .3rem; }
 .in-stock { color: var(--primary); font-weight: 600; }
+
+/* Scanner: scherpstellen, zoom en lamp (v4.12.2) */
+.scanner { cursor: crosshair; touch-action: manipulation; }
+.focus-ring { position: absolute; left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px 0 0 -32px; border: 2px solid #ffd60a; border-radius: 10px; pointer-events: none; opacity: 0; }
+.focus-ring.pulse { animation: focus-pulse .9s ease-out; }
+@keyframes focus-pulse { 0% { opacity: 1; transform: scale(1.4); } 40% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1); } }
+.scan-controls { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin-bottom: .4rem; }
+.scan-zoom { display: inline-flex; align-items: center; gap: .3rem; flex: 1 1 140px; }
+.scan-zoom input { flex: 1; min-width: 0; }
