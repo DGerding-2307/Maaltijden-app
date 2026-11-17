@@ -923,6 +923,8 @@ a { color: var(--primary-text); }
 .ring .v b { font-family: var(--head); font-size: 2rem; font-weight: 600; }
 .ring .v small { font-size: .8rem; color: var(--muted); font-weight: 700; }
 .mac { margin: .5rem 0; }
+.day-limits { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0 1.2rem; border-top: 1px solid var(--border); padding-top: .4rem; }
+.day-limits .mac { margin: .4rem 0; }
 .mac .t { display: flex; justify-content: space-between; font-weight: 700; font-size: .9rem; gap: .5rem; }
 .mac .t span { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .mac .bar { position: relative; height: 9px; border-radius: 99px; background: var(--surface-2); margin-top: .25rem; overflow: hidden; }
