@@ -57,6 +57,10 @@ geeft hij een tip, maar boos wordt hij nooit. Geef hem zelf een naam: Bolletje, 
 - **Nederlands.** Nederlandse recepten, Nederlandse supermarktprijzen en voedingswaarden uit NEVO en Open Food Facts.
 - **Voor het hele huishouden.** Samen plannen en boodschappen doen, en ieder een eigen dagboek en maatje.
 
+## Nieuw in versie 4.17.0
+
+- 🎯 **Alle doelen op Vandaag.** Onder eiwit, koolhydraten en vet zie je nu ook vezels, verzadigd vet, suiker en zout. Vezels is een doel om te halen; verzadigd vet, suiker en zout zijn een bovengrens: ga je eroverheen, dan wordt de balk rood en zie je hoeveel te veel.
+
 ## Nieuw in versie 4.16.0
 
 - 📖 **Van Vandaag naar het recept.** Tik op het Vandaag-scherm op een gepland of gegeten recept, dan open je meteen dat recept. Wat je gegeten hebt pas je aan met het ✏️-knopje bij de kcal.

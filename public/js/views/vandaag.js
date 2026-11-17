@@ -108,16 +108,24 @@ export async function render(root, params) {
     const e = day.expected_totals || n;
     const hasPlan = e.kcal > n.kcal;
     const pctOf = (v, target) => Math.min(100, (v / (target || 1)) * 100);
-    const mac = (label, key, target, color) => {
-      const v = n[key]; const after = e[key];
-      return `<div class="mac"><div class="t">${label} <span>${num(v, 0)} / ${num(target, 0)} g</span></div>
-      <div class="bar">${after > v ? `<i class="plan" style="width:${pctOf(after, target)}%;background:var(${color})"></i>` : ''}<i style="width:${pctOf(v, target)}%;background:var(${color})"></i></div>
-      ${after > v ? `<div class="plan-note">met planning ${num(after, 0)} g</div>` : ''}</div>`;
+    // d = decimalen; max = een bovengrens (verzadigd vet, suiker, zout): daarboven wordt de balk rood
+    const mac = (label, key, target, color, { d = 0, max = false } = {}) => {
+      const v = n[key] || 0; const after = e[key] || 0;
+      const over = max && v > target;
+      const c = over ? '--bad' : color;
+      const note = over ? `<div class="plan-note bad">${num(v - target, d)} g te veel</div>`
+        : after > v ? `<div class="plan-note${max && after > target ? ' bad' : ''}">met planning ${num(after, d)} g</div>`
+        : !max && target && v >= target ? '<div class="plan-note">✓ doel gehaald</div>' : '';
+      return `<div class="mac"><div class="t">${label} <span>${num(v, d)} / ${max ? 'max ' : ''}${num(target, d)} g</span></div>
+      <div class="bar">${after > v ? `<i class="plan" style="width:${pctOf(after, target)}%;background:var(${c})"></i>` : ''}<i style="width:${pctOf(v, target)}%;background:var(${c})"></i></div>
+      ${note}</div>`;
     };
     $('[data-day]', root).innerHTML = `<div class="ring ${left < 0 ? 'over' : ''}">${ring(n.kcal, t.kcal, e.kcal)}
         <div class="v"><b>${num(Math.abs(left), 0)}</b><small>${left >= 0 ? 'kcal over' : 'kcal te veel'}</small></div></div>
       <div>${mac('Eiwit', 'protein', t.protein, '--m-p')}${mac('Koolhydraten', 'carbs', t.carbs, '--m-c')}${mac('Vet', 'fat', t.fat, '--m-f')}
-        <p class="muted small" style="margin:.3rem 0 0">${num(n.kcal, 0)} van ${num(t.kcal, 0)} kcal gegeten${hasPlan ? `<br>Eet je alles wat gepland staat: <strong class="${e.kcal > t.kcal ? 'bad' : ''}">${num(e.kcal, 0)} kcal</strong>` : ''}</p></div>`;
+        <p class="muted small" style="margin:.3rem 0 0">${num(n.kcal, 0)} van ${num(t.kcal, 0)} kcal gegeten${hasPlan ? `<br>Eet je alles wat gepland staat: <strong class="${e.kcal > t.kcal ? 'bad' : ''}">${num(e.kcal, 0)} kcal</strong>` : ''}</p></div>
+      <div class="day-limits">${mac('Vezels', 'fiber', t.fiber, '--m-p')}${mac('Verzadigd vet', 'sat_fat', t.sat_fat, '--m-f', { max: true })}
+        ${mac('Suiker', 'sugar', t.sugar, '--m-c', { max: true })}${mac('Zout', 'salt', t.salt, '--muted', { d: 1, max: true })}</div>`;
   }
 
   function drawMeals(day) {
